@@ -65,9 +65,11 @@ public:
     void paint(juce::Graphics& g) override;
     void resized() override;
 
-private:
-    void openSampleBrowser(int trackIdx);
+    SampleBrowserModal* openSampleBrowser(int trackIdx, const juce::File& folder = {});
     void closeSampleBrowser();
+    SampleBrowserModal* getActiveBrowser() noexcept { return activeBrowser_.get(); }
+
+private:
 
     openfruit::core::FruitEngine& engine_;
     openfruit::core::ToneCache& cache_;

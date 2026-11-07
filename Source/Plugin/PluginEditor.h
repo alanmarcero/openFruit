@@ -14,6 +14,10 @@ public:
     void paint(juce::Graphics& g) override;
     void resized() override;
 
+    void openSampleBrowser(int trackIdx, const juce::File& folder = {}) {
+        trackerPanel_.openSampleBrowser(trackIdx, folder);
+    }
+
 private:
     void timerCallback() override;
 
