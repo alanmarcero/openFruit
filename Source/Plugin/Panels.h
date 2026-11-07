@@ -48,6 +48,9 @@ private:
     // Master Volume
     juce::Slider masterVolSlider_;
     juce::Label masterVolLabel_{ "Master", "Master volume" };
+
+    juce::Image fruitLogo_;
+    juce::Image faceplateTexture_;
 };
 
 class TrackerPanel : public juce::Component {
@@ -80,6 +83,7 @@ private:
     std::array<std::unique_ptr<TrackRowComponent>, openfruit::core::kMaxTracks> rows_;
 
     std::unique_ptr<SampleBrowserModal> activeBrowser_;
+    juce::Image faceplateTexture_;
 };
 
 } // namespace openfruit::ui
