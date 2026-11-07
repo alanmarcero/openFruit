@@ -31,6 +31,22 @@ A 16-track step sequencer and sample player based on the classic FL Studio pad t
 - `Source/Core/FruitEngine.cpp`: 16-track audio engine, clock advance, voice allocation, and MIDI handling.
 - `Source/Plugin/`: JUCE audio processor, APVTS parameters, custom step pads, sample browser modal, and layout panels.
 
+## Pitch detection algorithm
+
+The sonic analyzer estimates sample pitch through `SonicAnalyzer::analyze` using the following steps:
+
+1. Window selection: audio is downmixed to mono, and an analysis window of up to 4096 samples is selected around the sound body, bypassing initial attack transients where noisy impact energy can mask the fundamental tone.
+2. Normalized square difference function (NSDF): calculates autocorrelation normalized across lags corresponding to 25 Hz through 2400 Hz:
+   `r(tau) = (2 * sum(x[j] * x[j + tau])) / (sum(x[j]^2) + sum(x[j + tau]^2))`
+   Values are bounded between -1.0 and +1.0, with values close to 1.0 indicating periodic alignment.
+3. First-peak selection: finds all local maxima in the NSDF curve. To prevent octave errors from integer period multiples, it selects the first local maximum whose value meets a dynamic threshold of `max(0.40, 0.80 * max_peak_value)`.
+4. Parabolic interpolation: fits a parabola across the discrete peak lag index and its two immediate neighbors, resolving fractional period length to sub-sample precision:
+   `delta = (r[tau + 1] - r[tau - 1]) / (2 * (2 * r[tau] - r[tau - 1] - r[tau + 1]))`
+   `f0 = sample_rate / (tau + delta)`
+5. Musical note mapping: converts estimated frequency `f0` in Hz to the nearest chromatic MIDI note number:
+   `midi = 69 + 12 * log2(f0 / 440)`
+   The fractional remainder determines detune in cents (`+/- 50c`), and the integer note maps to standard pitch notation (`C3`, `F#1`, `A4`). If no peak meets the confidence threshold, the analyzer reports the sound as unpitched.
+
 ## Build instructions
 
 Requires CMake 3.22 or newer and a C++20 compiler.
