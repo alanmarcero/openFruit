@@ -15,18 +15,18 @@ SampleBrowserModal::SampleBrowserModal(int targetTrackIdx,
       palette_(openfruit::theme::getPalette(openfruit::core::ColorTheme::CyberpunkNeon)) {
 
     // 1. Title Label
-    titleLabel_.setText("SAMPLE BROWSER - TRACK " + juce::String(targetTrackIdx + 1) + " (MIDI CH " + juce::String(targetTrackIdx + 1) + ")",
+    titleLabel_.setText("Sample browser: track " + juce::String(targetTrackIdx + 1) + " (MIDI channel " + juce::String(targetTrackIdx + 1) + ")",
                         juce::dontSendNotification);
     titleLabel_.setFont(juce::FontOptions(14.0f, juce::Font::bold));
     addAndMakeVisible(titleLabel_);
 
     // 2. Folder Navigation & Buttons
-    folderLabel_.setText("Folder: (None)", juce::dontSendNotification);
+    folderLabel_.setText("Folder: (none)", juce::dontSendNotification);
     addAndMakeVisible(folderLabel_);
 
     browseFolderBtn_.onClick = [this] {
         fileChooser_ = std::make_unique<juce::FileChooser>(
-            "Select Sample Folder",
+            "Select sample folder",
             juce::File::getSpecialLocation(juce::File::userHomeDirectory),
             "*"
         );
@@ -48,10 +48,10 @@ SampleBrowserModal::SampleBrowserModal(int targetTrackIdx,
     addAndMakeVisible(clearCacheBtn_);
 
     // 3. Sorting Dropdown
-    sortBox_.addItem("Sort by Length (Shortest)", 1);
-    sortBox_.addItem("Sort by Length (Longest)", 2);
-    sortBox_.addItem("Sort by Name", 3);
-    sortBox_.addItem("Sort by Note / Tone", 4);
+    sortBox_.addItem("Sort by length (shortest first)", 1);
+    sortBox_.addItem("Sort by length (longest first)", 2);
+    sortBox_.addItem("Sort by name", 3);
+    sortBox_.addItem("Sort by tone", 4);
     sortBox_.setSelectedId(1, juce::dontSendNotification);
     sortBox_.onChange = [this] {
         sortMode_ = sortBox_.getSelectedId();
@@ -61,8 +61,8 @@ SampleBrowserModal::SampleBrowserModal(int targetTrackIdx,
 
     // 4. Table List Box
     table_.setModel(this);
-    table_.getHeader().addColumn("File Name", 1, 260, 150, 400);
-    table_.getHeader().addColumn("Estimated Tone / Note", 2, 170, 120, 250);
+    table_.getHeader().addColumn("File", 1, 260, 150, 400);
+    table_.getHeader().addColumn("Tone", 2, 170, 120, 250);
     table_.getHeader().addColumn("Length", 3, 110, 80, 160);
     table_.setMultipleSelectionEnabled(false);
     addAndMakeVisible(table_);
@@ -74,9 +74,9 @@ SampleBrowserModal::SampleBrowserModal(int targetTrackIdx,
     playBtn_.onClick = [this] { previewSelectedItem(); };
     addAndMakeVisible(playBtn_);
 
-    midiLiveNoteLabel_.setText("LIVE MIX AUDITION: Play MIDI Ch " + juce::String(targetTrackIdx + 1) + " to hear sample live in mix!",
+    midiLiveNoteLabel_.setText("MIDI channel " + juce::String(targetTrackIdx + 1) + " plays the selected sample in the mix.",
                                juce::dontSendNotification);
-    midiLiveNoteLabel_.setFont(juce::FontOptions(11.0f, juce::Font::italic));
+    midiLiveNoteLabel_.setFont(juce::FontOptions(11.0f));
     addAndMakeVisible(midiLiveNoteLabel_);
 
     commitBtn_.onClick = [this] { commitSelection(); };

@@ -34,7 +34,7 @@ HeaderPanel::HeaderPanel(openfruit::core::FruitEngine& engine,
     pageLabel_.setFont(juce::FontOptions(11.0f, juce::Font::bold));
     addAndMakeVisible(pageLabel_);
 
-    const std::array<const char*, 4> pageNames = { "PAGE A", "PAGE B", "PAGE C", "PAGE D" };
+    const std::array<const char*, 4> pageNames = { "Page A", "Page B", "Page C", "Page D" };
     for (size_t i = 0; i < 4; ++i) {
         pageBtns_[i].setButtonText(pageNames[i]);
         pageBtns_[i].setClickingTogglesState(false);
@@ -123,7 +123,7 @@ void HeaderPanel::updateFromParameters() {
 
     // 3. Mode Button
     const bool isMidi = (engine_.getInputControlMode() == openfruit::core::InputControlMode::MidiMode);
-    modeBtn_.setButtonText(isMidi ? "MODE: MIDI ONLY" : "MODE: PAD TRACKER");
+    modeBtn_.setButtonText(isMidi ? "MIDI mode" : "Sequencer mode");
     modeBtn_.setColour(juce::TextButton::buttonColourId,
                        isMidi ? palette_.midiChannelBadge : palette_.accentPrimary);
 }
@@ -152,7 +152,7 @@ void HeaderPanel::paint(juce::Graphics& g) {
     // Subtitle badge
     g.setColour(palette_.accentSecondary);
     g.setFont(juce::FontOptions(9.0f, juce::Font::bold));
-    g.drawText("16-TRACK STEP TRACKER", 16, 40, 130, 14, juce::Justification::centredLeft, false);
+    g.drawText("16-track step tracker", 16, 40, 130, 14, juce::Justification::centredLeft, false);
 }
 
 void HeaderPanel::resized() {

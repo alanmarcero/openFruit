@@ -32,22 +32,22 @@ private:
     openfruit::theme::Palette palette_;
 
     // Track Count Toggle: 4, 8, 12, 16
-    juce::Label trackCountLabel_{ "Tracks:", "TRACKS:" };
+    juce::Label trackCountLabel_{ "Tracks:", "Tracks:" };
     std::array<juce::TextButton, 4> trackCountBtns_;
 
     // Automatable Pages: A, B, C, D
-    juce::Label pageLabel_{ "Pages:", "PATTERN PAGE:" };
+    juce::Label pageLabel_{ "Pages:", "Page:" };
     std::array<juce::TextButton, 4> pageBtns_;
 
     // Mode Toggle: Sequencer vs MIDI
-    juce::TextButton modeBtn_{ "PAD SEQUENCER" };
+    juce::TextButton modeBtn_{ "Sequencer mode" };
 
     // Theme selector
     juce::ComboBox themeBox_;
 
     // Master Volume
     juce::Slider masterVolSlider_;
-    juce::Label masterVolLabel_{ "Master", "MASTER" };
+    juce::Label masterVolLabel_{ "Master", "Master volume" };
 };
 
 class TrackerPanel : public juce::Component {

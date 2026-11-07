@@ -145,7 +145,7 @@ TrackRowComponent::TrackRowComponent(int trackIdx, openfruit::core::FruitEngine&
     : trackIdx_(trackIdx), engine_(engine), palette_(openfruit::theme::getPalette(openfruit::core::ColorTheme::CyberpunkNeon)) {
 
     // 1. Sample Trigger Pad Button
-    samplePadBtn_.setButtonText("Loading...");
+    samplePadBtn_.setButtonText("Loading");
     samplePadBtn_.onClick = [this] {
         engine_.triggerTrackManual(trackIdx_);
         if (onSampleAudition) onSampleAudition(trackIdx_);
@@ -153,7 +153,7 @@ TrackRowComponent::TrackRowComponent(int trackIdx, openfruit::core::FruitEngine&
     addAndMakeVisible(samplePadBtn_);
 
     // 2. Load / Browse Button
-    loadBtn_.setButtonText("LOAD");
+    loadBtn_.setButtonText("Browse");
     loadBtn_.onClick = [this] {
         if (onOpenBrowser) onOpenBrowser(trackIdx_);
     };

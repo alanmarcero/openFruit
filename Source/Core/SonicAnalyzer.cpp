@@ -61,7 +61,7 @@ std::string ToneAnalysisResult::formattedTone() const {
             ss << "~" << static_cast<int>(std::round(dominantFrequencyHz)) << " Hz";
             return ss.str();
         }
-        return "Noise / Perc";
+        return "Unpitched";
     }
 
     std::ostringstream ss;
