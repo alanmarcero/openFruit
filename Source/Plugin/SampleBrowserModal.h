@@ -65,16 +65,16 @@ private:
 
     juce::Label titleLabel_;
     juce::Label folderLabel_;
-    juce::TextButton browseFolderBtn_{ "Browse Folder..." };
-    juce::TextButton clearCacheBtn_{ "Clear Tone Cache" };
+    juce::TextButton browseFolderBtn_{ "Browse folder" };
+    juce::TextButton clearCacheBtn_{ "Clear cache" };
     juce::ComboBox sortBox_;
 
     juce::TableListBox table_;
 
-    juce::ToggleButton autoPlayToggle_{ "Auto-Play" };
-    juce::TextButton playBtn_{ "► Audition" };
+    juce::ToggleButton autoPlayToggle_{ "Autoplay" };
+    juce::TextButton playBtn_{ "Preview" };
     juce::Label midiLiveNoteLabel_;
-    juce::TextButton commitBtn_{ "Load Sample" };
+    juce::TextButton commitBtn_{ "Load" };
     juce::TextButton cancelBtn_{ "Cancel" };
 
     std::unique_ptr<juce::FileChooser> fileChooser_;

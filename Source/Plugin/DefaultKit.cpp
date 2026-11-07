@@ -49,7 +49,7 @@ std::vector<std::shared_ptr<openfruit::core::AudioSampleBuffer>> createDefaultKi
             if (phase >= kTwoPi) phase -= kTwoPi;
             data[static_cast<size_t>(i)] = std::sin(phase) * env;
         }
-        kit.push_back(createBuffer("808 Deep Kick", data, sampleRate));
+        kit.push_back(createBuffer("808 kick", data, sampleRate));
     }
 
     // 2. Snare Punch
@@ -68,7 +68,7 @@ std::vector<std::shared_ptr<openfruit::core::AudioSampleBuffer>> createDefaultKi
             const float noise = noiseDist(rng) * envNoise * 0.5f;
             data[static_cast<size_t>(i)] = tone + noise;
         }
-        kit.push_back(createBuffer("Snare Punch", data, sampleRate));
+        kit.push_back(createBuffer("Snare", data, sampleRate));
     }
 
     // 3. Clap Cyber
@@ -83,7 +83,7 @@ std::vector<std::shared_ptr<openfruit::core::AudioSampleBuffer>> createDefaultKi
                 data[static_cast<size_t>(offset + i)] += noiseDist(rng) * env * 0.35f;
             }
         }
-        kit.push_back(createBuffer("Clap Cyber", data, sampleRate));
+        kit.push_back(createBuffer("Clap", data, sampleRate));
     }
 
     // 4. Closed Hi-Hat
@@ -99,7 +99,7 @@ std::vector<std::shared_ptr<openfruit::core::AudioSampleBuffer>> createDefaultKi
             prev = white;
             data[static_cast<size_t>(i)] = hp * env * 0.7f;
         }
-        kit.push_back(createBuffer("Hat Closed", data, sampleRate));
+        kit.push_back(createBuffer("Closed hat", data, sampleRate));
     }
 
     // 5. Open Hi-Hat
@@ -115,7 +115,7 @@ std::vector<std::shared_ptr<openfruit::core::AudioSampleBuffer>> createDefaultKi
             prev = white;
             data[static_cast<size_t>(i)] = hp * env * 0.6f;
         }
-        kit.push_back(createBuffer("Hat Open", data, sampleRate));
+        kit.push_back(createBuffer("Open hat", data, sampleRate));
     }
 
     // 6. Rimshot
@@ -144,7 +144,7 @@ std::vector<std::shared_ptr<openfruit::core::AudioSampleBuffer>> createDefaultKi
             phase += kTwoPi * freq / static_cast<float>(sampleRate);
             data[static_cast<size_t>(i)] = std::sin(phase) * env * 0.85f;
         }
-        kit.push_back(createBuffer("Tom Low", data, sampleRate));
+        kit.push_back(createBuffer("Low tom", data, sampleRate));
     }
 
     // 8. High Tom (D2 ~ 73.4 Hz)
@@ -159,7 +159,7 @@ std::vector<std::shared_ptr<openfruit::core::AudioSampleBuffer>> createDefaultKi
             phase += kTwoPi * freq / static_cast<float>(sampleRate);
             data[static_cast<size_t>(i)] = std::sin(phase) * env * 0.85f;
         }
-        kit.push_back(createBuffer("Tom High", data, sampleRate));
+        kit.push_back(createBuffer("High tom", data, sampleRate));
     }
 
     // 9. Shaker Pulse
@@ -171,7 +171,7 @@ std::vector<std::shared_ptr<openfruit::core::AudioSampleBuffer>> createDefaultKi
             const float env = std::exp(-35.0f * t);
             data[static_cast<size_t>(i)] = noiseDist(rng) * env * 0.5f;
         }
-        kit.push_back(createBuffer("Shaker Pulse", data, sampleRate));
+        kit.push_back(createBuffer("Shaker", data, sampleRate));
     }
 
     // 10. Synth Bass Note (F1 ~ 43.6 Hz)
@@ -186,7 +186,7 @@ std::vector<std::shared_ptr<openfruit::core::AudioSampleBuffer>> createDefaultKi
             if (phase >= kTwoPi) phase -= kTwoPi;
             data[static_cast<size_t>(i)] = std::sin(phase) * env * 0.9f;
         }
-        kit.push_back(createBuffer("Sub Bass F1", data, sampleRate));
+        kit.push_back(createBuffer("Sub bass F1", data, sampleRate));
     }
 
     // 11. Cowbell Vintage
@@ -203,7 +203,7 @@ std::vector<std::shared_ptr<openfruit::core::AudioSampleBuffer>> createDefaultKi
             const float square2 = (std::sin(p2) > 0.0f ? 1.0f : -1.0f);
             data[static_cast<size_t>(i)] = (square1 + square2) * 0.35f * env;
         }
-        kit.push_back(createBuffer("Cowbell Vintage", data, sampleRate));
+        kit.push_back(createBuffer("Cowbell", data, sampleRate));
     }
 
     // 12. Cyber Stab (A3 ~ 220 Hz)
@@ -218,7 +218,7 @@ std::vector<std::shared_ptr<openfruit::core::AudioSampleBuffer>> createDefaultKi
             p2 += kTwoPi * 220.7f / static_cast<float>(sampleRate); // slight detune
             data[static_cast<size_t>(i)] = (std::sin(p1) + 0.6f * std::sin(p2)) * env * 0.5f;
         }
-        kit.push_back(createBuffer("Cyber Stab A3", data, sampleRate));
+        kit.push_back(createBuffer("Stab A3", data, sampleRate));
     }
 
     // 13. Perc Blip (E4 ~ 329.6 Hz)
@@ -233,7 +233,7 @@ std::vector<std::shared_ptr<openfruit::core::AudioSampleBuffer>> createDefaultKi
             phase += kTwoPi * freq / static_cast<float>(sampleRate);
             data[static_cast<size_t>(i)] = std::sin(phase) * env * 0.8f;
         }
-        kit.push_back(createBuffer("Perc Blip E4", data, sampleRate));
+        kit.push_back(createBuffer("Perc E4", data, sampleRate));
     }
 
     // 14. Metallic Hit
@@ -248,7 +248,7 @@ std::vector<std::shared_ptr<openfruit::core::AudioSampleBuffer>> createDefaultKi
             p2 += kTwoPi * 1740.0f / static_cast<float>(sampleRate);
             data[static_cast<size_t>(i)] = (std::sin(p1) * std::sin(p2) + 0.2f * noiseDist(rng)) * env * 0.6f;
         }
-        kit.push_back(createBuffer("Metallic Hit", data, sampleRate));
+        kit.push_back(createBuffer("Metal hit", data, sampleRate));
     }
 
     // 15. Glitch Zap
@@ -263,7 +263,7 @@ std::vector<std::shared_ptr<openfruit::core::AudioSampleBuffer>> createDefaultKi
             phase += kTwoPi * freq / static_cast<float>(sampleRate);
             data[static_cast<size_t>(i)] = std::sin(phase) * env * 0.85f;
         }
-        kit.push_back(createBuffer("Glitch Zap", data, sampleRate));
+        kit.push_back(createBuffer("Zap", data, sampleRate));
     }
 
     // 16. Cyber Crash
@@ -279,7 +279,7 @@ std::vector<std::shared_ptr<openfruit::core::AudioSampleBuffer>> createDefaultKi
             prev = white;
             data[static_cast<size_t>(i)] = hp * env * 0.45f;
         }
-        kit.push_back(createBuffer("Cyber Crash", data, sampleRate));
+        kit.push_back(createBuffer("Crash", data, sampleRate));
     }
 
     return kit;
