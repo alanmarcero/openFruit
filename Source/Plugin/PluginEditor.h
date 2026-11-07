@@ -4,6 +4,7 @@
 #include <juce_gui_basics/juce_gui_basics.h>
 #include "PluginProcessor.h"
 #include "Panels.h"
+#include "CyberLookAndFeel.h"
 
 class OpenFruitAudioProcessorEditor : public juce::AudioProcessorEditor,
                                       private juce::Timer {
@@ -22,6 +23,7 @@ private:
     void timerCallback() override;
 
     OpenFruitAudioProcessor& processorRef_;
+    openfruit::ui::CyberLookAndFeel cyberLookAndFeel_;
     openfruit::ui::HeaderPanel headerPanel_;
     openfruit::ui::TrackerPanel trackerPanel_;
 

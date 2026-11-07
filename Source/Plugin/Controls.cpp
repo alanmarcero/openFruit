@@ -27,40 +27,44 @@ void CyberStepPad::setIsCurrentPlayhead(bool isPlayhead) {
 }
 
 void CyberStepPad::paint(juce::Graphics& g) {
-    const auto bounds = getLocalBounds().toFloat().reduced(1.5f);
+    const auto bounds = getLocalBounds().toFloat().reduced(1.0f);
     const int beatGroup = (stepIdx_ / 4) % 2;
 
-    // Background color based on active state and beat grouping (classic 4-beat pattern)
-    juce::Colour padColor = (beatGroup == 0) ? palette_.padInactiveBeatA : palette_.padInactiveBeatB;
-    if (data_.active) {
-        padColor = palette_.padActive.interpolatedWith(juce::Colours::white, (data_.velocity - 0.5f) * 0.3f);
-    }
-
-    // Outer Bezel / 3D Pad
-    g.setColour(palette_.panelEdge.brighter(data_.active ? 0.3f : 0.05f));
+    // Recessed dark socket background
+    g.setColour(palette_.background.darker(0.6f));
     g.fillRoundedRectangle(bounds, 4.0f);
+    g.setColour(palette_.panelEdge.withAlpha(0.6f));
+    g.drawRoundedRectangle(bounds, 4.0f, 1.0f);
 
-    // Inner Face
-    const auto innerBounds = bounds.reduced(1.5f);
-    juce::ColourGradient grad(
-        padColor.brighter(0.2f), innerBounds.getX(), innerBounds.getY(),
-        padColor.darker(0.3f), innerBounds.getX(), innerBounds.getBottom(),
-        false
-    );
-    g.setGradientFill(grad);
-    g.fillRoundedRectangle(innerBounds, 3.0f);
+    const auto padBounds = bounds.reduced(1.8f);
 
-    // Active Neon Glow
     if (data_.active) {
+        // Active Step: Vibrant glowing neon button
+        juce::Colour activeColor = palette_.padActive.interpolatedWith(juce::Colours::white, (data_.velocity - 0.5f) * 0.25f);
+
+        // Outer glow
         g.setColour(palette_.padGlow);
-        g.drawRoundedRectangle(innerBounds, 3.0f, 1.8f);
+        g.drawRoundedRectangle(bounds, 4.0f, 2.0f);
+
+        // 3D Pad Gradient
+        juce::ColourGradient grad(
+            activeColor.brighter(0.3f), padBounds.getX(), padBounds.getY(),
+            activeColor.darker(0.35f), padBounds.getX(), padBounds.getBottom(),
+            false
+        );
+        g.setGradientFill(grad);
+        g.fillRoundedRectangle(padBounds, 3.0f);
+
+        // Top specular highlight
+        g.setColour(juce::Colours::white.withAlpha(0.3f));
+        g.fillRoundedRectangle(padBounds.getX() + 2.0f, padBounds.getY() + 1.0f, padBounds.getWidth() - 4.0f, 2.5f, 1.0f);
 
         // Velocity indicator bar at bottom
         const float barHeight = 3.0f;
-        const float barWidth = innerBounds.getWidth() * std::clamp(data_.velocity, 0.1f, 1.0f);
+        const float barWidth = (padBounds.getWidth() - 6.0f) * std::clamp(data_.velocity, 0.1f, 1.0f);
         const auto barRect = juce::Rectangle<float>(
-            innerBounds.getX() + (innerBounds.getWidth() - barWidth) * 0.5f,
-            innerBounds.getBottom() - barHeight - 2.0f,
+            padBounds.getX() + 3.0f,
+            padBounds.getBottom() - barHeight - 2.5f,
             barWidth,
             barHeight
         );
@@ -69,17 +73,34 @@ void CyberStepPad::paint(juce::Graphics& g) {
 
         // Semitone tune offset badge (if tuned)
         if (data_.semitoneOffset != 0) {
-            g.setColour(juce::Colours::white);
-            g.setFont(juce::FontOptions(10.0f, juce::Font::bold));
             const std::string badge = (data_.semitoneOffset > 0 ? "+" : "") + std::to_string(data_.semitoneOffset);
-            g.drawText(badge, innerBounds.toNearestInt(), juce::Justification::centred, false);
+            g.setFont(juce::FontOptions(10.5f, juce::Font::bold));
+            g.setColour(juce::Colours::black.withAlpha(0.6f));
+            g.drawText(badge, padBounds.translated(0.0f, 1.0f).toNearestInt(), juce::Justification::centred, false);
+            g.setColour(juce::Colours::white);
+            g.drawText(badge, padBounds.toNearestInt(), juce::Justification::centred, false);
         }
+    } else {
+        // Inactive Step: Tactile hardware pad with 4-beat alternating shading
+        juce::Colour baseColor = (beatGroup == 0) ? palette_.padInactiveBeatA : palette_.padInactiveBeatB;
+
+        juce::ColourGradient grad(
+            baseColor.brighter(0.18f), padBounds.getX(), padBounds.getY(),
+            baseColor.darker(0.25f), padBounds.getX(), padBounds.getBottom(),
+            false
+        );
+        g.setGradientFill(grad);
+        g.fillRoundedRectangle(padBounds, 3.0f);
+
+        // Subtle top specular edge
+        g.setColour(juce::Colours::white.withAlpha(0.08f));
+        g.fillRoundedRectangle(padBounds.getX() + 2.0f, padBounds.getY() + 1.0f, padBounds.getWidth() - 4.0f, 1.5f, 0.75f);
     }
 
-    // Playhead glowing border
+    // Playhead glowing aura
     if (isPlayhead_) {
         g.setColour(palette_.playheadGlow);
-        g.drawRoundedRectangle(bounds, 4.0f, 2.0f);
+        g.drawRoundedRectangle(bounds.expanded(1.0f), 4.5f, 2.5f);
     }
 }
 

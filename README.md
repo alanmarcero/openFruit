@@ -45,7 +45,7 @@ The sonic analyzer estimates sample pitch through `SonicAnalyzer::analyze` using
    `f0 = sample_rate / (tau + delta)`
 5. Musical note mapping: converts estimated frequency `f0` in Hz to the nearest chromatic MIDI note number:
    `midi = 69 + 12 * log2(f0 / 440)`
-   The fractional remainder determines detune in cents (`+/- 50c`), and the integer note maps to standard pitch notation (`C3`, `F#1`, `A4`). If no peak meets the confidence threshold, the analyzer reports the sound as unpitched.
+   The fractional remainder determines detune in cents (`+/- 50c`), and the integer note maps to standard pitch notation (`C3`, `F#1`, `A4`). For inharmonic or noisy percussive sounds without a dominant harmonic peak above the confidence threshold, the analyzer estimates the dominant resonant body frequency and zero-crossing rate to report the closest chromatic pitch with detune cents.
 
 ## Build instructions
 

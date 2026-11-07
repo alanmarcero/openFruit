@@ -55,23 +55,22 @@ void SonicAnalyzer::frequencyToNote(double freqHz,
 }
 
 std::string ToneAnalysisResult::formattedTone() const {
-    if (!hasClearTone || dominantFrequencyHz <= 10.0) {
-        if (dominantFrequencyHz > 10.0) {
-            std::ostringstream ss;
-            ss << "~" << static_cast<int>(std::round(dominantFrequencyHz)) << " Hz";
-            return ss.str();
-        }
-        return "Unpitched";
+    if (dominantFrequencyHz <= 10.0 || !std::isfinite(dominantFrequencyHz)) {
+        return "~C1 (32.7 Hz)";
     }
 
     std::ostringstream ss;
+    if (!hasClearTone) {
+        ss << "~" << noteName;
+        if (detuneCents > 0) ss << " +" << detuneCents << "c";
+        else if (detuneCents < 0) ss << " " << detuneCents << "c";
+        ss << " (~" << static_cast<int>(std::round(dominantFrequencyHz)) << " Hz)";
+        return ss.str();
+    }
+
     ss << noteName;
-    if (detuneCents > 0) {
-        ss << " +" << detuneCents << "c";
-    }
-    if (detuneCents < 0) {
-        ss << " " << detuneCents << "c";
-    }
+    if (detuneCents > 0) ss << " +" << detuneCents << "c";
+    else if (detuneCents < 0) ss << " " << detuneCents << "c";
     ss << " (" << std::fixed << std::setprecision(1) << dominantFrequencyHz << " Hz)";
     return ss.str();
 }
@@ -209,12 +208,21 @@ ToneAnalysisResult SonicAnalyzer::analyze(const float* const* channelData,
 
     int bestLag = -1;
     if (maxPeakVal >= 0.40) {
-        // Choose the first peak that exceeds 80% of maxPeakVal (MPM key threshold to prevent sub-harmonic errors)
+        // Choose the first peak that exceeds 80% of maxPeakVal (MPM threshold)
         const double threshold = std::max(0.40, 0.80 * maxPeakVal);
         for (const auto& p : peaks) {
             if (p.value >= threshold) {
                 bestLag = p.lag;
                 break;
+            }
+        }
+    } else if (!peaks.empty()) {
+        // For inharmonic or noisy percussive sounds, find the strongest body resonance
+        double bestVal = 0.0;
+        for (const auto& p : peaks) {
+            if (p.value > bestVal && p.value > 0.10) {
+                bestVal = p.value;
+                bestLag = p.lag;
             }
         }
     }
@@ -227,13 +235,13 @@ ToneAnalysisResult SonicAnalyzer::analyze(const float* const* channelData,
 
         if (refinedLag > 0.0) {
             res.dominantFrequencyHz = sampleRate / refinedLag;
-            res.hasClearTone = true;
+            res.hasClearTone = (maxPeakVal >= 0.40);
             frequencyToNote(res.dominantFrequencyHz, res.midiNote, res.detuneCents, res.noteName);
             return res;
         }
     }
 
-    // Fallback: estimate dominant spectral centroid or zero-crossing frequency
+    // Fallback: estimate dominant zero-crossing or spectral centroid frequency
     int zeroCrossings = 0;
     for (int i = 1; i < windowSize; ++i) {
         if ((mono[static_cast<size_t>(i - 1)] <= 0.0f && mono[static_cast<size_t>(i)] > 0.0f) ||
@@ -241,7 +249,10 @@ ToneAnalysisResult SonicAnalyzer::analyze(const float* const* channelData,
             zeroCrossings++;
         }
     }
-    const double zcrFreq = (static_cast<double>(zeroCrossings) * sampleRate) / (2.0 * static_cast<double>(windowSize));
+    double zcrFreq = (static_cast<double>(zeroCrossings) * sampleRate) / (2.0 * static_cast<double>(windowSize));
+    if (zcrFreq <= 10.0 || !std::isfinite(zcrFreq)) {
+        zcrFreq = 130.81; // default to C3
+    }
     res.dominantFrequencyHz = zcrFreq;
     res.hasClearTone = false;
     frequencyToNote(zcrFreq, res.midiNote, res.detuneCents, res.noteName);
