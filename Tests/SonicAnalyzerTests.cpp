@@ -1,0 +1,72 @@
+#include <catch2/catch_test_macros.hpp>
+#include <catch2/matchers/catch_matchers_floating_point.hpp>
+#include "SonicAnalyzer.h"
+#include <cmath>
+#include <vector>
+
+using namespace openfruit::core;
+
+TEST_CASE("SonicAnalyzer detects pure sine tones accurately", "[SonicAnalyzer]") {
+    constexpr double sampleRate = 44100.0;
+    constexpr int numSamples = 44100; // 1 second
+
+    SECTION("Detects A4 (440 Hz)") {
+        std::vector<float> buffer(numSamples);
+        for (int i = 0; i < numSamples; ++i) {
+            buffer[static_cast<size_t>(i)] = std::sin(2.0 * M_PI * 440.0 * static_cast<double>(i) / sampleRate);
+        }
+
+        const auto res = SonicAnalyzer::analyze(buffer.data(), numSamples, sampleRate);
+        REQUIRE(res.hasClearTone);
+        REQUIRE_THAT(res.dominantFrequencyHz, Catch::Matchers::WithinAbs(440.0, 2.5));
+        REQUIRE(res.midiNote == 69);
+        REQUIRE(res.noteName == "A4");
+        REQUIRE_THAT(res.durationSeconds, Catch::Matchers::WithinAbs(1.0, 0.001));
+    }
+
+    SECTION("Detects C3 (130.81 Hz)") {
+        std::vector<float> buffer(numSamples);
+        for (int i = 0; i < numSamples; ++i) {
+            buffer[static_cast<size_t>(i)] = std::sin(2.0 * M_PI * 130.81 * static_cast<double>(i) / sampleRate);
+        }
+
+        const auto res = SonicAnalyzer::analyze(buffer.data(), numSamples, sampleRate);
+        REQUIRE(res.hasClearTone);
+        REQUIRE_THAT(res.dominantFrequencyHz, Catch::Matchers::WithinAbs(130.81, 1.5));
+        REQUIRE(res.midiNote == 48);
+        REQUIRE(res.noteName == "C3");
+    }
+
+    SECTION("Detects low A1 (55.0 Hz)") {
+        std::vector<float> buffer(numSamples);
+        for (int i = 0; i < numSamples; ++i) {
+            buffer[static_cast<size_t>(i)] = std::sin(2.0 * M_PI * 55.0 * static_cast<double>(i) / sampleRate);
+        }
+
+        const auto res = SonicAnalyzer::analyze(buffer.data(), numSamples, sampleRate);
+        REQUIRE(res.hasClearTone);
+        REQUIRE_THAT(res.dominantFrequencyHz, Catch::Matchers::WithinAbs(55.0, 1.0));
+        REQUIRE(res.midiNote == 33);
+        REQUIRE(res.noteName == "A1");
+    }
+}
+
+TEST_CASE("SonicAnalyzer utility conversions", "[SonicAnalyzer]") {
+    int note = 0;
+    int cents = 0;
+    std::string name;
+
+    SonicAnalyzer::frequencyToNote(440.0, note, cents, name);
+    REQUIRE(note == 69);
+    REQUIRE(cents == 0);
+    REQUIRE(name == "A4");
+
+    SonicAnalyzer::frequencyToNote(261.63, note, cents, name);
+    REQUIRE(note == 60);
+    REQUIRE(name == "C4");
+
+    REQUIRE(SonicAnalyzer::midiNoteToName(60) == "C4");
+    REQUIRE(SonicAnalyzer::midiNoteToName(61) == "C#4");
+    REQUIRE(SonicAnalyzer::midiNoteToName(62) == "D4");
+    REQUIRE(SonicAnalyzer::midiNoteToName(69) == "A4");
+}
