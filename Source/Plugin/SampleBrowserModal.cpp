@@ -61,9 +61,9 @@ SampleBrowserModal::SampleBrowserModal(int targetTrackIdx,
 
     // 4. Table List Box
     table_.setModel(this);
-    table_.getHeader().addColumn("File", 1, 260, 150, 400);
-    table_.getHeader().addColumn("Tone", 2, 170, 120, 250);
-    table_.getHeader().addColumn("Length", 3, 110, 80, 160);
+    table_.getHeader().addColumn("File", 1, 310, 150, 500);
+    table_.getHeader().addColumn("Estimated Tone / Pitch", 2, 230, 140, 350);
+    table_.getHeader().addColumn("Length", 3, 110, 80, 180);
     table_.setMultipleSelectionEnabled(false);
     addAndMakeVisible(table_);
 
@@ -206,30 +206,66 @@ void SampleBrowserModal::paintCell(juce::Graphics& g, int rowNumber, int columnI
     }
 
     const auto& item = files_[static_cast<size_t>(rowNumber)];
-    g.setColour(rowIsSelected ? palette_.text : palette_.text.withAlpha(0.85f));
-    g.setFont(juce::FontOptions(12.0f));
-
-    const auto area = juce::Rectangle<int>(4, 0, width - 8, height);
+    const auto area = juce::Rectangle<float>(6.0f, 2.0f, static_cast<float>(width - 12), static_cast<float>(height - 4));
 
     if (columnId == 1) {
-        // File Name
-        g.drawText(item.fileName, area, juce::Justification::centredLeft, true);
+        // File Name with mini audio icon
+        g.setColour(palette_.accentSecondary.withAlpha(0.6f));
+        g.setFont(juce::FontOptions(12.0f, juce::Font::bold));
+        g.drawText(juce::CharPointer_UTF8("\xe2\x99\xaa"), static_cast<int>(area.getX()), static_cast<int>(area.getY()), 14, static_cast<int>(area.getHeight()), juce::Justification::centredLeft, false);
+
+        g.setColour(rowIsSelected ? juce::Colours::white : palette_.text);
+        g.setFont(juce::FontOptions(12.0f, juce::Font::bold));
+        g.drawText(item.fileName, area.withTrimmedLeft(18.0f).toNearestInt(), juce::Justification::centredLeft, true);
     } else if (columnId == 2) {
-        // Estimated Tone
+        // Estimated Tone & Frequency Badge
         if (item.hasTone) {
+            // Note pill badge
+            const std::string noteStr = item.toneResult.hasClearTone ? item.toneResult.noteName : ("~" + item.toneResult.noteName);
+            const float badgeW = 44.0f;
+            const auto badgeRect = juce::Rectangle<float>(area.getX(), area.getY() + 1.0f, badgeW, area.getHeight() - 2.0f);
+
+            g.setColour(palette_.panel.darker(0.35f));
+            g.fillRoundedRectangle(badgeRect, 3.0f);
+            g.setColour(palette_.accentSecondary.withAlpha(0.85f));
+            g.drawRoundedRectangle(badgeRect, 3.0f, 1.0f);
+
+            g.setFont(juce::FontOptions(11.0f, juce::Font::bold));
             g.setColour(palette_.accentSecondary);
-            g.drawText(item.toneResult.formattedTone(), area, juce::Justification::centredLeft, true);
+            g.drawText(noteStr, badgeRect.toNearestInt(), juce::Justification::centred, false);
+
+            // Frequency and detune text
+            std::ostringstream ss;
+            if (item.toneResult.detuneCents != 0) {
+                if (item.toneResult.detuneCents > 0) ss << "+" << item.toneResult.detuneCents << "c ";
+                else ss << item.toneResult.detuneCents << "c ";
+            }
+            ss << "(" << std::fixed << std::setprecision(1) << item.toneResult.dominantFrequencyHz << " Hz)";
+
+            g.setFont(juce::FontOptions(11.0f));
+            g.setColour(rowIsSelected ? juce::Colours::white.withAlpha(0.9f) : palette_.text.withAlpha(0.85f));
+            g.drawText(ss.str(), area.withTrimmedLeft(badgeW + 8.0f).toNearestInt(), juce::Justification::centredLeft, true);
         } else {
             g.setColour(palette_.textDim);
-            g.drawText("Analyzing...", area, juce::Justification::centredLeft, true);
+            g.setFont(juce::FontOptions(11.0f, juce::Font::italic));
+            g.drawText("Estimating tone...", area.toNearestInt(), juce::Justification::centredLeft, true);
         }
     } else if (columnId == 3) {
         // Length
         if (item.hasTone) {
-            g.setColour(palette_.textDim);
-            g.drawText(item.toneResult.formattedDuration(), area, juce::Justification::centredLeft, true);
+            const auto badgeRect = juce::Rectangle<float>(area.getX(), area.getY() + 1.0f, 58.0f, area.getHeight() - 2.0f);
+            g.setColour(palette_.panel.darker(0.25f));
+            g.fillRoundedRectangle(badgeRect, 3.0f);
+            g.setColour(palette_.panelEdge.withAlpha(0.55f));
+            g.drawRoundedRectangle(badgeRect, 3.0f, 1.0f);
+
+            g.setFont(juce::FontOptions(11.0f, juce::Font::bold));
+            g.setColour(palette_.accentPrimary);
+            g.drawText(item.toneResult.formattedDuration(), badgeRect.toNearestInt(), juce::Justification::centred, false);
         } else {
-            g.drawText("---", area, juce::Justification::centredLeft, true);
+            g.setColour(palette_.textDim);
+            g.setFont(juce::FontOptions(11.0f));
+            g.drawText("---", area.toNearestInt(), juce::Justification::centredLeft, true);
         }
     }
 }
@@ -304,11 +340,38 @@ void SampleBrowserModal::cancelAndClose() {
 }
 
 void SampleBrowserModal::paint(juce::Graphics& g) {
-    g.fillAll(palette_.background.withAlpha(0.96f));
+    const auto bounds = getLocalBounds().toFloat();
 
-    // Outer border
+    // Dark semi-translucent backdrop
+    g.fillAll(palette_.background.withAlpha(0.97f));
+
+    // Outer cyber panel border with neon glow
+    g.setColour(palette_.accentSecondary.withAlpha(0.35f));
+    g.drawRoundedRectangle(bounds.reduced(1.0f), 6.0f, 2.0f);
+
     g.setColour(palette_.panelEdge);
-    g.drawRect(getLocalBounds(), 1);
+    g.drawRoundedRectangle(bounds.reduced(2.0f), 5.0f, 1.0f);
+
+    // Header bar gradient backdrop
+    const auto headerRect = juce::Rectangle<float>(2.0f, 2.0f, bounds.getWidth() - 4.0f, 36.0f);
+    juce::ColourGradient hgrad(
+        palette_.panel.brighter(0.2f), 0.0f, headerRect.getY(),
+        palette_.panel.darker(0.15f), 0.0f, headerRect.getBottom(),
+        false
+    );
+    g.setGradientFill(hgrad);
+    g.fillRoundedRectangle(headerRect, 5.0f);
+
+    // Header bottom line
+    g.setColour(palette_.panelEdge.withAlpha(0.7f));
+    g.drawLine(2.0f, 38.0f, bounds.getRight() - 2.0f, 38.0f, 1.0f);
+
+    // Bottom action bar backdrop
+    const auto bottomRect = juce::Rectangle<float>(2.0f, bounds.getBottom() - 44.0f, bounds.getWidth() - 4.0f, 42.0f);
+    g.setColour(palette_.panel.darker(0.3f));
+    g.fillRoundedRectangle(bottomRect, 4.0f);
+    g.setColour(palette_.panelEdge.withAlpha(0.6f));
+    g.drawLine(2.0f, bounds.getBottom() - 44.0f, bounds.getRight() - 2.0f, bounds.getBottom() - 44.0f, 1.0f);
 }
 
 void SampleBrowserModal::resized() {

@@ -74,3 +74,48 @@ TEST_CASE("SonicAnalyzer utility conversions", "[SonicAnalyzer]") {
     REQUIRE(SonicAnalyzer::midiNoteToName(62) == "D4");
     REQUIRE(SonicAnalyzer::midiNoteToName(69) == "A4");
 }
+
+TEST_CASE("SonicAnalyzer always yields closest pitch for inharmonic and noise sounds", "[SonicAnalyzer]") {
+    constexpr double sampleRate = 44100.0;
+    constexpr int numSamples = 22050; // 0.5s
+
+    SECTION("White noise produces estimated closest pitch and formatted tone") {
+        std::vector<float> noise(numSamples);
+        for (int i = 0; i < numSamples; ++i) {
+            noise[static_cast<size_t>(i)] = static_cast<float>((std::rand() % 2000 - 1000) / 1000.0);
+        }
+
+        const auto res = SonicAnalyzer::analyze(noise.data(), numSamples, sampleRate);
+        REQUIRE(res.dominantFrequencyHz > 10.0);
+        REQUIRE(res.midiNote >= 0);
+        REQUIRE(res.midiNote <= 127);
+        REQUIRE_FALSE(res.noteName.empty());
+
+        const std::string formatted = res.formattedTone();
+        REQUIRE_FALSE(formatted.empty());
+        REQUIRE(formatted.find("Unpitched") == std::string::npos);
+        REQUIRE(formatted.find("Hz") != std::string::npos);
+    }
+
+    SECTION("Highpass filtered noise (hi-hat) yields high closest pitch") {
+        std::vector<float> hat(numSamples);
+        float prev = 0.0f;
+        for (int i = 0; i < numSamples; ++i) {
+            const float t = static_cast<float>(i) / static_cast<float>(sampleRate);
+            const float env = std::exp(-20.0f * t);
+            const float white = static_cast<float>((std::rand() % 2000 - 1000) / 1000.0);
+            const float hp = white - prev * 0.8f;
+            prev = white;
+            hat[static_cast<size_t>(i)] = hp * env;
+        }
+
+        const auto res = SonicAnalyzer::analyze(hat.data(), numSamples, sampleRate);
+        REQUIRE(res.dominantFrequencyHz > 100.0);
+        REQUIRE(res.midiNote >= 40);
+        REQUIRE_FALSE(res.noteName.empty());
+
+        const std::string formatted = res.formattedTone();
+        REQUIRE_FALSE(formatted.empty());
+        REQUIRE(formatted.find("Unpitched") == std::string::npos);
+    }
+}

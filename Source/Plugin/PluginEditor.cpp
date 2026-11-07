@@ -6,15 +6,21 @@ OpenFruitAudioProcessorEditor::OpenFruitAudioProcessorEditor(OpenFruitAudioProce
       headerPanel_(ownerProcessor.getEngine(), ownerProcessor.getAPVTS()),
       trackerPanel_(ownerProcessor.getEngine(), ownerProcessor.getToneCache(), ownerProcessor.getAnalysisQueue()) {
 
+    const auto theme = processorRef_.getEngine().getColorTheme();
+    const auto palette = openfruit::theme::getPalette(theme);
+    cyberLookAndFeel_.setPalette(palette);
+    setLookAndFeel(&cyberLookAndFeel_);
+
     headerPanel_.onTrackCountChanged = [this] {
         trackerPanel_.setVisibleTrackCount(processorRef_.getEngine().getActiveTrackCount());
     };
 
     headerPanel_.onThemeChanged = [this] {
-        const auto theme = processorRef_.getEngine().getColorTheme();
-        const auto palette = openfruit::theme::getPalette(theme);
-        headerPanel_.setTheme(palette);
-        trackerPanel_.setTheme(palette);
+        const auto newTheme = processorRef_.getEngine().getColorTheme();
+        const auto newPalette = openfruit::theme::getPalette(newTheme);
+        cyberLookAndFeel_.setPalette(newPalette);
+        headerPanel_.setTheme(newPalette);
+        trackerPanel_.setTheme(newPalette);
         repaint();
     };
 
@@ -32,6 +38,7 @@ OpenFruitAudioProcessorEditor::OpenFruitAudioProcessorEditor(OpenFruitAudioProce
 
 OpenFruitAudioProcessorEditor::~OpenFruitAudioProcessorEditor() {
     stopTimer();
+    setLookAndFeel(nullptr);
 }
 
 void OpenFruitAudioProcessorEditor::timerCallback() {

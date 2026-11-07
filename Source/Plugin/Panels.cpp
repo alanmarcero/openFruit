@@ -133,8 +133,8 @@ void HeaderPanel::paint(juce::Graphics& g) {
 
     // Top faceplate header gradient
     juce::ColourGradient grad(
-        palette_.panel.brighter(0.1f), 0.0f, 0.0f,
-        palette_.panel.darker(0.3f), 0.0f, bounds.getBottom(),
+        palette_.panel.brighter(0.12f), 0.0f, 0.0f,
+        palette_.panel.darker(0.35f), 0.0f, bounds.getBottom(),
         false
     );
     g.setGradientFill(grad);
@@ -144,22 +144,55 @@ void HeaderPanel::paint(juce::Graphics& g) {
     g.setColour(palette_.panelEdge);
     g.drawLine(0.0f, bounds.getBottom() - 1.0f, bounds.getRight(), bounds.getBottom() - 1.0f, 1.5f);
 
-    // Logo & Emblem
+    // Vector Cyber Citrus Emblem
+    const float iconX = 14.0f;
+    const float iconY = 16.0f;
+    const float iconSize = 34.0f;
+
+    // Glowing outer citrus rim
+    g.setColour(palette_.accentPrimary.withAlpha(0.22f));
+    g.fillEllipse(iconX - 2.0f, iconY - 2.0f, iconSize + 4.0f, iconSize + 4.0f);
+
     g.setColour(palette_.accentPrimary);
+    g.drawEllipse(iconX, iconY, iconSize, iconSize, 2.0f);
+
+    // Citrus segments radiating from center
+    const float cx = iconX + iconSize * 0.5f;
+    const float cy = iconY + iconSize * 0.5f;
+    const float innerR = iconSize * 0.40f;
+    for (int i = 0; i < 6; ++i) {
+        const float angle = static_cast<float>(i) * 3.14159265f / 3.0f;
+        g.setColour(palette_.accentPrimary.withAlpha(0.65f));
+        g.drawLine(cx, cy, cx + std::cos(angle) * innerR, cy + std::sin(angle) * innerR, 1.2f);
+    }
+
+    // Leaf sprout on top
+    juce::Path leaf;
+    leaf.startNewSubPath(cx, iconY - 1.0f);
+    leaf.quadraticTo(cx + 8.0f, iconY - 7.0f, cx + 4.0f, iconY - 10.0f);
+    leaf.quadraticTo(cx + 1.0f, iconY - 6.0f, cx, iconY - 1.0f);
+    leaf.closeSubPath();
+    g.setColour(palette_.accentSecondary);
+    g.fillPath(leaf);
+
+    // Title: openFruit with subtle shadow
     g.setFont(juce::FontOptions(22.0f, juce::Font::bold));
-    g.drawText("openFruit", 16, 6, 120, 36, juce::Justification::centredLeft, false);
+    g.setColour(palette_.text.darker(0.7f));
+    g.drawText("openFruit", 57, 8, 120, 34, juce::Justification::centredLeft, false);
+    g.setColour(palette_.accentPrimary);
+    g.drawText("openFruit", 56, 7, 120, 34, juce::Justification::centredLeft, false);
 
     // Subtitle badge
+    g.setFont(juce::FontOptions(9.5f, juce::Font::bold));
     g.setColour(palette_.accentSecondary);
-    g.setFont(juce::FontOptions(9.0f, juce::Font::bold));
-    g.drawText("16-track step tracker", 16, 40, 130, 14, juce::Justification::centredLeft, false);
+    g.drawText("16-TRACK STEP TRACKER", 56, 40, 130, 14, juce::Justification::centredLeft, false);
 }
 
 void HeaderPanel::resized() {
     auto area = getLocalBounds().reduced(8);
 
-    // Skip Logo area (150 px)
-    area.removeFromLeft(150);
+    // Skip Logo & emblem area (190 px)
+    area.removeFromLeft(190);
 
     // 1. Track Count Toggle (4, 8, 12, 16)
     auto trackArea = area.removeFromLeft(160);

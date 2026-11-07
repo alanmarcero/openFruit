@@ -63,6 +63,7 @@ if(OF_BUILD_PLUGIN)
         COPY_PLUGIN_AFTER_BUILD FALSE)
 
     target_sources(OpenFruit PRIVATE
+        Source/Plugin/CyberLookAndFeel.cpp
         Source/Plugin/Parameters.cpp
         Source/Plugin/DefaultKit.cpp
         Source/Plugin/Controls.cpp
@@ -96,6 +97,7 @@ if(OF_BUILD_PLUGIN)
     if(OF_BUILD_TOOLS)
         add_executable(render_ui_snapshot
             tools/render_ui_snapshot.cpp
+            Source/Plugin/CyberLookAndFeel.cpp
             Source/Plugin/Parameters.cpp
             Source/Plugin/DefaultKit.cpp
             Source/Plugin/Controls.cpp
