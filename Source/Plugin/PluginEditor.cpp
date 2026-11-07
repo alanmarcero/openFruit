@@ -50,7 +50,13 @@ void OpenFruitAudioProcessorEditor::timerCallback() {
 void OpenFruitAudioProcessorEditor::paint(juce::Graphics& g) {
     const auto theme = processorRef_.getEngine().getColorTheme();
     const auto palette = openfruit::theme::getPalette(theme);
+    const auto bounds = getLocalBounds().toFloat();
+
     g.fillAll(palette.background);
+
+    // Outer hardware bezel border
+    g.setColour(palette.panelEdge);
+    g.drawRect(bounds, 1.0f);
 }
 
 void OpenFruitAudioProcessorEditor::resized() {

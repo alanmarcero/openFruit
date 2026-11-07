@@ -30,77 +30,111 @@ void CyberStepPad::paint(juce::Graphics& g) {
     const auto bounds = getLocalBounds().toFloat().reduced(1.0f);
     const int beatGroup = (stepIdx_ / 4) % 2;
 
-    // Recessed dark socket background
-    g.setColour(palette_.background.darker(0.6f));
+    // Recessed dark socket well (machined chassis socket)
+    g.setColour(palette_.background.darker(0.85f));
     g.fillRoundedRectangle(bounds, 4.0f);
-    g.setColour(palette_.panelEdge.withAlpha(0.6f));
+    g.setColour(palette_.panelEdge.darker(0.3f));
     g.drawRoundedRectangle(bounds, 4.0f, 1.0f);
 
-    const auto padBounds = bounds.reduced(1.8f);
+    const auto padBounds = bounds.reduced(1.6f);
 
     if (data_.active) {
-        // Active Step: Vibrant glowing neon button
-        juce::Colour activeColor = palette_.padActive.interpolatedWith(juce::Colours::white, (data_.velocity - 0.5f) * 0.25f);
+        // Active Step: Rich illuminated silicone button
+        const float velNorm = std::clamp(data_.velocity, 0.1f, 1.0f);
+        juce::Colour activeColor = palette_.padActive.interpolatedWith(juce::Colours::white, (velNorm - 0.5f) * 0.25f);
 
-        // Outer glow
-        g.setColour(palette_.padGlow);
-        g.drawRoundedRectangle(bounds, 4.0f, 2.0f);
+        // Multi-tier neon bloom glow
+        g.setColour(palette_.padGlow.withAlpha(0.30f));
+        g.drawRoundedRectangle(bounds.expanded(2.0f), 5.0f, 3.0f);
+        g.setColour(palette_.padActive.withAlpha(0.60f));
+        g.drawRoundedRectangle(bounds, 4.0f, 1.5f);
 
-        // 3D Pad Gradient
+        // 3D Illuminated Pad Body Gradient
         juce::ColourGradient grad(
-            activeColor.brighter(0.3f), padBounds.getX(), padBounds.getY(),
-            activeColor.darker(0.35f), padBounds.getX(), padBounds.getBottom(),
+            activeColor.brighter(0.40f), padBounds.getX(), padBounds.getY(),
+            activeColor.darker(0.30f), padBounds.getX(), padBounds.getBottom(),
             false
         );
         g.setGradientFill(grad);
         g.fillRoundedRectangle(padBounds, 3.0f);
 
-        // Top specular highlight
-        g.setColour(juce::Colours::white.withAlpha(0.3f));
-        g.fillRoundedRectangle(padBounds.getX() + 2.0f, padBounds.getY() + 1.0f, padBounds.getWidth() - 4.0f, 2.5f, 1.0f);
+        // Top specular glass highlight
+        g.setColour(juce::Colours::white.withAlpha(0.45f));
+        g.fillRoundedRectangle(padBounds.getX() + 2.0f, padBounds.getY() + 1.0f, padBounds.getWidth() - 4.0f, 2.0f, 1.0f);
 
-        // Velocity indicator bar at bottom
-        const float barHeight = 3.0f;
-        const float barWidth = (padBounds.getWidth() - 6.0f) * std::clamp(data_.velocity, 0.1f, 1.0f);
+        // Illuminated velocity bar at bottom
+        const float barHeight = 3.5f;
+        const float barWidth = (padBounds.getWidth() - 6.0f) * velNorm;
         const auto barRect = juce::Rectangle<float>(
             padBounds.getX() + 3.0f,
             padBounds.getBottom() - barHeight - 2.5f,
             barWidth,
             barHeight
         );
+        // Bar background track
+        g.setColour(juce::Colours::black.withAlpha(0.45f));
+        g.fillRoundedRectangle(padBounds.getX() + 3.0f, padBounds.getBottom() - barHeight - 2.5f, padBounds.getWidth() - 6.0f, barHeight, 1.5f);
+        // Bar glowing fill
         g.setColour(palette_.accentSecondary);
         g.fillRoundedRectangle(barRect, 1.5f);
 
         // Semitone tune offset badge (if tuned)
         if (data_.semitoneOffset != 0) {
             const std::string badge = (data_.semitoneOffset > 0 ? "+" : "") + std::to_string(data_.semitoneOffset);
-            g.setFont(juce::FontOptions(10.5f, juce::Font::bold));
-            g.setColour(juce::Colours::black.withAlpha(0.6f));
-            g.drawText(badge, padBounds.translated(0.0f, 1.0f).toNearestInt(), juce::Justification::centred, false);
-            g.setColour(juce::Colours::white);
-            g.drawText(badge, padBounds.toNearestInt(), juce::Justification::centred, false);
+            const float badgeW = 22.0f;
+            const float badgeH = 14.0f;
+            const auto badgeRect = juce::Rectangle<float>(padBounds.getCentreX() - badgeW * 0.5f,
+                                                          padBounds.getCentreY() - badgeH * 0.5f - 1.0f,
+                                                          badgeW, badgeH);
+
+            g.setColour(juce::Colours::black.withAlpha(0.70f));
+            g.fillRoundedRectangle(badgeRect, 3.0f);
+            g.setColour(palette_.accentSecondary.withAlpha(0.75f));
+            g.drawRoundedRectangle(badgeRect, 3.0f, 1.0f);
+
+            g.setFont(juce::FontOptions(10.0f, juce::Font::bold));
+            g.setColour(palette_.accentSecondary);
+            g.drawText(badge, badgeRect.toNearestInt(), juce::Justification::centred, false);
         }
     } else {
-        // Inactive Step: Tactile hardware pad with 4-beat alternating shading
-        juce::Colour baseColor = (beatGroup == 0) ? palette_.padInactiveBeatA : palette_.padInactiveBeatB;
+        // Inactive Step: Tactile hardware keycap with 4-beat alternating contrast
+        const juce::Colour baseColor = (beatGroup == 0) ? palette_.padInactiveBeatA : palette_.padInactiveBeatB;
 
         juce::ColourGradient grad(
-            baseColor.brighter(0.18f), padBounds.getX(), padBounds.getY(),
-            baseColor.darker(0.25f), padBounds.getX(), padBounds.getBottom(),
+            baseColor.brighter(0.20f), padBounds.getX(), padBounds.getY(),
+            baseColor.darker(0.30f), padBounds.getX(), padBounds.getBottom(),
             false
         );
         g.setGradientFill(grad);
         g.fillRoundedRectangle(padBounds, 3.0f);
 
         // Subtle top specular edge
-        g.setColour(juce::Colours::white.withAlpha(0.08f));
+        g.setColour(juce::Colours::white.withAlpha(0.12f));
         g.fillRoundedRectangle(padBounds.getX() + 2.0f, padBounds.getY() + 1.0f, padBounds.getWidth() - 4.0f, 1.5f, 0.75f);
+
+        // Subtle center tactile pip / dimple
+        const float cx = padBounds.getCentreX();
+        const float cy = padBounds.getCentreY();
+        g.setColour(baseColor.darker(0.35f));
+        g.fillEllipse(cx - 1.5f, cy - 1.5f, 3.0f, 3.0f);
+        g.setColour(juce::Colours::white.withAlpha(0.08f));
+        g.drawEllipse(cx - 1.5f, cy - 1.5f, 3.0f, 3.0f, 0.5f);
     }
 
-    // Playhead glowing aura
+    // Playhead glowing aura and pointer pip
     if (isPlayhead_) {
+        // Glowing halo
+        g.setColour(palette_.playheadGlow.withAlpha(0.40f));
+        g.drawRoundedRectangle(bounds.expanded(2.0f), 5.0f, 3.0f);
         g.setColour(palette_.playheadGlow);
-        g.drawRoundedRectangle(bounds.expanded(1.0f), 4.5f, 2.5f);
+        g.drawRoundedRectangle(bounds.expanded(0.5f), 4.0f, 2.0f);
+
+        // Top illuminated pointer notch
+        const float pipW = 6.0f;
+        const float pipH = 3.0f;
+        const auto pipRect = juce::Rectangle<float>(bounds.getCentreX() - pipW * 0.5f, bounds.getY() - 1.0f, pipW, pipH);
+        g.setColour(palette_.playheadGlow);
+        g.fillRoundedRectangle(pipRect, 1.5f);
     }
 }
 
@@ -300,22 +334,42 @@ void TrackRowComponent::updatePlayhead(int currentStep) {
 void TrackRowComponent::paint(juce::Graphics& g) {
     const auto bounds = getLocalBounds().toFloat();
 
-    // Subtle row background and separator line
-    g.setColour(palette_.panel.withAlpha(0.6f));
+    // Channel strip background gradient with subtle bevel
+    juce::ColourGradient stripGrad(
+        palette_.panel.brighter(0.06f).withAlpha(0.75f), bounds.getX(), bounds.getY(),
+        palette_.panel.darker(0.20f).withAlpha(0.85f), bounds.getX(), bounds.getBottom(),
+        false
+    );
+    g.setGradientFill(stripGrad);
     g.fillRoundedRectangle(bounds.reduced(1.0f), 4.0f);
 
-    // MIDI Channel Badge (Track index 0..15 -> MIDI Ch 1..16)
-    const auto badgeRect = juce::Rectangle<float>(4.0f, 4.0f, 44.0f, bounds.getHeight() - 8.0f);
-    g.setColour(palette_.midiChannelBadge);
-    g.fillRoundedRectangle(badgeRect, 3.0f);
+    // Subtle perimeter edge
+    g.setColour(palette_.panelEdge.withAlpha(0.40f));
+    g.drawRoundedRectangle(bounds.reduced(1.0f), 4.0f, 1.0f);
 
-    g.setColour(juce::Colours::black);
+    // MIDI Channel Badge: Backlit illuminated LED plate
+    const auto badgeRect = juce::Rectangle<float>(4.0f, 4.0f, 44.0f, bounds.getHeight() - 8.0f);
+
+    // Socket well
+    g.setColour(palette_.background.darker(0.85f));
+    g.fillRoundedRectangle(badgeRect, 3.5f);
+
+    // Glowing border & inner illuminated tint
+    g.setColour(palette_.midiChannelBadge.withAlpha(0.18f));
+    g.fillRoundedRectangle(badgeRect.reduced(1.0f), 3.0f);
+    g.setColour(palette_.midiChannelBadge.withAlpha(0.70f));
+    g.drawRoundedRectangle(badgeRect, 3.5f, 1.0f);
+
+    // LED text
     g.setFont(juce::FontOptions(11.0f, juce::Font::bold));
     const std::string chText = "CH " + std::to_string(trackIdx_ + 1);
+    g.setColour(juce::Colours::black.withAlpha(0.6f));
+    g.drawText(chText, badgeRect.translated(0.0f, 1.0f).toNearestInt(), juce::Justification::centred, false);
+    g.setColour(palette_.midiChannelBadge.brighter(0.2f));
     g.drawText(chText, badgeRect.toNearestInt(), juce::Justification::centred, false);
 
-    // Separator line at bottom
-    g.setColour(palette_.panelEdge.withAlpha(0.5f));
+    // Track divider line at bottom
+    g.setColour(palette_.panelEdge.withAlpha(0.45f));
     g.drawLine(0.0f, bounds.getBottom(), bounds.getRight(), bounds.getBottom(), 1.0f);
 }
 

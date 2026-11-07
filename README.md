@@ -21,6 +21,7 @@ A 16-track step sequencer and sample player based on the classic FL Studio pad t
 - Tone cache: stores pitch calculations on disk at `~/.openfruit/tone_cache.tsv` to prevent repeated analysis.
 - Live auditioning: selecting a sample plays it immediately, and incoming MIDI on that track's channel triggers the previewed sample in the host mix.
 - Themes: Cyberpunk Neon, Fruity Classic, Synthwave Outrun, and Acid Matrix.
+- Tactile hardware UI: backlit silicone step pads with velocity meters, backlit channel badges, illuminated LED push-switches for Mute/Solo, and brushed cyberpunk chassis faceplate.
 
 ## Architecture
 
