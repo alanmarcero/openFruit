@@ -11,7 +11,7 @@ on:
 
 concurrency:
   group: ${{ github.workflow }}-${{ (github.ref == 'refs/heads/main' || startsWith(github.ref, 'refs/tags/v')) && 'release' || github.ref }}
-  cancel-in-progress: true
+  cancel-in-progress: ${{ !(github.ref == 'refs/heads/main' || startsWith(github.ref, 'refs/tags/v')) }}
 
 env:
   ARTEFACTS: build/OpenFruit_artefacts/Release
@@ -129,7 +129,7 @@ jobs:
           path: openFruit-Linux.zip
 
   release:
-    if: startsWith(github.ref, 'refs/tags/v')
+    if: github.ref == 'refs/heads/main' || startsWith(github.ref, 'refs/tags/v')
     needs: [macos, windows, linux]
     runs-on: ubuntu-latest
     permissions:
@@ -141,5 +141,7 @@ jobs:
 
       - uses: softprops/action-gh-release@v2
         with:
+          tag_name: ${{ startsWith(github.ref, 'refs/tags/v') && github.ref_name || 'v1.0.0' }}
+          name: openFruit ${{ startsWith(github.ref, 'refs/tags/v') && github.ref_name || 'v1.0.0' }}
           files: openFruit-*.zip
           generate_release_notes: true
