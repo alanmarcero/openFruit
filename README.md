@@ -34,19 +34,16 @@ A 16-track step sequencer and sample player based on the classic FL Studio pad t
 
 ## Pitch detection algorithm
 
-The sonic analyzer estimates sample pitch through `SonicAnalyzer::analyze` using the following steps:
+The sonic analyzer estimates sample pitch through `SonicAnalyzer::analyze` using a multi-frame hybrid time- and frequency-domain pipeline:
 
-1. Window selection: audio is downmixed to mono, and an analysis window of up to 4096 samples is selected around the sound body, bypassing initial attack transients where noisy impact energy can mask the fundamental tone.
-2. Normalized square difference function (NSDF): calculates autocorrelation normalized across lags corresponding to 25 Hz through 2400 Hz:
-   `r(tau) = (2 * sum(x[j] * x[j + tau])) / (sum(x[j]^2) + sum(x[j + tau]^2))`
-   Values are bounded between -1.0 and +1.0, with values close to 1.0 indicating periodic alignment.
-3. First-peak selection: finds all local maxima in the NSDF curve. To prevent octave errors from integer period multiples, it selects the first local maximum whose value meets a dynamic threshold of `max(0.40, 0.80 * max_peak_value)`.
-4. Parabolic interpolation: fits a parabola across the discrete peak lag index and its two immediate neighbors, resolving fractional period length to sub-sample precision:
+1. Multi-frame envelope & body selection: audio is downmixed with stereo phase-cancellation protection, DC offset is removed, and slow exponential decay is leveled. Up to four analysis frames are placed across the onset and settled sustain body so pitch-swept drums (such as 808 kicks, toms, and plucks) lock onto the sustained root note rather than the initial attack transient.
+2. Fast $O(N \log N)$ FFT autocorrelation & prefix-sum normalization: computes the exact linear autocorrelation $r(\tau)$ via a zero-padded Radix-2 FFT/IFFT (Wiener-Khinchin theorem) and normalizes each lag in $O(1)$ using cumulative prefix sums of squares to produce both the McLeod Normalized Square Difference Function (NSDF) and the YIN Cumulative Mean Normalized Difference Function (CMNDF) across 24 Hz through 4200 Hz:
+   `NSDF(tau) = (2 * r(tau)) / (sum(x[j]^2) + sum(x[j + tau]^2))`
+3. Zero-crossing lobe-maxima & sub-harmonic verification: extracts the peak of each positive NSDF lobe and applies McLeod's dynamic threshold (`max(0.35, 0.85 * max_lobe_peak)`) cross-checked with YIN CMNDF to prevent both overtone ($2 f_0$) and sub-harmonic ($f_0 / 2$) octave errors, including signals with a missing fundamental.
+4. Parabolic peak refinement: fits a parabola across the discrete peak lag and its neighbors in both lag and amplitude, resolving fractional period length to sub-sample precision:
    `delta = (r[tau + 1] - r[tau - 1]) / (2 * (2 * r[tau] - r[tau - 1] - r[tau + 1]))`
    `f0 = sample_rate / (tau + delta)`
-5. Musical note mapping: converts estimated frequency `f0` in Hz to the nearest chromatic MIDI note number:
-   `midi = 69 + 12 * log2(f0 / 440)`
-   The fractional remainder determines detune in cents (`+/- 50c`), and the integer note maps to standard pitch notation (`C3`, `F#1`, `A4`). For inharmonic or noisy percussive sounds without a dominant harmonic peak above the confidence threshold, the analyzer estimates the dominant resonant body frequency and zero-crossing rate to report the closest chromatic pitch with detune cents.
+5. Harmonic Product Spectrum (HPS) & perceptual spectral fallback: for metallic, two-tone, or noisy percussive sounds without a single periodic time-domain peak, the analyzer evaluates the FFT Harmonic Product Spectrum and band-limited log-spectral centroid (50 Hz to 5500 Hz) so every sample resolves to a stable, musically meaningful estimated pitch (`C3`, `G1`, `~B7`) with detune cents (`+/- 50c`).
 
 ## Build instructions
 

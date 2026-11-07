@@ -1,12 +1,15 @@
 #include "ToneCache.h"
-#include <fstream>
-#include <sstream>
+#include <chrono>
 #include <cstdlib>
 #include <filesystem>
+#include <fstream>
+#include <sstream>
 
 namespace openfruit::core {
 
 namespace {
+
+constexpr const char* kCacheHeaderV2 = "# openFruit Tone Cache TSV Format v2";
 
 std::string escapeString(const std::string& input) {
     std::string out;
@@ -26,6 +29,22 @@ std::string escapeString(const std::string& input) {
 
 std::string ToneCache::makeKey(const std::string& filePath, int64_t modTime, int64_t fileSize) {
     return filePath + "|" + std::to_string(modTime) + "|" + std::to_string(fileSize);
+}
+
+bool ToneCache::getFileStats(const std::string& filePath, int64_t& outModTime, int64_t& outFileSize) {
+    std::error_code ec;
+    const auto ftime = std::filesystem::last_write_time(filePath, ec);
+    if (ec) {
+        return false;
+    }
+    const auto fsize = std::filesystem::file_size(filePath, ec);
+    if (ec) {
+        return false;
+    }
+
+    outModTime = std::chrono::duration_cast<std::chrono::seconds>(ftime.time_since_epoch()).count();
+    outFileSize = static_cast<int64_t>(fsize);
+    return true;
 }
 
 std::optional<ToneAnalysisResult> ToneCache::get(const std::string& filePath,
@@ -77,7 +96,7 @@ bool ToneCache::saveToFile(const std::string& filePath) const {
         return false;
     }
 
-    out << "# openFruit Tone Cache TSV Format v1\n";
+    out << kCacheHeaderV2 << "\n";
     for (const auto& [key, entry] : entries_) {
         out << escapeString(entry.filePath) << "\t"
             << entry.modTime << "\t"
@@ -103,6 +122,11 @@ bool ToneCache::loadFromFile(const std::string& filePath) {
 
     const std::lock_guard<std::mutex> lock(mutex_);
     entries_.clear();
+
+    std::string firstLine;
+    if (!std::getline(in, firstLine) || firstLine != kCacheHeaderV2) {
+        return false;
+    }
 
     std::string line;
     while (std::getline(in, line)) {

@@ -30,6 +30,7 @@ public:
     bool loadFromFile(const std::string& filePath);
 
     static std::string getDefaultCachePath();
+    static bool getFileStats(const std::string& filePath, int64_t& outModTime, int64_t& outFileSize);
 
 private:
     static std::string makeKey(const std::string& filePath, int64_t modTime, int64_t fileSize);

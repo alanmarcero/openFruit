@@ -28,6 +28,9 @@ OpenFruitAudioProcessorEditor::OpenFruitAudioProcessorEditor(OpenFruitAudioProce
     addAndMakeVisible(trackerPanel_);
 
     trackerPanel_.setVisibleTrackCount(processorRef_.getEngine().getActiveTrackCount());
+    headerPanel_.updateFromParameters();
+    trackerPanel_.updateFromEngine();
+    trackerPanel_.updatePlayhead();
 
     setResizable(true, true);
     setResizeLimits(880, 500, 1920, 1200);
