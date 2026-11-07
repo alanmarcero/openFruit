@@ -1,10 +1,10 @@
 #include "PluginEditor.h"
 
-OpenFruitAudioProcessorEditor::OpenFruitAudioProcessorEditor(OpenFruitAudioProcessor& processor)
-    : AudioProcessorEditor(&processor),
-      processorRef_(processor),
-      headerPanel_(processor.getEngine(), processor.getAPVTS()),
-      trackerPanel_(processor.getEngine(), processor.getToneCache(), processor.getAnalysisQueue()) {
+OpenFruitAudioProcessorEditor::OpenFruitAudioProcessorEditor(OpenFruitAudioProcessor& ownerProcessor)
+    : AudioProcessorEditor(&ownerProcessor),
+      processorRef_(ownerProcessor),
+      headerPanel_(ownerProcessor.getEngine(), ownerProcessor.getAPVTS()),
+      trackerPanel_(ownerProcessor.getEngine(), ownerProcessor.getToneCache(), ownerProcessor.getAnalysisQueue()) {
 
     headerPanel_.onTrackCountChanged = [this] {
         trackerPanel_.setVisibleTrackCount(processorRef_.getEngine().getActiveTrackCount());

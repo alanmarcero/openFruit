@@ -6,6 +6,10 @@
 
 using namespace openfruit::core;
 
+namespace {
+constexpr double kPi = 3.14159265358979323846;
+}
+
 TEST_CASE("SonicAnalyzer detects pure sine tones accurately", "[SonicAnalyzer]") {
     constexpr double sampleRate = 44100.0;
     constexpr int numSamples = 44100; // 1 second
@@ -13,7 +17,7 @@ TEST_CASE("SonicAnalyzer detects pure sine tones accurately", "[SonicAnalyzer]")
     SECTION("Detects A4 (440 Hz)") {
         std::vector<float> buffer(numSamples);
         for (int i = 0; i < numSamples; ++i) {
-            buffer[static_cast<size_t>(i)] = std::sin(2.0 * M_PI * 440.0 * static_cast<double>(i) / sampleRate);
+            buffer[static_cast<size_t>(i)] = std::sin(2.0 * kPi * 440.0 * static_cast<double>(i) / sampleRate);
         }
 
         const auto res = SonicAnalyzer::analyze(buffer.data(), numSamples, sampleRate);
@@ -27,7 +31,7 @@ TEST_CASE("SonicAnalyzer detects pure sine tones accurately", "[SonicAnalyzer]")
     SECTION("Detects C3 (130.81 Hz)") {
         std::vector<float> buffer(numSamples);
         for (int i = 0; i < numSamples; ++i) {
-            buffer[static_cast<size_t>(i)] = std::sin(2.0 * M_PI * 130.81 * static_cast<double>(i) / sampleRate);
+            buffer[static_cast<size_t>(i)] = std::sin(2.0 * kPi * 130.81 * static_cast<double>(i) / sampleRate);
         }
 
         const auto res = SonicAnalyzer::analyze(buffer.data(), numSamples, sampleRate);
@@ -40,7 +44,7 @@ TEST_CASE("SonicAnalyzer detects pure sine tones accurately", "[SonicAnalyzer]")
     SECTION("Detects low A1 (55.0 Hz)") {
         std::vector<float> buffer(numSamples);
         for (int i = 0; i < numSamples; ++i) {
-            buffer[static_cast<size_t>(i)] = std::sin(2.0 * M_PI * 55.0 * static_cast<double>(i) / sampleRate);
+            buffer[static_cast<size_t>(i)] = std::sin(2.0 * kPi * 55.0 * static_cast<double>(i) / sampleRate);
         }
 
         const auto res = SonicAnalyzer::analyze(buffer.data(), numSamples, sampleRate);

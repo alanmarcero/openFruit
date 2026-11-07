@@ -8,10 +8,12 @@ set(CMAKE_EXPORT_COMPILE_COMMANDS ON)
 
 if(MSVC)
     add_compile_options(/utf-8)
+    add_compile_definitions(_USE_MATH_DEFINES NOMINMAX)
 endif()
 
 option(OF_BUILD_PLUGIN "Build the plugin" ON)
 option(OF_BUILD_TESTS "Build the unit tests" ON)
+option(OF_BUILD_TOOLS "Build developer tools" OFF)
 
 include(FetchContent)
 
@@ -90,6 +92,31 @@ if(OF_BUILD_PLUGIN)
             juce::juce_recommended_config_flags
             juce::juce_recommended_lto_flags
             juce::juce_recommended_warning_flags)
+
+    if(OF_BUILD_TOOLS)
+        add_executable(render_ui_snapshot
+            tools/render_ui_snapshot.cpp
+            Source/Plugin/Parameters.cpp
+            Source/Plugin/DefaultKit.cpp
+            Source/Plugin/Controls.cpp
+            Source/Plugin/SampleBrowserModal.cpp
+            Source/Plugin/Panels.cpp
+            Source/Plugin/PluginProcessor.cpp
+            Source/Plugin/PluginEditor.cpp)
+
+        target_include_directories(render_ui_snapshot PRIVATE
+            Source/Core
+            Source/Plugin)
+
+        target_link_libraries(render_ui_snapshot
+            PRIVATE
+                openfruit_core
+                FruitAssets
+                juce::juce_audio_processors
+                juce::juce_audio_utils
+                juce::juce_gui_basics
+                juce::juce_gui_extra)
+    endif()
 endif()
 
 if(OF_BUILD_TESTS)
