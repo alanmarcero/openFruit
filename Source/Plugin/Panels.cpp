@@ -242,12 +242,16 @@ void TrackerPanel::updatePlayhead() {
     }
 }
 
-void TrackerPanel::openSampleBrowser(int trackIdx) {
+SampleBrowserModal* TrackerPanel::openSampleBrowser(int trackIdx, const juce::File& folder) {
     activeBrowser_ = std::make_unique<SampleBrowserModal>(trackIdx, engine_, cache_, queue_);
     activeBrowser_->setTheme(palette_);
     activeBrowser_->onClose = [this] { closeSampleBrowser(); };
+    if (folder.isDirectory()) {
+        activeBrowser_->setFolder(folder);
+    }
     addAndMakeVisible(activeBrowser_.get());
     activeBrowser_->setBounds(getLocalBounds().reduced(20));
+    return activeBrowser_.get();
 }
 
 void TrackerPanel::closeSampleBrowser() {

@@ -2,7 +2,9 @@
 
 A 16-track step sequencer and sample player based on the classic FL Studio pad tracker layout. It supports variable track counts, per-row micro-timing, pitch detection in the sample browser, and live MIDI auditioning.
 
-![openFruit screenshot](assets/openFruit-screenshot.png)
+![openFruit tracker](assets/openFruit-screenshot.png)
+
+![openFruit media browser](assets/openFruit-browser-screenshot.png)
 
 ## Features
 
