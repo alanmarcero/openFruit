@@ -8,7 +8,7 @@
 class OpenFruitAudioProcessorEditor : public juce::AudioProcessorEditor,
                                       private juce::Timer {
 public:
-    explicit OpenFruitAudioProcessorEditor(OpenFruitAudioProcessor& processor);
+    explicit OpenFruitAudioProcessorEditor(OpenFruitAudioProcessor& ownerProcessor);
     ~OpenFruitAudioProcessorEditor() override;
 
     void paint(juce::Graphics& g) override;
