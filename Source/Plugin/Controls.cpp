@@ -302,7 +302,10 @@ void TrackRowComponent::updateFromEngine() {
     if (track.sample) {
         btnText = track.sample->sampleName;
         if (!track.sample->toneResult.noteName.empty() && track.sample->toneResult.noteName != "---") {
-            btnText += " [" + track.sample->toneResult.formattedTone() + "]";
+            const std::string shortNote = (track.sample->toneResult.hasClearTone ? "" : "~") +
+                                          track.sample->toneResult.noteName;
+            btnText += " [" + shortNote + "]";
+            samplePadBtn_.setTooltip(track.sample->sampleName + " - " + track.sample->toneResult.formattedTone());
         }
     }
     samplePadBtn_.setButtonText(btnText);

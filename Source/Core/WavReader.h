@@ -19,7 +19,11 @@ struct WavAudioData {
 class WavReader {
 public:
     static WavAudioData readWavFile(const std::string& filePath);
-    static WavAudioData readWavFromMemory(const uint8_t* data, size_t sizeBytes);
+    static WavAudioData readWavFileForAnalysis(const std::string& filePath, int64_t maxFrames = 65536);
+    static WavAudioData readWavFromMemory(const uint8_t* data,
+                                          size_t sizeBytes,
+                                          bool analysisOnly = false,
+                                          int64_t maxFrames = 0);
 };
 
 } // namespace openfruit::core

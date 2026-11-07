@@ -63,6 +63,8 @@ void populateSampleFolder(const juce::File& folder, openfruit::core::ToneCache& 
         const int numFrames = static_cast<int>(sp.duration * sr);
         std::vector<float> data(static_cast<size_t>(numFrames));
 
+        float prev = 0.0f;
+        const bool isHat = (sp.name.find("hat_") != std::string::npos);
         for (int i = 0; i < numFrames; ++i) {
             const double t = static_cast<double>(i) / static_cast<double>(sr);
             const float env = static_cast<float>(std::exp(-5.0 * t / sp.duration));
@@ -70,7 +72,9 @@ void populateSampleFolder(const juce::File& folder, openfruit::core::ToneCache& 
                 data[static_cast<size_t>(i)] = static_cast<float>(std::sin(2.0 * kPi * sp.freq * t)) * env;
             } else {
                 const float noise = static_cast<float>((std::rand() % 2000 - 1000) / 1000.0);
-                data[static_cast<size_t>(i)] = noise * env;
+                const float sample = isHat ? (noise - prev * 0.85f) : noise;
+                prev = noise;
+                data[static_cast<size_t>(i)] = sample * env;
             }
         }
 
@@ -78,8 +82,12 @@ void populateSampleFolder(const juce::File& folder, openfruit::core::ToneCache& 
 
         // Pre-cache analyzed tone
         const auto res = openfruit::core::SonicAnalyzer::analyze(data.data(), numFrames, sr);
-        const int64_t modTime = file.getLastModificationTime().toMilliseconds() / 1000;
-        const int64_t fsize = file.getSize();
+        int64_t modTime = 0;
+        int64_t fsize = 0;
+        if (!openfruit::core::ToneCache::getFileStats(file.getFullPathName().toStdString(), modTime, fsize)) {
+            modTime = file.getLastModificationTime().toMilliseconds() / 1000;
+            fsize = file.getSize();
+        }
         cache.put(file.getFullPathName().toStdString(), modTime, fsize, res);
     }
 }

@@ -1,7 +1,6 @@
 #include "AnalysisQueue.h"
 #include "WavReader.h"
-#include <filesystem>
-#include <chrono>
+#include <algorithm>
 
 namespace openfruit::core {
 
@@ -66,9 +65,9 @@ void AnalysisQueue::workerLoop() {
             const int count = std::min(batchSize_, static_cast<int>(pendingFiles_.size()));
             batch.reserve(static_cast<size_t>(count));
             for (int i = 0; i < count; ++i) {
-                batch.push_back(std::move(pendingFiles_.front()));
-                pendingFiles_.erase(pendingFiles_.begin());
+                batch.push_back(std::move(pendingFiles_[static_cast<size_t>(i)]));
             }
+            pendingFiles_.erase(pendingFiles_.begin(), pendingFiles_.begin() + count);
             cb = callback_;
         }
 
@@ -84,19 +83,14 @@ void AnalysisQueue::workerLoop() {
                 break;
             }
 
-            std::error_code ec;
-            const auto ftime = std::filesystem::last_write_time(filePath, ec);
-            const auto fsize = std::filesystem::file_size(filePath, ec);
-            if (ec) {
+            int64_t modTime = 0;
+            int64_t fileSize = 0;
+            if (!ToneCache::getFileStats(filePath, modTime, fileSize)) {
                 continue;
             }
 
-            const int64_t modTime = std::chrono::duration_cast<std::chrono::seconds>(
-                ftime.time_since_epoch()).count();
-            const int64_t fileSize = static_cast<int64_t>(fsize);
-
             // Check cache first
-            auto cached = cache_.get(filePath, modTime, fileSize);
+            const auto cached = cache_.get(filePath, modTime, fileSize);
             if (cached.has_value()) {
                 if (cb) {
                     cb(filePath, *cached);
@@ -104,16 +98,32 @@ void AnalysisQueue::workerLoop() {
                 continue;
             }
 
-            // Not in cache: analyze
-            const auto wavData = WavReader::readWavFile(filePath);
+            // Fast partial-file decode + analysis
+            const auto wavData = WavReader::readWavFileForAnalysis(filePath, 65536);
             if (wavData.isValid && !wavData.monoChannel.empty()) {
-                const auto result = SonicAnalyzer::analyze(wavData.monoChannel.data(),
-                                                           wavData.numSamples,
-                                                           static_cast<double>(wavData.sampleRate));
+                auto result = SonicAnalyzer::analyze(wavData.monoChannel.data(),
+                                                     static_cast<int64_t>(wavData.monoChannel.size()),
+                                                     static_cast<double>(wavData.sampleRate));
+                result.durationSamples = wavData.numSamples;
+                result.durationSeconds = static_cast<double>(wavData.numSamples) /
+                                         static_cast<double>(wavData.sampleRate);
                 cache_.put(filePath, modTime, fileSize, result);
                 if (cb) {
                     cb(filePath, result);
                 }
+                continue;
+            }
+
+            // Fallback so unsupported/corrupt files still resolve in UI
+            ToneAnalysisResult fallback{};
+            fallback.dominantFrequencyHz = 130.81278265;
+            SonicAnalyzer::frequencyToNote(fallback.dominantFrequencyHz,
+                                           fallback.midiNote,
+                                           fallback.detuneCents,
+                                           fallback.noteName);
+            fallback.hasClearTone = false;
+            if (cb) {
+                cb(filePath, fallback);
             }
         }
     }

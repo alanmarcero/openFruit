@@ -128,8 +128,10 @@ void SampleBrowserModal::refreshFileList() {
         BrowserFileItem item;
         item.fullPath = file.getFullPathName().toStdString();
         item.fileName = file.getFileName().toStdString();
-        item.fileSize = file.getSize();
-        item.modTime = file.getLastModificationTime().toMilliseconds() / 1000;
+        if (!openfruit::core::ToneCache::getFileStats(item.fullPath, item.modTime, item.fileSize)) {
+            item.fileSize = file.getSize();
+            item.modTime = file.getLastModificationTime().toMilliseconds() / 1000;
+        }
 
         // Check cache
         auto cached = cache_.get(item.fullPath, item.modTime, item.fileSize);
@@ -146,18 +148,26 @@ void SampleBrowserModal::refreshFileList() {
 
     // Start background queue for items needing analysis (max 5 at a time)
     if (!pendingPaths.empty()) {
+        juce::Component::SafePointer<SampleBrowserModal> safeThis(this);
         queue_.queueFolderFiles(currentFolder_.getFullPathName().toStdString(),
                                 pendingPaths,
-                                [this](const std::string& path, const openfruit::core::ToneAnalysisResult& res) {
-            juce::MessageManager::callAsync([this, path, res] {
-                for (auto& f : files_) {
+                                [safeThis](const std::string& path, const openfruit::core::ToneAnalysisResult& res) {
+            juce::MessageManager::callAsync([safeThis, path, res] {
+                if (safeThis == nullptr) {
+                    return;
+                }
+                for (auto& f : safeThis->files_) {
                     if (f.fullPath == path) {
                         f.toneResult = res;
                         f.hasTone = true;
                         break;
                     }
                 }
-                table_.repaint();
+                if (safeThis->sortMode_ != 3) {
+                    safeThis->sortItems();
+                } else {
+                    safeThis->table_.repaint();
+                }
             });
         });
     }
