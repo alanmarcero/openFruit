@@ -20,7 +20,8 @@ struct BrowserFileItem {
 };
 
 class SampleBrowserModal : public juce::Component,
-                           public juce::TableListBoxModel {
+                           public juce::TableListBoxModel,
+                           public juce::FileDragAndDropTarget {
 public:
     SampleBrowserModal(int targetTrackIdx,
                        openfruit::core::FruitEngine& engine,
@@ -32,13 +33,19 @@ public:
     void setFolder(const juce::File& folder);
 
     std::function<void()> onClose;
+    std::function<void(const juce::File&)> onFolderChanged;
 
     // TableListBoxModel implementation
     int getNumRows() override;
     void paintRowBackground(juce::Graphics& g, int rowNumber, int width, int height, bool rowIsSelected) override;
     void paintCell(juce::Graphics& g, int rowNumber, int columnId, int width, int height, bool rowIsSelected) override;
     void selectedRowsChanged(int lastRowSelected) override;
+    void cellDoubleClicked(int rowNumber, int columnId, const juce::MouseEvent&) override;
     void sortOrderChanged(int newSortColumnId, bool isForwards) override;
+
+    // FileDragAndDropTarget implementation
+    bool isInterestedInFileDrag(const juce::StringArray& files) override;
+    void filesDropped(const juce::StringArray& files, int x, int y) override;
 
     void paint(juce::Graphics& g) override;
     void resized() override;
@@ -46,6 +53,8 @@ public:
 private:
     void refreshFileList();
     void sortItems();
+    std::shared_ptr<openfruit::core::AudioSampleBuffer> decodeItemToSample(const BrowserFileItem& item);
+    void selectFileByPath(const std::string& fullPath);
     void previewSelectedItem();
     void clearCache();
     void commitSelection();

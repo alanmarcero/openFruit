@@ -29,6 +29,8 @@ OpenFruitAudioProcessor::OpenFruitAudioProcessor()
     engine_.setStepActive(3, openfruit::core::PageIndex::PageA, 6, true);
     engine_.setStepActive(3, openfruit::core::PageIndex::PageA, 10, true);
     engine_.setStepActive(3, openfruit::core::PageIndex::PageA, 14, true);
+
+    syncParametersToEngine();
 }
 
 OpenFruitAudioProcessor::~OpenFruitAudioProcessor() {
@@ -60,28 +62,26 @@ void OpenFruitAudioProcessor::syncParametersToEngine() {
         engine_.setActivePage(static_cast<openfruit::core::PageIndex>(static_cast<int>(*p)));
     }
 
-    // 2. Control Mode
-    if (const auto* p = apvts_.getRawParameterValue(openfruit::params::kInputMode)) {
-        engine_.setInputControlMode(static_cast<openfruit::core::InputControlMode>(static_cast<int>(*p)));
-    }
-
-    // 3. Track Count
+    // 2. Track Count
     if (const auto* p = apvts_.getRawParameterValue(openfruit::params::kTrackCount)) {
         const int idx = static_cast<int>(*p);
         if (idx == 0) engine_.setTrackCountMode(openfruit::core::TrackCountMode::Tracks4);
-        else if (idx == 1) engine_.setTrackCountMode(openfruit::core::TrackCountMode::Tracks8);
-        else if (idx == 2) engine_.setTrackCountMode(openfruit::core::TrackCountMode::Tracks12);
-        else engine_.setTrackCountMode(openfruit::core::TrackCountMode::Tracks16);
+        if (idx == 1) engine_.setTrackCountMode(openfruit::core::TrackCountMode::Tracks8);
+        if (idx == 2) engine_.setTrackCountMode(openfruit::core::TrackCountMode::Tracks12);
+        if (idx >= 3) engine_.setTrackCountMode(openfruit::core::TrackCountMode::Tracks16);
     }
 
-    // 4. Master Volume
+    // 3. Master Volume
     if (const auto* p = apvts_.getRawParameterValue(openfruit::params::kMasterVol)) {
         engine_.setMasterVolume(*p);
     }
 
-    // 5. Per-track parameters
+    // 4. Per-track parameters
     for (int i = 0; i < openfruit::core::kMaxTracks; ++i) {
         auto& trk = engine_.getTrack(i);
+        if (const auto* ch = apvts_.getRawParameterValue(openfruit::params::trackMidiChId(i))) {
+            trk.midiChannel = std::clamp(static_cast<int>(*ch), 1, 16);
+        }
         if (const auto* v = apvts_.getRawParameterValue(openfruit::params::trackVolId(i))) {
             trk.volume = *v;
         }

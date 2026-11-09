@@ -18,6 +18,7 @@ struct WavAudioData {
 
 class WavReader {
 public:
+    static bool isSupportedAudioFile(const std::string& filePath) noexcept;
     static WavAudioData readWavFile(const std::string& filePath);
     static WavAudioData readWavFileForAnalysis(const std::string& filePath, int64_t maxFrames = 65536);
     static WavAudioData readWavFromMemory(const uint8_t* data,

@@ -39,8 +39,8 @@ private:
     juce::Label pageLabel_{ "Pages:", "Page:" };
     std::array<juce::TextButton, 4> pageBtns_;
 
-    // Mode Toggle: Sequencer vs MIDI
-    juce::TextButton modeBtn_{ "Sequencer mode" };
+    // Transport Play / Pause Toggle
+    juce::TextButton playBtn_{ "Play" };
 
     // Theme selector
     juce::ComboBox themeBox_;
@@ -57,7 +57,8 @@ class TrackerPanel : public juce::Component {
 public:
     TrackerPanel(openfruit::core::FruitEngine& engine,
                  openfruit::core::ToneCache& cache,
-                 openfruit::core::AnalysisQueue& queue);
+                 openfruit::core::AnalysisQueue& queue,
+                 juce::AudioProcessorValueTreeState* apvts = nullptr);
     ~TrackerPanel() override = default;
 
     void setTheme(const openfruit::theme::Palette& palette);
@@ -77,9 +78,11 @@ private:
     openfruit::core::FruitEngine& engine_;
     openfruit::core::ToneCache& cache_;
     openfruit::core::AnalysisQueue& queue_;
+    juce::AudioProcessorValueTreeState* apvts_ = nullptr;
     openfruit::theme::Palette palette_;
 
-    int visibleTrackCount_ = 16;
+    int visibleTrackCount_ = 8;
+    juce::File lastBrowsedFolder_;
     std::array<std::unique_ptr<TrackRowComponent>, openfruit::core::kMaxTracks> rows_;
 
     std::unique_ptr<SampleBrowserModal> activeBrowser_;

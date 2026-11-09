@@ -17,6 +17,17 @@ option(OF_BUILD_TOOLS "Build developer tools" OFF)
 
 include(FetchContent)
 
+if(EXISTS "${CMAKE_CURRENT_SOURCE_DIR}/../openClapper/build/_deps/juce-src/CMakeLists.txt")
+    FetchContent_Declare(juce
+        SOURCE_DIR "${CMAKE_CURRENT_SOURCE_DIR}/../openClapper/build/_deps/juce-src")
+else()
+    FetchContent_Declare(juce
+        GIT_REPOSITORY https://github.com/juce-framework/JUCE.git
+        GIT_TAG 8.0.9
+        GIT_SHALLOW TRUE)
+endif()
+FetchContent_MakeAvailable(juce)
+
 add_library(openfruit_core STATIC
     Source/Core/SonicAnalyzer.cpp
     Source/Core/ToneCache.cpp
@@ -26,19 +37,18 @@ add_library(openfruit_core STATIC
     Source/Core/FruitEngine.cpp)
 target_include_directories(openfruit_core PUBLIC Source/Core)
 set_target_properties(openfruit_core PROPERTIES POSITION_INDEPENDENT_CODE ON)
+target_compile_definitions(openfruit_core PUBLIC
+    JUCE_USE_MP3AUDIOFORMAT=1
+    JUCE_USE_FLAC=1
+    JUCE_USE_OGGVORBIS=1
+    JUCE_WEB_BROWSER=0
+    JUCE_USE_CURL=0)
+target_link_libraries(openfruit_core PUBLIC
+    juce::juce_audio_formats
+    juce::juce_audio_basics
+    juce::juce_core)
 
 if(OF_BUILD_PLUGIN)
-    if(EXISTS "/Users/alan.marcero/Development/openClapper/build/_deps/juce-src/CMakeLists.txt")
-        FetchContent_Declare(juce
-            SOURCE_DIR "/Users/alan.marcero/Development/openClapper/build/_deps/juce-src")
-    else()
-        FetchContent_Declare(juce
-            GIT_REPOSITORY https://github.com/juce-framework/JUCE.git
-            GIT_TAG 8.0.9
-            GIT_SHALLOW TRUE)
-    endif()
-    FetchContent_MakeAvailable(juce)
-
     juce_add_binary_data(FruitAssets SOURCES
         assets/openFruit-hero.png
         assets/cyber-fruit.png
@@ -122,9 +132,9 @@ if(OF_BUILD_PLUGIN)
 endif()
 
 if(OF_BUILD_TESTS)
-    if(EXISTS "/Users/alan.marcero/Development/openClapper/build/_deps/catch2-src/CMakeLists.txt")
+    if(EXISTS "${CMAKE_CURRENT_SOURCE_DIR}/../openClapper/build/_deps/catch2-src/CMakeLists.txt")
         FetchContent_Declare(Catch2
-            SOURCE_DIR "/Users/alan.marcero/Development/openClapper/build/_deps/catch2-src")
+            SOURCE_DIR "${CMAKE_CURRENT_SOURCE_DIR}/../openClapper/build/_deps/catch2-src")
     else()
         FetchContent_Declare(Catch2
             GIT_REPOSITORY https://github.com/catchorg/Catch2.git
