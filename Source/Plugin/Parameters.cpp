@@ -19,15 +19,7 @@ juce::AudioProcessorValueTreeState::ParameterLayout createParameterLayout() {
         juce::ParameterID(kTrackCount, 1),
         "Track Count",
         juce::StringArray{ "4 Tracks", "8 Tracks", "12 Tracks", "16 Tracks" },
-        3 // default 16
-    ));
-
-    // Input Mode: Pad Sequencer vs MIDI Mode
-    params.push_back(std::make_unique<juce::AudioParameterChoice>(
-        juce::ParameterID(kInputMode, 1),
-        "Control Mode",
-        juce::StringArray{ "Pad Sequencer", "MIDI Mode" },
-        0
+        1 // default 8
     ));
 
     // Theme selector
@@ -49,6 +41,15 @@ juce::AudioProcessorValueTreeState::ParameterLayout createParameterLayout() {
     // 16 Tracks Parameters
     for (int i = 0; i < openfruit::core::kMaxTracks; ++i) {
         const std::string prefix = "Track " + std::to_string(i + 1) + " ";
+
+        // MIDI Channel (1 .. 16, defaults 1 .. 16)
+        params.push_back(std::make_unique<juce::AudioParameterInt>(
+            juce::ParameterID(trackMidiChId(i), 1),
+            prefix + "MIDI Channel",
+            1,
+            16,
+            i + 1
+        ));
 
         // Volume
         params.push_back(std::make_unique<juce::AudioParameterFloat>(

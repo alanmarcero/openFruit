@@ -61,11 +61,6 @@ enum class TrackCountMode : int {
     Tracks16 = 16
 };
 
-enum class InputControlMode : int {
-    SequencerPads = 0, // Fruity Loops style step sequencer pads drive playback
-    MidiMode = 1       // Pads disabled; incoming MIDI notes dictate pitch (+/- 24) and velocity
-};
-
 struct StepData {
     bool active = false;
     float velocity = 0.85f;    // 0.0 .. 1.0

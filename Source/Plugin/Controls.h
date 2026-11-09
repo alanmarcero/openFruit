@@ -1,6 +1,7 @@
 #pragma once
 
 #include <juce_gui_basics/juce_gui_basics.h>
+#include <juce_audio_processors/juce_audio_processors.h>
 #include "Theme.h"
 #include "FruitEngine.h"
 #include "SequencerTypes.h"
@@ -37,7 +38,9 @@ private:
 
 class TrackRowComponent : public juce::Component {
 public:
-    TrackRowComponent(int trackIdx, openfruit::core::FruitEngine& engine);
+    TrackRowComponent(int trackIdx,
+                      openfruit::core::FruitEngine& engine,
+                      juce::AudioProcessorValueTreeState* apvts = nullptr);
     ~TrackRowComponent() override = default;
 
     void setTheme(const openfruit::theme::Palette& palette);
@@ -55,8 +58,10 @@ public:
 private:
     const int trackIdx_;
     openfruit::core::FruitEngine& engine_;
+    juce::AudioProcessorValueTreeState* apvts_ = nullptr;
     openfruit::theme::Palette palette_;
 
+    juce::ComboBox midiChannelBox_;
     juce::TextButton samplePadBtn_;
     juce::TextButton loadBtn_;
     juce::ComboBox timingBox_;

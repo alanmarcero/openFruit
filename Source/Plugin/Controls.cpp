@@ -1,4 +1,5 @@
 #include "Controls.h"
+#include "Parameters.h"
 #include <iomanip>
 #include <sstream>
 
@@ -196,8 +197,42 @@ void CyberStepPad::mouseWheelMove(const juce::MouseEvent& /*e*/, const juce::Mou
 // TrackRowComponent
 // ============================================================================
 
-TrackRowComponent::TrackRowComponent(int trackIdx, openfruit::core::FruitEngine& engine)
-    : trackIdx_(trackIdx), engine_(engine), palette_(openfruit::theme::getPalette(openfruit::core::ColorTheme::CyberpunkNeon)) {
+namespace {
+
+void setApvtsParamValue(juce::AudioProcessorValueTreeState* apvts,
+                        const std::string& paramId,
+                        float plainValue) {
+    if (apvts == nullptr) {
+        return;
+    }
+    if (auto* param = apvts->getParameter(paramId)) {
+        param->setValueNotifyingHost(param->convertTo0to1(plainValue));
+    }
+}
+
+} // namespace
+
+TrackRowComponent::TrackRowComponent(int trackIdx,
+                                     openfruit::core::FruitEngine& engine,
+                                     juce::AudioProcessorValueTreeState* apvts)
+    : trackIdx_(trackIdx),
+      engine_(engine),
+      apvts_(apvts),
+      palette_(openfruit::theme::getPalette(openfruit::core::ColorTheme::CyberpunkNeon)) {
+
+    // 0. Per-row MIDI Channel Selector (CH 1 .. CH 16, defaults to trackIdx + 1)
+    for (int ch = 1; ch <= 16; ++ch) {
+        midiChannelBox_.addItem("CH " + juce::String(ch), ch);
+    }
+    const int initialCh = std::clamp(engine_.getTrack(trackIdx_).midiChannel, 1, 16);
+    midiChannelBox_.setSelectedId(initialCh, juce::dontSendNotification);
+    midiChannelBox_.setTooltip("MIDI input channel for this row");
+    midiChannelBox_.onChange = [this] {
+        const int ch = std::clamp(midiChannelBox_.getSelectedId(), 1, 16);
+        engine_.setTrackMidiChannel(trackIdx_, ch);
+        setApvtsParamValue(apvts_, openfruit::params::trackMidiChId(trackIdx_), static_cast<float>(ch));
+    };
+    addAndMakeVisible(midiChannelBox_);
 
     // 1. Sample Trigger Pad Button
     samplePadBtn_.setButtonText("Loading");
@@ -223,8 +258,9 @@ TrackRowComponent::TrackRowComponent(int trackIdx, openfruit::core::FruitEngine&
         const int id = timingBox_.getSelectedId();
         auto& t = engine_.getTrack(trackIdx_);
         if (id == 1) t.timing = openfruit::core::StepTiming::Timing1_16;
-        else if (id == 2) t.timing = openfruit::core::StepTiming::Timing1_32;
-        else if (id == 3) t.timing = openfruit::core::StepTiming::Timing1_64;
+        if (id == 2) t.timing = openfruit::core::StepTiming::Timing1_32;
+        if (id == 3) t.timing = openfruit::core::StepTiming::Timing1_64;
+        setApvtsParamValue(apvts_, openfruit::params::trackTimingId(trackIdx_), static_cast<float>(id - 1));
     };
     addAndMakeVisible(timingBox_);
 
@@ -234,7 +270,9 @@ TrackRowComponent::TrackRowComponent(int trackIdx, openfruit::core::FruitEngine&
     tuneSlider_.setValue(0.0, juce::dontSendNotification);
     tuneSlider_.setTextValueSuffix(" st");
     tuneSlider_.onValueChange = [this] {
-        engine_.getTrack(trackIdx_).baseTune = static_cast<int>(tuneSlider_.getValue());
+        const int val = static_cast<int>(tuneSlider_.getValue());
+        engine_.getTrack(trackIdx_).baseTune = val;
+        setApvtsParamValue(apvts_, openfruit::params::trackTuneId(trackIdx_), static_cast<float>(val));
     };
     addAndMakeVisible(tuneSlider_);
 
@@ -243,7 +281,9 @@ TrackRowComponent::TrackRowComponent(int trackIdx, openfruit::core::FruitEngine&
     volSlider_.setRange(0.0, 1.5, 0.01);
     volSlider_.setValue(1.0, juce::dontSendNotification);
     volSlider_.onValueChange = [this] {
-        engine_.getTrack(trackIdx_).volume = static_cast<float>(volSlider_.getValue());
+        const float val = static_cast<float>(volSlider_.getValue());
+        engine_.getTrack(trackIdx_).volume = val;
+        setApvtsParamValue(apvts_, openfruit::params::trackVolId(trackIdx_), val);
     };
     addAndMakeVisible(volSlider_);
 
@@ -252,18 +292,24 @@ TrackRowComponent::TrackRowComponent(int trackIdx, openfruit::core::FruitEngine&
     panSlider_.setRange(-1.0, 1.0, 0.01);
     panSlider_.setValue(0.0, juce::dontSendNotification);
     panSlider_.onValueChange = [this] {
-        engine_.getTrack(trackIdx_).pan = static_cast<float>(panSlider_.getValue());
+        const float val = static_cast<float>(panSlider_.getValue());
+        engine_.getTrack(trackIdx_).pan = val;
+        setApvtsParamValue(apvts_, openfruit::params::trackPanId(trackIdx_), val);
     };
     addAndMakeVisible(panSlider_);
 
     // 7. Mute & Solo
     muteBtn_.onClick = [this] {
-        engine_.getTrack(trackIdx_).mute = muteBtn_.getToggleState();
+        const bool m = muteBtn_.getToggleState();
+        engine_.getTrack(trackIdx_).mute = m;
+        setApvtsParamValue(apvts_, openfruit::params::trackMuteId(trackIdx_), m ? 1.0f : 0.0f);
     };
     addAndMakeVisible(muteBtn_);
 
     soloBtn_.onClick = [this] {
-        engine_.getTrack(trackIdx_).solo = soloBtn_.getToggleState();
+        const bool s = soloBtn_.getToggleState();
+        engine_.getTrack(trackIdx_).solo = s;
+        setApvtsParamValue(apvts_, openfruit::params::trackSoloId(trackIdx_), s ? 1.0f : 0.0f);
     };
     addAndMakeVisible(soloBtn_);
 
@@ -310,10 +356,13 @@ void TrackRowComponent::updateFromEngine() {
     }
     samplePadBtn_.setButtonText(btnText);
 
+    // Update MIDI channel dropdown
+    midiChannelBox_.setSelectedId(std::clamp(track.midiChannel, 1, 16), juce::dontSendNotification);
+
     // Update timing
     if (track.timing == openfruit::core::StepTiming::Timing1_16) timingBox_.setSelectedId(1, juce::dontSendNotification);
-    else if (track.timing == openfruit::core::StepTiming::Timing1_32) timingBox_.setSelectedId(2, juce::dontSendNotification);
-    else if (track.timing == openfruit::core::StepTiming::Timing1_64) timingBox_.setSelectedId(3, juce::dontSendNotification);
+    if (track.timing == openfruit::core::StepTiming::Timing1_32) timingBox_.setSelectedId(2, juce::dontSendNotification);
+    if (track.timing == openfruit::core::StepTiming::Timing1_64) timingBox_.setSelectedId(3, juce::dontSendNotification);
 
     tuneSlider_.setValue(track.baseTune, juce::dontSendNotification);
     volSlider_.setValue(track.volume, juce::dontSendNotification);
@@ -350,27 +399,6 @@ void TrackRowComponent::paint(juce::Graphics& g) {
     g.setColour(palette_.panelEdge.withAlpha(0.40f));
     g.drawRoundedRectangle(bounds.reduced(1.0f), 4.0f, 1.0f);
 
-    // MIDI Channel Badge: Backlit illuminated LED plate
-    const auto badgeRect = juce::Rectangle<float>(4.0f, 4.0f, 44.0f, bounds.getHeight() - 8.0f);
-
-    // Socket well
-    g.setColour(palette_.background.darker(0.85f));
-    g.fillRoundedRectangle(badgeRect, 3.5f);
-
-    // Glowing border & inner illuminated tint
-    g.setColour(palette_.midiChannelBadge.withAlpha(0.18f));
-    g.fillRoundedRectangle(badgeRect.reduced(1.0f), 3.0f);
-    g.setColour(palette_.midiChannelBadge.withAlpha(0.70f));
-    g.drawRoundedRectangle(badgeRect, 3.5f, 1.0f);
-
-    // LED text
-    g.setFont(juce::FontOptions(11.0f, juce::Font::bold));
-    const std::string chText = "CH " + std::to_string(trackIdx_ + 1);
-    g.setColour(juce::Colours::black.withAlpha(0.6f));
-    g.drawText(chText, badgeRect.translated(0.0f, 1.0f).toNearestInt(), juce::Justification::centred, false);
-    g.setColour(palette_.midiChannelBadge.brighter(0.2f));
-    g.drawText(chText, badgeRect.toNearestInt(), juce::Justification::centred, false);
-
     // Track divider line at bottom
     g.setColour(palette_.panelEdge.withAlpha(0.45f));
     g.drawLine(0.0f, bounds.getBottom(), bounds.getRight(), bounds.getBottom(), 1.0f);
@@ -379,11 +407,11 @@ void TrackRowComponent::paint(juce::Graphics& g) {
 void TrackRowComponent::resized() {
     auto area = getLocalBounds().reduced(2);
 
-    // 1. Skip MIDI Badge (width 48)
-    area.removeFromLeft(50);
+    // 1. Per-row MIDI Channel Dropdown (CH 1 .. CH 16)
+    midiChannelBox_.setBounds(area.removeFromLeft(58).reduced(2));
 
     // 2. Track Sample Trigger Pad
-    samplePadBtn_.setBounds(area.removeFromLeft(140).reduced(2));
+    samplePadBtn_.setBounds(area.removeFromLeft(136).reduced(2));
 
     // 3. Load Button
     loadBtn_.setBounds(area.removeFromLeft(44).reduced(2));

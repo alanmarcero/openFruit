@@ -1,8 +1,86 @@
 #include "SampleBrowserModal.h"
 #include "WavReader.h"
+#include "SonicAnalyzer.h"
 #include <algorithm>
+#include <filesystem>
 
 namespace openfruit::ui {
+
+namespace {
+
+constexpr size_t kMaxScannedAudioFiles = 2500;
+constexpr int kMaxScanDirectoryDepth = 6;
+
+bool hasHiddenPathComponent(const std::filesystem::path& relativePath) {
+    for (const auto& part : relativePath) {
+        const std::string name = part.filename().string();
+        if (!name.empty() && name[0] == '.') {
+            return true;
+        }
+    }
+    return false;
+}
+
+std::vector<juce::File> findAudioFilesInFolder(const juce::File& rootFolder) {
+    std::vector<juce::File> results;
+    if (!rootFolder.isDirectory()) {
+        return results;
+    }
+
+    std::error_code ec;
+    const std::filesystem::path rootPath(rootFolder.getFullPathName().toStdString());
+    auto it = std::filesystem::recursive_directory_iterator(
+        rootPath,
+        std::filesystem::directory_options::skip_permission_denied,
+        ec
+    );
+    const std::filesystem::recursive_directory_iterator end;
+
+    while (!ec && it != end && results.size() < kMaxScannedAudioFiles) {
+        const auto& entry = *it;
+        const auto relPath = std::filesystem::relative(entry.path(), rootPath, ec);
+        if (!ec && hasHiddenPathComponent(relPath)) {
+            if (entry.is_directory(ec)) {
+                it.disable_recursion_pending();
+            }
+            it.increment(ec);
+            continue;
+        }
+
+        if (it.depth() > kMaxScanDirectoryDepth && entry.is_directory(ec)) {
+            it.disable_recursion_pending();
+        }
+
+        std::error_code fileEc;
+        if (entry.is_regular_file(fileEc)) {
+            const std::string fullPath = entry.path().string();
+            if (openfruit::core::WavReader::isSupportedAudioFile(fullPath)) {
+                results.emplace_back(juce::String::fromUTF8(fullPath.c_str()));
+            }
+        }
+
+        it.increment(ec);
+        if (ec) {
+            ec.clear();
+        }
+    }
+
+    return results;
+}
+
+juce::File extractChosenFileFromChooser(const juce::FileChooser& chooser) {
+    const auto results = chooser.getResults();
+    if (!results.isEmpty()) {
+        return results.getFirst();
+    }
+    const auto urls = chooser.getURLResults();
+    if (!urls.isEmpty() && urls.getFirst().isLocalFile()) {
+        return urls.getFirst().getLocalFile();
+    }
+    return chooser.getResult();
+}
+
+} // namespace
 
 SampleBrowserModal::SampleBrowserModal(int targetTrackIdx,
                                        openfruit::core::FruitEngine& engine,
@@ -14,8 +92,10 @@ SampleBrowserModal::SampleBrowserModal(int targetTrackIdx,
       queue_(queue),
       palette_(openfruit::theme::getPalette(openfruit::core::ColorTheme::CyberpunkNeon)) {
 
+    const int midiCh = engine_.getTrack(targetTrackIdx).midiChannel;
+
     // 1. Title Label
-    titleLabel_.setText("Sample browser: track " + juce::String(targetTrackIdx + 1) + " (MIDI channel " + juce::String(targetTrackIdx + 1) + ")",
+    titleLabel_.setText("Sample browser: track " + juce::String(targetTrackIdx + 1) + " (MIDI channel " + juce::String(midiCh) + ")",
                         juce::dontSendNotification);
     titleLabel_.setFont(juce::FontOptions(14.0f, juce::Font::bold));
     addAndMakeVisible(titleLabel_);
@@ -25,19 +105,32 @@ SampleBrowserModal::SampleBrowserModal(int targetTrackIdx,
     addAndMakeVisible(folderLabel_);
 
     browseFolderBtn_.onClick = [this] {
+        const juce::File startDir = currentFolder_.isDirectory()
+            ? currentFolder_
+            : juce::File::getSpecialLocation(juce::File::userHomeDirectory);
+
         fileChooser_ = std::make_unique<juce::FileChooser>(
-            "Select sample folder",
-            juce::File::getSpecialLocation(juce::File::userHomeDirectory),
+            "Select sample folder or audio file",
+            startDir,
             "*"
         );
+        juce::Component::SafePointer<SampleBrowserModal> safeThis(this);
         fileChooser_->launchAsync(
-            juce::FileBrowserComponent::openMode | juce::FileBrowserComponent::canSelectDirectories,
-            [this](const juce::FileChooser& chooser) {
-                auto result = chooser.getResult();
+            juce::FileBrowserComponent::openMode
+                | juce::FileBrowserComponent::canSelectDirectories
+                | juce::FileBrowserComponent::canSelectFiles,
+            [safeThis](const juce::FileChooser& chooser) {
+                if (safeThis == nullptr) {
+                    return;
+                }
+                const auto result = extractChosenFileFromChooser(chooser);
                 if (result.isDirectory()) {
-                    setFolder(result);
-                } else if (result.exists()) {
-                    setFolder(result.getParentDirectory());
+                    safeThis->setFolder(result);
+                    return;
+                }
+                if (result.existsAsFile()) {
+                    safeThis->setFolder(result.getParentDirectory());
+                    safeThis->selectFileByPath(result.getFullPathName().toStdString());
                 }
             }
         );
@@ -74,7 +167,7 @@ SampleBrowserModal::SampleBrowserModal(int targetTrackIdx,
     playBtn_.onClick = [this] { previewSelectedItem(); };
     addAndMakeVisible(playBtn_);
 
-    midiLiveNoteLabel_.setText("MIDI channel " + juce::String(targetTrackIdx + 1) + " plays the selected sample in the mix.",
+    midiLiveNoteLabel_.setText("MIDI channel " + juce::String(midiCh) + " plays the selected sample in the mix.",
                                juce::dontSendNotification);
     midiLiveNoteLabel_.setFont(juce::FontOptions(11.0f));
     addAndMakeVisible(midiLiveNoteLabel_);
@@ -85,7 +178,7 @@ SampleBrowserModal::SampleBrowserModal(int targetTrackIdx,
     cancelBtn_.onClick = [this] { cancelAndClose(); };
     addAndMakeVisible(cancelBtn_);
 
-    // Default to samples directory if exists, else music directory
+    // Default to music directory if exists
     auto defaultDir = juce::File::getSpecialLocation(juce::File::userMusicDirectory);
     if (defaultDir.exists()) {
         setFolder(defaultDir);
@@ -106,6 +199,9 @@ void SampleBrowserModal::setFolder(const juce::File& folder) {
     if (!folder.isDirectory()) return;
     currentFolder_ = folder;
     folderLabel_.setText("Folder: " + currentFolder_.getFullPathName(), juce::dontSendNotification);
+    if (onFolderChanged) {
+        onFolderChanged(currentFolder_);
+    }
     refreshFileList();
 }
 
@@ -118,27 +214,27 @@ void SampleBrowserModal::refreshFileList() {
         return;
     }
 
-    juce::Array<juce::File> found;
-    currentFolder_.findChildFiles(found, juce::File::findFiles, false, "*.wav;*.aif;*.aiff;*.mp3;*.flac");
+    const auto found = findAudioFilesInFolder(currentFolder_);
 
     std::vector<std::string> pendingPaths;
-    pendingPaths.reserve(static_cast<size_t>(found.size()));
+    pendingPaths.reserve(found.size());
 
     for (const auto& file : found) {
         BrowserFileItem item;
         item.fullPath = file.getFullPathName().toStdString();
-        item.fileName = file.getFileName().toStdString();
+        const juce::String relName = file.getRelativePathFrom(currentFolder_);
+        item.fileName = (relName.isNotEmpty() ? relName : file.getFileName()).toStdString();
         if (!openfruit::core::ToneCache::getFileStats(item.fullPath, item.modTime, item.fileSize)) {
             item.fileSize = file.getSize();
             item.modTime = file.getLastModificationTime().toMilliseconds() / 1000;
         }
 
-        // Check cache
-        auto cached = cache_.get(item.fullPath, item.modTime, item.fileSize);
+        const auto cached = cache_.get(item.fullPath, item.modTime, item.fileSize);
         if (cached.has_value()) {
             item.toneResult = *cached;
             item.hasTone = true;
-        } else {
+        }
+        if (!cached.has_value()) {
             pendingPaths.push_back(item.fullPath);
         }
         files_.push_back(std::move(item));
@@ -146,7 +242,6 @@ void SampleBrowserModal::refreshFileList() {
 
     sortItems();
 
-    // Start background queue for items needing analysis (max 5 at a time)
     if (!pendingPaths.empty()) {
         juce::Component::SafePointer<SampleBrowserModal> safeThis(this);
         queue_.queueFolderFiles(currentFolder_.getFullPathName().toStdString(),
@@ -165,9 +260,9 @@ void SampleBrowserModal::refreshFileList() {
                 }
                 if (safeThis->sortMode_ != 3) {
                     safeThis->sortItems();
-                } else {
-                    safeThis->table_.repaint();
+                    return;
                 }
+                safeThis->table_.repaint();
             });
         });
     }
@@ -281,22 +376,103 @@ void SampleBrowserModal::paintCell(juce::Graphics& g, int rowNumber, int columnI
 }
 
 void SampleBrowserModal::selectedRowsChanged(int lastRowSelected) {
-    if (lastRowSelected >= 0 && lastRowSelected < static_cast<int>(files_.size())) {
-        if (autoPlayToggle_.getToggleState()) {
-            previewSelectedItem();
-        }
+    if (lastRowSelected < 0 || lastRowSelected >= static_cast<int>(files_.size())) {
+        return;
     }
+
+    const auto& item = files_[static_cast<size_t>(lastRowSelected)];
+    auto sample = decodeItemToSample(item);
+    if (!sample) {
+        return;
+    }
+
+    engine_.setAuditionSampleForTrack(targetTrackIdx_, sample);
+    if (autoPlayToggle_.getToggleState()) {
+        engine_.triggerTrackManual(targetTrackIdx_, 0.9f, 0);
+    }
+}
+
+void SampleBrowserModal::cellDoubleClicked(int rowNumber, int /*columnId*/, const juce::MouseEvent&) {
+    if (rowNumber < 0 || rowNumber >= static_cast<int>(files_.size())) {
+        return;
+    }
+    table_.selectRow(rowNumber);
+    commitSelection();
 }
 
 void SampleBrowserModal::sortOrderChanged(int newSortColumnId, bool isForwards) {
     if (newSortColumnId == 3) {
         sortMode_ = isForwards ? 1 : 2;
-    } else if (newSortColumnId == 1) {
+    }
+    if (newSortColumnId == 1) {
         sortMode_ = 3;
-    } else if (newSortColumnId == 2) {
+    }
+    if (newSortColumnId == 2) {
         sortMode_ = 4;
     }
     sortItems();
+}
+
+bool SampleBrowserModal::isInterestedInFileDrag(const juce::StringArray& files) {
+    for (const auto& f : files) {
+        const juce::File file(f);
+        if (file.isDirectory() || openfruit::core::WavReader::isSupportedAudioFile(f.toStdString())) {
+            return true;
+        }
+    }
+    return false;
+}
+
+void SampleBrowserModal::filesDropped(const juce::StringArray& files, int /*x*/, int /*y*/) {
+    if (files.isEmpty()) {
+        return;
+    }
+    const juce::File first(files[0]);
+    if (first.isDirectory()) {
+        setFolder(first);
+        return;
+    }
+    if (first.existsAsFile()) {
+        setFolder(first.getParentDirectory());
+        selectFileByPath(first.getFullPathName().toStdString());
+    }
+}
+
+std::shared_ptr<openfruit::core::AudioSampleBuffer> SampleBrowserModal::decodeItemToSample(const BrowserFileItem& item) {
+    const auto wav = openfruit::core::WavReader::readWavFile(item.fullPath);
+    if (!wav.isValid || wav.channels.empty()) {
+        return nullptr;
+    }
+
+    auto sample = std::make_shared<openfruit::core::AudioSampleBuffer>();
+    sample->filePath = item.fullPath;
+    sample->sampleName = juce::File(item.fullPath).getFileNameWithoutExtension().toStdString();
+    if (sample->sampleName.empty()) {
+        sample->sampleName = item.fileName;
+    }
+    sample->numChannels = wav.numChannels;
+    sample->sampleRate = wav.sampleRate;
+    sample->numSamples = wav.numSamples;
+    sample->channels = wav.channels;
+    sample->toneResult = item.toneResult;
+    if (!item.hasTone && !wav.monoChannel.empty()) {
+        sample->toneResult = openfruit::core::SonicAnalyzer::analyze(
+            wav.monoChannel.data(),
+            static_cast<int64_t>(wav.monoChannel.size()),
+            static_cast<double>(wav.sampleRate)
+        );
+    }
+    sample->isLoaded = true;
+    return sample;
+}
+
+void SampleBrowserModal::selectFileByPath(const std::string& fullPath) {
+    for (size_t i = 0; i < files_.size(); ++i) {
+        if (files_[i].fullPath == fullPath) {
+            table_.selectRow(static_cast<int>(i));
+            return;
+        }
+    }
 }
 
 void SampleBrowserModal::previewSelectedItem() {
@@ -306,27 +482,12 @@ void SampleBrowserModal::previewSelectedItem() {
     }
 
     const auto& item = files_[static_cast<size_t>(row)];
-
-    // Decode file
-    const auto wav = openfruit::core::WavReader::readWavFile(item.fullPath);
-    if (!wav.isValid || wav.channels.empty()) {
+    auto sample = decodeItemToSample(item);
+    if (!sample) {
         return;
     }
 
-    auto sample = std::make_shared<openfruit::core::AudioSampleBuffer>();
-    sample->filePath = item.fullPath;
-    sample->sampleName = item.fileName;
-    sample->numChannels = wav.numChannels;
-    sample->sampleRate = wav.sampleRate;
-    sample->numSamples = wav.numSamples;
-    sample->channels = wav.channels;
-    sample->toneResult = item.toneResult;
-    sample->isLoaded = true;
-
-    // Set audition sample for this track so incoming MIDI triggers it live!
     engine_.setAuditionSampleForTrack(targetTrackIdx_, sample);
-
-    // Also trigger one-shot preview immediately
     engine_.triggerTrackManual(targetTrackIdx_, 0.9f, 0);
 }
 
@@ -339,6 +500,11 @@ void SampleBrowserModal::clearCache() {
 void SampleBrowserModal::commitSelection() {
     const int row = table_.getSelectedRow();
     if (row >= 0 && row < static_cast<int>(files_.size())) {
+        if (!engine_.getTrack(targetTrackIdx_).auditionSample) {
+            if (auto sample = decodeItemToSample(files_[static_cast<size_t>(row)])) {
+                engine_.setAuditionSampleForTrack(targetTrackIdx_, sample);
+            }
+        }
         engine_.commitAuditionSample(targetTrackIdx_);
     }
     if (onClose) onClose();

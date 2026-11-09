@@ -7,10 +7,9 @@ namespace openfruit::core {
 namespace {
 
 float softClip(float x) noexcept {
-    // Smooth tanh-like soft saturation to prevent harsh clipping
-    if (x > 1.25f) return 1.0f;
-    if (x < -1.25f) return -1.0f;
-    return x - (0.1066f * x * x * x);
+    // Smooth C-infinity analog tape saturation with second-harmonic warmth
+    const float s = std::tanh(x);
+    return s + 0.03f * s * std::abs(s);
 }
 
 } // namespace
@@ -63,14 +62,45 @@ void FruitEngine::reset() {
     previewVoice_.stop();
     internalPpq_ = 0.0;
     lastPpq_ = 0.0;
+    justManuallyStarted_ = false;
+    wasHostPlaying_ = false;
 }
 
 void FruitEngine::setTrackCountMode(TrackCountMode mode) noexcept {
     trackCountMode_ = mode;
 }
 
-void FruitEngine::setInputControlMode(InputControlMode mode) noexcept {
-    inputMode_ = mode;
+void FruitEngine::setPlaying(bool playing) noexcept {
+    const std::lock_guard<std::mutex> lock(engineMutex_);
+    if (playing && !isPlaying_.load()) {
+        for (auto& track : tracks_) {
+            track.lastTriggeredStep = -1;
+        }
+    }
+    if (!playing) {
+        for (auto& track : tracks_) {
+            track.lastTriggeredStep = -1;
+        }
+    }
+    justManuallyStarted_ = playing;
+    isPlaying_.store(playing);
+    hostSyncArmed_.store(playing);
+}
+
+void FruitEngine::setTrackMidiChannel(int trackIndex, int channel1to16) noexcept {
+    if (trackIndex < 0 || trackIndex >= kMaxTracks) {
+        return;
+    }
+    const std::lock_guard<std::mutex> lock(engineMutex_);
+    tracks_[static_cast<size_t>(trackIndex)].midiChannel = std::clamp(channel1to16, 1, 16);
+}
+
+int FruitEngine::getTrackMidiChannel(int trackIndex) const noexcept {
+    if (trackIndex < 0 || trackIndex >= kMaxTracks) {
+        return 1;
+    }
+    const std::lock_guard<std::mutex> lock(engineMutex_);
+    return tracks_[static_cast<size_t>(trackIndex)].midiChannel;
 }
 
 void FruitEngine::setActivePage(PageIndex page) noexcept {
@@ -178,25 +208,25 @@ void FruitEngine::triggerTrackManual(int trackIndex, float velocity, int semiton
 }
 
 void FruitEngine::handleMidiNoteOn(int channel1to16, int midiNote, float velocity) {
-    const int trackIdx = channel1to16 - 1;
-    if (trackIdx < 0 || trackIdx >= getActiveTrackCount()) {
+    if (channel1to16 < 1 || channel1to16 > 16) {
         return;
     }
 
     const std::lock_guard<std::mutex> lock(engineMutex_);
-    auto& track = tracks_[static_cast<size_t>(trackIdx)];
-    auto sampleToPlay = track.auditionSample ? track.auditionSample : track.sample;
-    if (!sampleToPlay) {
-        return;
-    }
+    const int activeTracks = getActiveTrackCount();
+    const int semitoneOffset = std::clamp(midiNote - 60, kMinSemitoneTune, kMaxSemitoneTune);
 
-    // In MIDI Mode, note 60 (C4/C3) is baseline (offset 0), notes above/below tune +/- semitones
-    int semitoneOffset = 0;
-    if (inputMode_ == InputControlMode::MidiMode) {
-        semitoneOffset = std::clamp(midiNote - 60, kMinSemitoneTune, kMaxSemitoneTune);
+    for (int t = 0; t < activeTracks; ++t) {
+        auto& track = tracks_[static_cast<size_t>(t)];
+        if (track.midiChannel != channel1to16) {
+            continue;
+        }
+        auto sampleToPlay = track.auditionSample ? track.auditionSample : track.sample;
+        if (!sampleToPlay) {
+            continue;
+        }
+        track.triggerVoice(sampleToPlay, velocity, semitoneOffset, sampleRate_);
     }
-
-    track.triggerVoice(sampleToPlay, velocity, semitoneOffset, sampleRate_);
 }
 
 void FruitEngine::handleMidiNoteOff(int /*channel1to16*/, int /*midiNote*/) {
@@ -204,11 +234,6 @@ void FruitEngine::handleMidiNoteOff(int /*channel1to16*/, int /*midiNote*/) {
 }
 
 void FruitEngine::advanceSequencer(double ppqStart, double ppqEnd, int /*numSamples*/, double /*bpm*/) {
-    if (inputMode_ == InputControlMode::MidiMode) {
-        // Step sequencer disabled in MIDI Mode
-        return;
-    }
-
     const int activeTracks = getActiveTrackCount();
     const size_t pageIdx = static_cast<size_t>(activePage_);
 
@@ -222,11 +247,27 @@ void FruitEngine::advanceSequencer(double ppqStart, double ppqEnd, int /*numSamp
         const int step16 = static_cast<int>(stepEnd % kStepsPerPage);
         track.currentStep = (step16 >= 0) ? step16 : (step16 + kStepsPerPage);
 
+        // Trigger initial step when playback first starts or loops
+        if (track.lastTriggeredStep == -1) {
+            int startIdx = static_cast<int>(stepStart % kStepsPerPage);
+            if (startIdx < 0) startIdx += kStepsPerPage;
+            track.lastTriggeredStep = startIdx;
+
+            const auto& step = track.patternPages.pages[pageIdx][static_cast<size_t>(startIdx)];
+            if (step.active) {
+                auto sampleToPlay = track.auditionSample ? track.auditionSample : track.sample;
+                if (sampleToPlay) {
+                    track.triggerVoice(sampleToPlay, step.velocity, step.semitoneOffset, sampleRate_);
+                }
+            }
+        }
+
         // Check if we advanced across a step boundary
         if (stepEnd > stepStart) {
             for (int64_t s = stepStart + 1; s <= stepEnd; ++s) {
                 int sIdx = static_cast<int>(s % kStepsPerPage);
                 if (sIdx < 0) sIdx += kStepsPerPage;
+                track.lastTriggeredStep = sIdx;
 
                 const auto& step = track.patternPages.pages[pageIdx][static_cast<size_t>(sIdx)];
                 if (step.active) {
@@ -252,13 +293,45 @@ void FruitEngine::process(float* leftChannel,
 
     const std::lock_guard<std::mutex> lock(engineMutex_);
 
-    // 1. Advance Sequencer Clock if transport is running
-    if (isHostPlaying && bpm > 10.0) {
-        const double quarterNotesPerSample = bpm / (sampleRate_ * 60.0);
-        const double ppqStart = (ppqPosition >= 0.0) ? ppqPosition : internalPpq_;
+    // 1. Handle host transport start/stop transitions
+    if (justManuallyStarted_) {
+        justManuallyStarted_ = false;
+        wasHostPlaying_ = isHostPlaying;
+    }
+
+    const bool hostJustStarted = (!wasHostPlaying_ && isHostPlaying);
+    const bool hostJustStopped = (wasHostPlaying_ && !isHostPlaying);
+    wasHostPlaying_ = isHostPlaying;
+
+    if (hostJustStopped) {
+        isPlaying_.store(false);
+        for (auto& track : tracks_) {
+            track.lastTriggeredStep = -1;
+        }
+    }
+    if (!hostJustStopped && hostJustStarted && (isPlaying_.load() || hostSyncArmed_.load())) {
+        isPlaying_.store(true);
+        for (auto& track : tracks_) {
+            track.lastTriggeredStep = -1;
+        }
+    }
+
+    // 2. Advance Sequencer Clock when Play is active
+    if (isPlaying_.load()) {
+        const double effectiveBpm = (bpm > 10.0) ? bpm : 120.0;
+        const double quarterNotesPerSample = effectiveBpm / (sampleRate_ * 60.0);
+        const double ppqStart = (isHostPlaying && ppqPosition >= 0.0) ? ppqPosition : internalPpq_;
         const double ppqEnd = ppqStart + (static_cast<double>(numSamples) * quarterNotesPerSample);
-        advanceSequencer(ppqStart, ppqEnd, numSamples, bpm);
+
+        if (isHostPlaying && ppqPosition >= 0.0 && ppqStart < lastPpq_ - 1e-4) {
+            for (auto& track : tracks_) {
+                track.lastTriggeredStep = -1;
+            }
+        }
+
+        advanceSequencer(ppqStart, ppqEnd, numSamples, effectiveBpm);
         internalPpq_ = ppqEnd;
+        lastPpq_ = ppqStart;
     }
 
     // 2. Determine Solo state

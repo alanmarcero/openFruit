@@ -1,12 +1,102 @@
 #include "WavReader.h"
+#include <juce_audio_formats/juce_audio_formats.h>
 #include <algorithm>
+#include <array>
+#include <cctype>
 #include <cmath>
 #include <cstring>
 #include <fstream>
+#include <memory>
 
 namespace openfruit::core {
 
 namespace {
+
+std::string toLowerExtension(const std::string& filePath) {
+    const auto dotPos = filePath.find_last_of('.');
+    if (dotPos == std::string::npos || dotPos + 1 >= filePath.size()) {
+        return {};
+    }
+    std::string ext = filePath.substr(dotPos + 1);
+    std::transform(ext.begin(), ext.end(), ext.begin(), [](unsigned char c) {
+        return static_cast<char>(std::tolower(c));
+    });
+    return ext;
+}
+
+WavAudioData decodeWithJuceAudioFormats(const std::string& filePath,
+                                        bool analysisOnly,
+                                        int64_t maxFrames) {
+    const juce::File file(filePath);
+    if (!file.existsAsFile()) {
+        return {};
+    }
+
+    juce::AudioFormatManager formatManager;
+    formatManager.registerBasicFormats();
+
+    std::unique_ptr<juce::AudioFormatReader> reader(formatManager.createReaderFor(file));
+    if (reader == nullptr || reader->numChannels == 0 || reader->sampleRate <= 0.0 || reader->lengthInSamples <= 0) {
+        return {};
+    }
+
+    const int channels = static_cast<int>(reader->numChannels);
+    const int sampleRate = static_cast<int>(std::round(reader->sampleRate));
+    const int64_t totalFrames = reader->lengthInSamples;
+    const int64_t framesToDecode = (maxFrames > 0) ? std::min(totalFrames, maxFrames) : totalFrames;
+    if (framesToDecode <= 0) {
+        return {};
+    }
+
+    juce::AudioBuffer<float> audioBuffer(channels, static_cast<int>(framesToDecode));
+    audioBuffer.clear();
+    if (!reader->read(&audioBuffer, 0, static_cast<int>(framesToDecode), 0, true, true)) {
+        return {};
+    }
+
+    WavAudioData result{};
+    result.numChannels = channels;
+    result.sampleRate = sampleRate;
+    result.bitsPerSample = static_cast<int>(reader->bitsPerSample > 0 ? reader->bitsPerSample : 16);
+    result.numSamples = analysisOnly ? totalFrames : framesToDecode;
+    result.monoChannel.resize(static_cast<size_t>(framesToDecode));
+
+    if (!analysisOnly) {
+        result.channels.resize(static_cast<size_t>(channels));
+        for (int ch = 0; ch < channels; ++ch) {
+            const float* src = audioBuffer.getReadPointer(ch);
+            result.channels[static_cast<size_t>(ch)].assign(src, src + framesToDecode);
+        }
+    }
+
+    const float invChannels = 1.0f / static_cast<float>(channels);
+    double sumSqMix = 0.0;
+    double sumSqCh0 = 0.0;
+    const float* ch0Ptr = audioBuffer.getReadPointer(0);
+
+    for (int64_t f = 0; f < framesToDecode; ++f) {
+        float monoSum = 0.0f;
+        for (int ch = 0; ch < channels; ++ch) {
+            const float s = audioBuffer.getReadPointer(ch)[static_cast<int>(f)];
+            monoSum += std::isfinite(s) ? s : 0.0f;
+        }
+        const float mix = monoSum * invChannels;
+        const float ch0 = std::isfinite(ch0Ptr[static_cast<int>(f)]) ? ch0Ptr[static_cast<int>(f)] : 0.0f;
+        result.monoChannel[static_cast<size_t>(f)] = mix;
+        sumSqMix += static_cast<double>(mix * mix);
+        sumSqCh0 += static_cast<double>(ch0 * ch0);
+    }
+
+    if (channels > 1 && sumSqMix < 0.15 * sumSqCh0) {
+        for (int64_t f = 0; f < framesToDecode; ++f) {
+            const float ch0 = ch0Ptr[static_cast<int>(f)];
+            result.monoChannel[static_cast<size_t>(f)] = std::isfinite(ch0) ? ch0 : 0.0f;
+        }
+    }
+
+    result.isValid = true;
+    return result;
+}
 
 uint16_t readU16LE(const uint8_t* p) noexcept {
     return static_cast<uint16_t>(p[0] | (static_cast<uint16_t>(p[1]) << 8));
@@ -261,7 +351,28 @@ WavAudioData readAiffFromMemory(const uint8_t* data,
 
 } // namespace
 
+bool WavReader::isSupportedAudioFile(const std::string& filePath) noexcept {
+    static constexpr std::array<const char*, 20> kExtensions = {
+        "wav", "bwf", "aif", "aiff", "aifc",
+        "mp3", "flac", "ogg", "oga", "m4a",
+        "aac", "mp4", "m4r", "caf", "alac",
+        "wma", "opus", "au", "snd", "wv"
+    };
+    const std::string ext = toLowerExtension(filePath);
+    if (ext.empty()) {
+        return false;
+    }
+    return std::any_of(kExtensions.begin(), kExtensions.end(), [&ext](const char* supported) {
+        return ext == supported;
+    });
+}
+
 WavAudioData WavReader::readWavFile(const std::string& filePath) {
+    auto juceDecoded = decodeWithJuceAudioFormats(filePath, false, 0);
+    if (juceDecoded.isValid && !juceDecoded.channels.empty()) {
+        return juceDecoded;
+    }
+
     std::ifstream file(filePath, std::ios::binary | std::ios::ate);
     if (!file.is_open()) {
         return {};
@@ -279,6 +390,11 @@ WavAudioData WavReader::readWavFile(const std::string& filePath) {
 }
 
 WavAudioData WavReader::readWavFileForAnalysis(const std::string& filePath, int64_t maxFrames) {
+    auto juceDecoded = decodeWithJuceAudioFormats(filePath, true, maxFrames);
+    if (juceDecoded.isValid && !juceDecoded.monoChannel.empty()) {
+        return juceDecoded;
+    }
+
     std::ifstream file(filePath, std::ios::binary | std::ios::ate);
     if (!file.is_open()) {
         return {};

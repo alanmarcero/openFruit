@@ -4,7 +4,7 @@ OpenFruitAudioProcessorEditor::OpenFruitAudioProcessorEditor(OpenFruitAudioProce
     : AudioProcessorEditor(&ownerProcessor),
       processorRef_(ownerProcessor),
       headerPanel_(ownerProcessor.getEngine(), ownerProcessor.getAPVTS()),
-      trackerPanel_(ownerProcessor.getEngine(), ownerProcessor.getToneCache(), ownerProcessor.getAnalysisQueue()) {
+      trackerPanel_(ownerProcessor.getEngine(), ownerProcessor.getToneCache(), ownerProcessor.getAnalysisQueue(), &ownerProcessor.getAPVTS()) {
 
     const auto theme = processorRef_.getEngine().getColorTheme();
     const auto palette = openfruit::theme::getPalette(theme);

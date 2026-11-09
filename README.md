@@ -8,20 +8,21 @@ A 16-track step sequencer and sample player based on the classic FL Studio pad t
 
 ## Features
 
-- Track counts: 4, 8, 12, or 16 active tracks.
-- MIDI routing: tracks 1 through 16 map directly to MIDI channels 1 through 16. The active channel is shown on each row badge.
+- Track counts: defaults to 8 active tracks on startup (switchable between 4, 8, 12, or 16 tracks).
+- Transport Play / Pause & Host Sync: pattern playback only runs or auto-plays when the Play button is enabled. Syncs to the host transport when the host starts, plays immediately when Play is pressed, and pauses automatically when the host stops or when Pause is clicked.
+- Always-on MIDI triggering & per-row MIDI routing: incoming MIDI notes always trigger matching rows without needing a mode switch. Each row displays and lets you configure its MIDI channel (`CH 1` through `CH 16`, defaulting to 1–16).
 - Step sequencer: 16 pads per row with 4-beat color groupings.
 - Row timing: 1/16, 1/32, or 1/64 timing selectable per row.
 - Tuning: +/- 24 semitones per step pad and +/- 24 semitones base tuning per track.
 - Velocity: adjustable per step pad.
 - Pattern pages: pages A, B, C, and D switchable by parameter automation or UI buttons.
-- Input modes: sequencer mode uses internal step pads; MIDI mode ignores pads and maps incoming notes to pitch offsets.
+- Common audio format support: recursive sample folder browsing and decoding for WAV, BWF, AIFF/AIFC, MP3, FLAC, Ogg Vorbis, M4A/AAC/MP4, CAF, ALAC, WMA, and Opus.
 - Pitch analysis: the sample browser runs a pitch detector over files in the selected folder, estimating fundamental frequency and musical note.
 - File sorting: sort samples by duration, name, or detected pitch.
 - Tone cache: stores pitch calculations on disk at `~/.openfruit/tone_cache.tsv` to prevent repeated analysis.
 - Live auditioning: selecting a sample plays it immediately, and incoming MIDI on that track's channel triggers the previewed sample in the host mix.
 - Themes: Cyberpunk Neon, Fruity Classic, Synthwave Outrun, and Acid Matrix.
-- Tactile hardware UI: backlit silicone step pads with velocity meters, backlit channel badges, illuminated LED push-switches for Mute/Solo, and brushed cyberpunk chassis faceplate.
+- Tactile hardware UI: backlit silicone step pads with velocity meters, per-row MIDI channel selectors, illuminated LED push-switches for Mute/Solo, and brushed cyberpunk chassis faceplate.
 
 ## Architecture
 

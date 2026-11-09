@@ -25,9 +25,9 @@ HeaderPanel::HeaderPanel(openfruit::core::FruitEngine& engine,
                 param->setValueNotifyingHost(param->convertTo0to1(static_cast<float>(idx)));
             }
             if (count == 4) engine_.setTrackCountMode(openfruit::core::TrackCountMode::Tracks4);
-            else if (count == 8) engine_.setTrackCountMode(openfruit::core::TrackCountMode::Tracks8);
-            else if (count == 12) engine_.setTrackCountMode(openfruit::core::TrackCountMode::Tracks12);
-            else engine_.setTrackCountMode(openfruit::core::TrackCountMode::Tracks16);
+            if (count == 8) engine_.setTrackCountMode(openfruit::core::TrackCountMode::Tracks8);
+            if (count == 12) engine_.setTrackCountMode(openfruit::core::TrackCountMode::Tracks12);
+            if (count == 16) engine_.setTrackCountMode(openfruit::core::TrackCountMode::Tracks16);
 
             updateFromParameters();
             if (onTrackCountChanged) onTrackCountChanged();
@@ -53,18 +53,12 @@ HeaderPanel::HeaderPanel(openfruit::core::FruitEngine& engine,
         addAndMakeVisible(pageBtns_[i]);
     }
 
-    // 3. Mode Toggle: Pad Sequencer vs MIDI Mode
-    modeBtn_.onClick = [this] {
-        const bool isCurrentlyMidi = (engine_.getInputControlMode() == openfruit::core::InputControlMode::MidiMode);
-        const auto newMode = isCurrentlyMidi ? openfruit::core::InputControlMode::SequencerPads
-                                             : openfruit::core::InputControlMode::MidiMode;
-        if (auto* param = apvts_.getParameter(openfruit::params::kInputMode)) {
-            param->setValueNotifyingHost(param->convertTo0to1(static_cast<float>(newMode)));
-        }
-        engine_.setInputControlMode(newMode);
+    // 3. Transport Play / Pause Button
+    playBtn_.onClick = [this] {
+        engine_.setPlaying(!engine_.isPlaying());
         updateFromParameters();
     };
-    addAndMakeVisible(modeBtn_);
+    addAndMakeVisible(playBtn_);
 
     // 4. Color Theme Dropdown
     themeBox_.addItem("Cyberpunk Neon", 1);
@@ -126,11 +120,11 @@ void HeaderPanel::updateFromParameters() {
                                     active ? palette_.accentSecondary : palette_.panel);
     }
 
-    // 3. Mode Button
-    const bool isMidi = (engine_.getInputControlMode() == openfruit::core::InputControlMode::MidiMode);
-    modeBtn_.setButtonText(isMidi ? "MIDI mode" : "Sequencer mode");
-    modeBtn_.setColour(juce::TextButton::buttonColourId,
-                       isMidi ? palette_.midiChannelBadge : palette_.accentPrimary);
+    // 3. Play / Pause Button
+    const bool isPlaying = engine_.isPlaying();
+    playBtn_.setButtonText(isPlaying ? "Pause" : "Play");
+    playBtn_.setColour(juce::TextButton::buttonColourId,
+                       isPlaying ? palette_.accentPrimary : palette_.panel);
 }
 
 void HeaderPanel::paint(juce::Graphics& g) {
@@ -206,9 +200,18 @@ void HeaderPanel::paint(juce::Graphics& g) {
     // Title: openFruit with 3D drop shadow
     g.setFont(juce::FontOptions(22.0f, juce::Font::bold));
     g.setColour(juce::Colours::black.withAlpha(0.7f));
-    g.drawText("openFruit", 69, 11, 120, 30, juce::Justification::centredLeft, false);
+    g.drawText("openFruit", 69, 11, 105, 30, juce::Justification::centredLeft, false);
     g.setColour(palette_.accentPrimary);
-    g.drawText("openFruit", 68, 10, 120, 30, juce::Justification::centredLeft, false);
+    g.drawText("openFruit", 68, 10, 105, 30, juce::Justification::centredLeft, false);
+
+    // Status LED in Title
+    const bool isPlaying = engine_.isPlaying();
+    g.setColour(isPlaying ? palette_.accentPrimary : palette_.panelEdge);
+    g.fillEllipse(176.0f, 22.0f, 6.0f, 6.0f);
+    if (isPlaying) {
+        g.setColour(palette_.accentPrimary.withAlpha(0.4f));
+        g.drawEllipse(174.0f, 20.0f, 10.0f, 10.0f, 1.2f);
+    }
 
     // Subtitle badge
     g.setFont(juce::FontOptions(9.5f, juce::Font::bold));
@@ -240,8 +243,8 @@ void HeaderPanel::resized() {
 
     area.removeFromLeft(12);
 
-    // 3. Control Mode Toggle
-    modeBtn_.setBounds(area.removeFromLeft(140).reduced(0, 10));
+    // 3. Transport Play / Pause Toggle
+    playBtn_.setBounds(area.removeFromLeft(140).reduced(0, 10));
 
     area.removeFromLeft(12);
 
@@ -260,15 +263,17 @@ void HeaderPanel::resized() {
 
 TrackerPanel::TrackerPanel(openfruit::core::FruitEngine& engine,
                            openfruit::core::ToneCache& cache,
-                           openfruit::core::AnalysisQueue& queue)
+                           openfruit::core::AnalysisQueue& queue,
+                           juce::AudioProcessorValueTreeState* apvts)
     : engine_(engine),
       cache_(cache),
       queue_(queue),
+      apvts_(apvts),
       palette_(openfruit::theme::getPalette(openfruit::core::ColorTheme::CyberpunkNeon)),
       faceplateTexture_(juce::ImageCache::getFromMemory(BinaryData::openfruitfaceplate_png, BinaryData::openfruitfaceplate_pngSize)) {
 
     for (int i = 0; i < openfruit::core::kMaxTracks; ++i) {
-        rows_[static_cast<size_t>(i)] = std::make_unique<TrackRowComponent>(i, engine_);
+        rows_[static_cast<size_t>(i)] = std::make_unique<TrackRowComponent>(i, engine_, apvts_);
         auto* row = rows_[static_cast<size_t>(i)].get();
         row->onOpenBrowser = [this](int trackIdx) { openSampleBrowser(trackIdx); };
         addAndMakeVisible(row);
@@ -311,8 +316,15 @@ SampleBrowserModal* TrackerPanel::openSampleBrowser(int trackIdx, const juce::Fi
     activeBrowser_ = std::make_unique<SampleBrowserModal>(trackIdx, engine_, cache_, queue_);
     activeBrowser_->setTheme(palette_);
     activeBrowser_->onClose = [this] { closeSampleBrowser(); };
+    activeBrowser_->onFolderChanged = [this](const juce::File& newFolder) {
+        lastBrowsedFolder_ = newFolder;
+    };
     if (folder.isDirectory()) {
+        lastBrowsedFolder_ = folder;
         activeBrowser_->setFolder(folder);
+    }
+    if (!folder.isDirectory() && lastBrowsedFolder_.isDirectory()) {
+        activeBrowser_->setFolder(lastBrowsedFolder_);
     }
     addAndMakeVisible(activeBrowser_.get());
     activeBrowser_->setBounds(getLocalBounds().reduced(20));

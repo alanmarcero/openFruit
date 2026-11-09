@@ -69,8 +69,13 @@ public:
     [[nodiscard]] TrackCountMode getTrackCountMode() const noexcept { return trackCountMode_; }
     [[nodiscard]] int getActiveTrackCount() const noexcept { return static_cast<int>(trackCountMode_); }
 
-    void setInputControlMode(InputControlMode mode) noexcept;
-    [[nodiscard]] InputControlMode getInputControlMode() const noexcept { return inputMode_; }
+    // Sequencer Transport Control (Play / Pause with host sync)
+    void setPlaying(bool playing) noexcept;
+    [[nodiscard]] bool isPlaying() const noexcept { return isPlaying_.load(); }
+
+    // Per-Track MIDI Channel (1..16)
+    void setTrackMidiChannel(int trackIndex, int channel1to16) noexcept;
+    [[nodiscard]] int getTrackMidiChannel(int trackIndex) const noexcept;
 
     void setActivePage(PageIndex page) noexcept;
     [[nodiscard]] PageIndex getActivePage() const noexcept { return activePage_; }
@@ -107,8 +112,11 @@ public:
 private:
     double sampleRate_ = 44100.0;
     float masterVolume_ = 1.0f;
-    TrackCountMode trackCountMode_ = TrackCountMode::Tracks16;
-    InputControlMode inputMode_ = InputControlMode::SequencerPads;
+    TrackCountMode trackCountMode_ = TrackCountMode::Tracks8;
+    std::atomic<bool> isPlaying_{ false };
+    std::atomic<bool> hostSyncArmed_{ false };
+    bool justManuallyStarted_ = false;
+    bool wasHostPlaying_ = false;
     PageIndex activePage_ = PageIndex::PageA;
     ColorTheme colorTheme_ = ColorTheme::CyberpunkNeon;
 
