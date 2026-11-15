@@ -48,6 +48,9 @@ private:
     // Master Volume
     juce::Slider masterVolSlider_;
     juce::Label masterVolLabel_{ "Master", "Master volume" };
+    juce::Slider outputDbSlider_;
+    juce::Label outputDbLabel_{ "Output", "Output level in decibels" };
+    std::unique_ptr<juce::AudioProcessorValueTreeState::SliderAttachment> outputDbAttachment_;
 
     juce::Image fruitLogo_;
     juce::Image faceplateTexture_;

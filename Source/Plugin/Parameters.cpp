@@ -38,6 +38,15 @@ juce::AudioProcessorValueTreeState::ParameterLayout createParameterLayout() {
         1.0f
     ));
 
+    // Post-saturation output gain in decibels
+    params.push_back(std::make_unique<juce::AudioParameterFloat>(
+        juce::ParameterID(kOutputDb, 1),
+        "Output",
+        juce::NormalisableRange<float>(-24.0f, 12.0f, 0.1f),
+        0.0f,
+        juce::AudioParameterFloatAttributes().withLabel("dB")
+    ));
+
     // 16 Tracks Parameters
     for (int i = 0; i < openfruit::core::kMaxTracks; ++i) {
         const std::string prefix = "Track " + std::to_string(i + 1) + " ";

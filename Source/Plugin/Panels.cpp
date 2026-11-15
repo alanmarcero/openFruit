@@ -94,6 +94,18 @@ HeaderPanel::HeaderPanel(openfruit::core::FruitEngine& engine,
     };
     addAndMakeVisible(masterVolSlider_);
 
+    outputDbLabel_.setFont(juce::FontOptions(9.0f, juce::Font::bold));
+    outputDbLabel_.setJustificationType(juce::Justification::centred);
+    addAndMakeVisible(outputDbLabel_);
+    outputDbSlider_.setSliderStyle(juce::Slider::RotaryHorizontalVerticalDrag);
+    outputDbSlider_.setTextBoxStyle(juce::Slider::NoTextBox, false, 0, 0);
+    outputDbSlider_.setRange(-24.0, 12.0, 0.1);
+    outputDbSlider_.setDoubleClickReturnValue(true, 0.0);
+    outputDbSlider_.setTooltip("Output gain in decibels");
+    outputDbAttachment_ = std::make_unique<juce::AudioProcessorValueTreeState::SliderAttachment>(
+        apvts_, openfruit::params::kOutputDb, outputDbSlider_);
+    addAndMakeVisible(outputDbSlider_);
+
     updateFromParameters();
 }
 
@@ -118,6 +130,10 @@ void HeaderPanel::updateFromParameters() {
         const bool active = (activeTracks == counts[i]);
         trackCountBtns_[i].setColour(juce::TextButton::buttonColourId,
                                     active ? palette_.accentSecondary : palette_.panel);
+    }
+
+    if (const auto* output = apvts_.getRawParameterValue(openfruit::params::kOutputDb)) {
+        outputDbLabel_.setText("OUT " + juce::String(*output, 1) + " dB", juce::dontSendNotification);
     }
 
     // 3. Play / Pause Button
@@ -251,10 +267,14 @@ void HeaderPanel::resized() {
     // 4. Color Theme Dropdown
     themeBox_.setBounds(area.removeFromLeft(140).reduced(0, 10));
 
-    // 5. Master Volume at far right
+    // Output gain knob and legacy master volume control
     auto masterArea = area.removeFromRight(100);
     masterVolLabel_.setBounds(masterArea.removeFromTop(16));
     masterVolSlider_.setBounds(masterArea.reduced(2));
+
+    auto outputArea = area.removeFromRight(72);
+    outputDbLabel_.setBounds(outputArea.removeFromTop(14));
+    outputDbSlider_.setBounds(outputArea.reduced(5, 0));
 }
 
 // ============================================================================

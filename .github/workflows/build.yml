@@ -129,7 +129,7 @@ jobs:
           path: openFruit-Linux.zip
 
   release:
-    if: github.ref == 'refs/heads/main' || startsWith(github.ref, 'refs/tags/v')
+    if: startsWith(github.ref, 'refs/tags/v')
     needs: [macos, windows, linux]
     runs-on: ubuntu-latest
     permissions:
@@ -141,7 +141,7 @@ jobs:
 
       - uses: softprops/action-gh-release@v2
         with:
-          tag_name: ${{ startsWith(github.ref, 'refs/tags/v') && github.ref_name || 'v1.2.0' }}
-          name: openFruit ${{ startsWith(github.ref, 'refs/tags/v') && github.ref_name || 'v1.2.0' }}
+          tag_name: ${{ github.ref_name }}
+          name: openFruit ${{ github.ref_name }}
           files: openFruit-*.zip
           generate_release_notes: true

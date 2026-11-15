@@ -15,6 +15,7 @@ A 16-track step sequencer and sample player based on the classic FL Studio pad t
 - Row timing: 1/16, 1/32, or 1/64 timing selectable per row.
 - Tuning: +/- 24 semitones per step pad and +/- 24 semitones base tuning per track.
 - Velocity: adjustable per step pad.
+- Output gain: automatable -24 dB to +12 dB output trim after the master volume and saturation stage.
 - Pattern pages: pages A, B, C, and D switchable by parameter automation or UI buttons.
 - Common audio format support: recursive sample folder browsing and decoding for WAV, BWF, AIFF/AIFC, MP3, FLAC, Ogg Vorbis, M4A/AAC/MP4, CAF, ALAC, WMA, and Opus.
 - Pitch analysis: the sample browser runs a pitch detector over files in the selected folder, estimating fundamental frequency and musical note.
