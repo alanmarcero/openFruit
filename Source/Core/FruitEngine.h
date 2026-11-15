@@ -101,6 +101,7 @@ public:
     // Global volume
     void setMasterVolume(float vol) noexcept { masterVolume_ = vol; }
     [[nodiscard]] float getMasterVolume() const noexcept { return masterVolume_; }
+    void setOutputDb(float decibels) noexcept;
 
     // Color theme
     void setColorTheme(ColorTheme theme) noexcept { colorTheme_ = theme; }
@@ -112,6 +113,10 @@ public:
 private:
     double sampleRate_ = 44100.0;
     float masterVolume_ = 1.0f;
+    float outputGainCurrent_ = 1.0f;
+    float outputGainTarget_ = 1.0f;
+    float outputGainStep_ = 0.0f;
+    int outputGainRampRemaining_ = 0;
     TrackCountMode trackCountMode_ = TrackCountMode::Tracks8;
     std::atomic<bool> isPlaying_{ false };
     std::atomic<bool> hostSyncArmed_{ false };

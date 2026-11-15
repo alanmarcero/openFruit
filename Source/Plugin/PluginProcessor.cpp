@@ -75,6 +75,9 @@ void OpenFruitAudioProcessor::syncParametersToEngine() {
     if (const auto* p = apvts_.getRawParameterValue(openfruit::params::kMasterVol)) {
         engine_.setMasterVolume(*p);
     }
+    if (const auto* p = apvts_.getRawParameterValue(openfruit::params::kOutputDb)) {
+        engine_.setOutputDb(*p);
+    }
 
     // 4. Per-track parameters
     for (int i = 0; i < openfruit::core::kMaxTracks; ++i) {

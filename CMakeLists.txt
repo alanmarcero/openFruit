@@ -1,6 +1,6 @@
 cmake_minimum_required(VERSION 3.22)
 
-project(OpenFruit VERSION 1.4.0 LANGUAGES C CXX)
+project(OpenFruit VERSION 1.5.0 LANGUAGES C CXX)
 
 set(CMAKE_CXX_STANDARD 20)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
@@ -148,10 +148,12 @@ if(OF_BUILD_TESTS)
         Tests/SonicAnalyzerTests.cpp
         Tests/ToneCacheTests.cpp
         Tests/SampleVoiceTests.cpp
-        Tests/FruitEngineTests.cpp)
+        Tests/FruitEngineTests.cpp
+        Tests/PluginParameterTests.cpp
+        Source/Plugin/Parameters.cpp)
 
-    target_include_directories(openfruit_tests PRIVATE Tests)
-    target_link_libraries(openfruit_tests PRIVATE openfruit_core Catch2::Catch2WithMain)
+    target_include_directories(openfruit_tests PRIVATE Tests Source/Plugin)
+    target_link_libraries(openfruit_tests PRIVATE openfruit_core juce::juce_audio_processors Catch2::Catch2WithMain)
 
     enable_testing()
     include(Catch)

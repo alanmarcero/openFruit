@@ -9,6 +9,7 @@ inline constexpr const char* kPage = "page";
 inline constexpr const char* kTrackCount = "track_count";
 inline constexpr const char* kTheme = "theme";
 inline constexpr const char* kMasterVol = "master_vol";
+inline constexpr const char* kOutputDb = "output_db";
 
 // Helpers for per-track parameter IDs
 inline std::string trackMidiChId(int trackIdx) { return "track_midi_ch_" + std::to_string(trackIdx); }

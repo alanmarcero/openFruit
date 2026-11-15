@@ -47,7 +47,22 @@ FruitEngine::FruitEngine() {
 
 void FruitEngine::prepare(double sampleRate, int /*maxBlockSize*/) {
     sampleRate_ = std::max(8000.0, sampleRate);
+    outputGainCurrent_ = outputGainTarget_;
+    outputGainStep_ = 0.0f;
+    outputGainRampRemaining_ = 0;
     reset();
+}
+
+void FruitEngine::setOutputDb(float decibels) noexcept {
+    const float safeDb = std::clamp(std::isfinite(decibels) ? decibels : 0.0f, -24.0f, 12.0f);
+    const float target = std::pow(10.0f, safeDb / 20.0f);
+    if (target == outputGainTarget_) {
+        return;
+    }
+
+    outputGainTarget_ = target;
+    outputGainRampRemaining_ = std::max(1, static_cast<int>(sampleRate_ * 0.01));
+    outputGainStep_ = (outputGainTarget_ - outputGainCurrent_) / static_cast<float>(outputGainRampRemaining_);
 }
 
 void FruitEngine::reset() {
@@ -369,8 +384,15 @@ void FruitEngine::process(float* leftChannel,
     // 4. Apply Master Volume and Soft Saturation
     const float mVol = masterVolume_;
     for (int i = 0; i < numSamples; ++i) {
-        leftChannel[i] = softClip(leftChannel[i] * mVol);
-        rightChannel[i] = softClip(rightChannel[i] * mVol);
+        if (outputGainRampRemaining_ > 0) {
+            outputGainCurrent_ += outputGainStep_;
+            if (--outputGainRampRemaining_ == 0) {
+                outputGainCurrent_ = outputGainTarget_;
+                outputGainStep_ = 0.0f;
+            }
+        }
+        leftChannel[i] = softClip(leftChannel[i] * mVol) * outputGainCurrent_;
+        rightChannel[i] = softClip(rightChannel[i] * mVol) * outputGainCurrent_;
     }
 }
 

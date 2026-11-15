@@ -2,6 +2,7 @@
 #include <catch2/matchers/catch_matchers_floating_point.hpp>
 #include <juce_audio_formats/juce_audio_formats.h>
 #include <cmath>
+#include <numeric>
 #include "FruitEngine.h"
 #include "WavReader.h"
 
@@ -97,6 +98,55 @@ TEST_CASE("FruitEngine live auditioning behavior", "[FruitEngine]") {
     engine.commitAuditionSample(0);
     REQUIRE(engine.getTrack(0).sample == auditionSample);
     REQUIRE(engine.getTrack(0).auditionSample == nullptr);
+}
+
+TEST_CASE("FruitEngine applies output dB after soft saturation", "[FruitEngine]") {
+    const auto renderRms = [](float outputDb) {
+        FruitEngine engine;
+        engine.prepare(44100.0, 256);
+        engine.setOutputDb(outputDb);
+
+        std::vector<float> left(256, 0.0f);
+        std::vector<float> right(256, 0.0f);
+        for (int block = 0; block < 20; ++block) {
+            engine.process(left.data(), right.data(), 256, 120.0, 0.0, false);
+        }
+
+        auto sample = std::make_shared<AudioSampleBuffer>();
+        sample->sampleRate = 44100.0;
+        sample->numChannels = 1;
+        sample->numSamples = 4096;
+        sample->channels.resize(1);
+        sample->channels[0].assign(4096, 0.5f);
+        sample->isLoaded = true;
+        engine.loadSampleForTrack(0, sample);
+        engine.handleMidiNoteOn(1, 60, 1.0f);
+
+        std::fill(left.begin(), left.end(), 0.0f);
+        std::fill(right.begin(), right.end(), 0.0f);
+        engine.process(left.data(), right.data(), 256, 120.0, 0.0, false);
+        const float sumSquares = std::accumulate(left.begin(), left.end(), 0.0f,
+            [](float sum, float value) { return sum + value * value; });
+        return std::sqrt(sumSquares / static_cast<float>(left.size()));
+    };
+
+    REQUIRE(std::abs(renderRms(-6.0f) / renderRms(0.0f) - 0.501187f) < 0.01f);
+}
+
+TEST_CASE("FruitEngine smooths output dB changes", "[FruitEngine][output]") {
+    FruitEngine engine;
+    engine.prepare(44100.0, 256);
+    std::vector<float> left(256, 0.1f);
+    std::vector<float> right(256, 0.1f);
+    engine.process(left.data(), right.data(), 256, 120.0, 0.0, false);
+    const float previousSample = left.back();
+
+    engine.setOutputDb(12.0f);
+    std::fill(left.begin(), left.end(), 0.1f);
+    std::fill(right.begin(), right.end(), 0.1f);
+    engine.process(left.data(), right.data(), 256, 120.0, 0.0, false);
+
+    REQUIRE(std::abs(left.front() - previousSample) < 0.01f);
 }
 
 TEST_CASE("FruitEngine MIDI triggering is default and respects per-row MIDI channel", "[FruitEngine]") {
