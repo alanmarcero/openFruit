@@ -53,6 +53,11 @@ juce::AudioProcessorValueTreeState::ParameterLayout createParameterLayout() {
         juce::ParameterID(kSwing, 1), "Swing",
         juce::NormalisableRange<float>(0.0f, 0.5f, 0.001f), 0.0f,
         juce::AudioParameterFloatAttributes().withLabel("step")));
+    params.push_back(std::make_unique<juce::AudioParameterFloat>(
+        juce::ParameterID(kAccentAmount, 1), "Accent Amount",
+        juce::NormalisableRange<float>(0.0f, 1.0f, 0.01f), 0.0f));
+    params.push_back(std::make_unique<juce::AudioParameterInt>(
+        juce::ParameterID(kAccentEvery, 1), "Accent Every", 2, 16, 4));
 
     for (int section = 0; section < openfruit::core::kNumPages; ++section) {
         params.push_back(std::make_unique<juce::AudioParameterChoice>(
@@ -112,6 +117,15 @@ juce::AudioProcessorValueTreeState::ParameterLayout createParameterLayout() {
             juce::StringArray{ "1/16", "1/32", "1/64" },
             0
         ));
+
+        params.push_back(std::make_unique<juce::AudioParameterFloat>(
+            juce::ParameterID(trackNudgeId(i), 1), prefix + "Nudge",
+            juce::NormalisableRange<float>(-0.5f, 0.5f, 0.001f), 0.0f,
+            juce::AudioParameterFloatAttributes().withLabel("step")));
+        params.push_back(std::make_unique<juce::AudioParameterFloat>(
+            juce::ParameterID(trackGrooveId(i), 1), prefix + "Groove",
+            juce::NormalisableRange<float>(0.0f, 0.5f, 0.001f), 0.0f,
+            juce::AudioParameterFloatAttributes().withLabel("step")));
 
         // Mute
         params.push_back(std::make_unique<juce::AudioParameterBool>(

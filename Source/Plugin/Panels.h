@@ -58,6 +58,11 @@ private:
     juce::Label swingLabel_ { "Swing", "Swing" };
     juce::Slider swingSlider_;
     std::unique_ptr<juce::AudioProcessorValueTreeState::SliderAttachment> swingAttachment_;
+    juce::Label accentLabel_ { "Accent", "ACC" };
+    juce::Slider accentAmountSlider_;
+    juce::Slider accentEverySlider_;
+    std::unique_ptr<juce::AudioProcessorValueTreeState::SliderAttachment> accentAmountAttachment_;
+    std::unique_ptr<juce::AudioProcessorValueTreeState::SliderAttachment> accentEveryAttachment_;
     std::array<juce::Label, openfruit::core::kNumPages> sectionLabels_;
     std::array<juce::ComboBox, openfruit::core::kNumPages> sectionPageBoxes_;
     std::array<juce::Slider, openfruit::core::kNumPages> sectionBarsSliders_;

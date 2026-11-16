@@ -81,6 +81,9 @@ void OpenFruitAudioProcessor::syncParametersToEngine() {
         engine_.setOutputDb(*p);
     }
     if (const auto* p = apvts_.getRawParameterValue(openfruit::params::kSwing)) engine_.setSwing(*p);
+    const float accentAmount = apvts_.getRawParameterValue(openfruit::params::kAccentAmount)->load();
+    const int accentEvery = static_cast<int>(apvts_.getRawParameterValue(openfruit::params::kAccentEvery)->load());
+    engine_.setAccentuator(accentAmount, accentEvery);
     if (const auto* p = apvts_.getRawParameterValue(openfruit::params::kSongMode)) engine_.setSongMode(*p > 0.5f);
     for (int section = 0; section < openfruit::core::kNumPages; ++section) {
         const auto pageId = openfruit::params::songSectionPageId(section);
@@ -109,6 +112,14 @@ void OpenFruitAudioProcessor::syncParametersToEngine() {
         }
         if (const auto* tm = apvts_.getRawParameterValue(openfruit::params::trackTimingId(i))) {
             trk.timing = static_cast<openfruit::core::StepTiming>(static_cast<int>(*tm));
+        }
+        if (const auto* nudge = apvts_.getRawParameterValue(openfruit::params::trackNudgeId(i))) {
+            engine_.setTrackNudge(i, *nudge);
+            trk.nudge = *nudge;
+        }
+        if (const auto* groove = apvts_.getRawParameterValue(openfruit::params::trackGrooveId(i))) {
+            engine_.setTrackGroove(i, *groove);
+            trk.groove = *groove;
         }
         if (const auto* m = apvts_.getRawParameterValue(openfruit::params::trackMuteId(i))) {
             trk.mute = (*m > 0.5f);

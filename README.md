@@ -8,6 +8,8 @@ A 16-track step sequencer and sample player based on the classic FL Studio pad t
 
 ![openFruit media browser with sample pitch estimates](assets/openFruit-browser-screenshot.png)
 
+![openFruit per-track filter, ADSR, nudge, and groove controls](assets/openFruit-track-settings-screenshot.png)
+
 ## Features
 
 - Track counts: defaults to 8 active tracks on startup (switchable between 4, 8, 12, or 16 tracks).
@@ -16,6 +18,7 @@ A 16-track step sequencer and sample player based on the classic FL Studio pad t
 - Step sequencer: 16 pads per row with 4-beat color groupings. Right-click a pad for probability, 1–8 ratchets, timing offset, sample start/end, reverse, and choke-group controls; right-drag still changes pitch and left-drag changes velocity.
 - Row timing: 1/16, 1/32, or 1/64 timing selectable per row.
 - Swing and timing: global swing delays alternating steps, while each step can move earlier or later within its step.
+- Track timing and groove: each lane can be nudged by up to half a step and has its own alternating-step groove amount. A repeating accentuator boosts every 2nd–16th hit without rewriting stored step velocities; all controls are host-automatable.
 - Sample shaping: trim the playback region and reverse individual hits. Probability and ratchets are evaluated per step, and choke groups cut off earlier matching voices.
 - Track voice shaping: use each row's ENV control for a per-track low-pass filter and amplitude attack, decay, sustain, and release.
 - Tuning: +/- 24 semitones per step pad and +/- 24 semitones base tuning per track.

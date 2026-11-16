@@ -85,3 +85,38 @@ TEST_CASE("OpenFruit exposes song mode sections and swing automation", "[plugin]
     REQUIRE(state.getParameter(openfruit::params::songSectionBarsId(3)) != nullptr);
     REQUIRE(state.getParameter(openfruit::params::songSectionFillId(2)) != nullptr);
 }
+
+TEST_CASE("OpenFruit exposes automatable track groove and accent controls", "[plugin][parameters]") {
+    ParameterTestProcessor processor;
+    juce::AudioProcessorValueTreeState state(processor, nullptr, "Parameters", openfruit::params::createParameterLayout());
+
+    const auto nudgeId = openfruit::params::trackNudgeId(7);
+    const auto grooveId = openfruit::params::trackGrooveId(7);
+    const auto nudge = state.getParameter(nudgeId);
+    const auto groove = state.getParameter(grooveId);
+    const auto amount = state.getParameter(openfruit::params::kAccentAmount);
+    const auto interval = state.getParameter(openfruit::params::kAccentEvery);
+    REQUIRE(nudge != nullptr);
+    REQUIRE(groove != nullptr);
+    REQUIRE(amount != nullptr);
+    REQUIRE(interval != nullptr);
+    CHECK(nudge->isAutomatable());
+    CHECK(groove->isAutomatable());
+    CHECK(amount->isAutomatable());
+    CHECK(interval->isAutomatable());
+
+    nudge->setValueNotifyingHost(nudge->convertTo0to1(0.2f));
+    groove->setValueNotifyingHost(groove->convertTo0to1(0.35f));
+    amount->setValueNotifyingHost(amount->convertTo0to1(0.6f));
+    interval->setValueNotifyingHost(interval->convertTo0to1(3.0f));
+    const auto saved = state.copyState();
+    ParameterTestProcessor restoredProcessor;
+    juce::AudioProcessorValueTreeState restored(
+        restoredProcessor, nullptr, "Parameters", openfruit::params::createParameterLayout());
+    restored.replaceState(saved);
+
+    CHECK(std::abs(restored.getRawParameterValue(nudgeId)->load() - 0.2f) < 0.01f);
+    CHECK(std::abs(restored.getRawParameterValue(grooveId)->load() - 0.35f) < 0.01f);
+    CHECK(std::abs(restored.getRawParameterValue(openfruit::params::kAccentAmount)->load() - 0.6f) < 0.01f);
+    CHECK(restored.getRawParameterValue(openfruit::params::kAccentEvery)->load() == 3.0f);
+}

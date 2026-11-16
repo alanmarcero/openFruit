@@ -12,6 +12,8 @@ inline constexpr const char* kMasterVol = "master_vol";
 inline constexpr const char* kOutputDb = "output_db";
 inline constexpr const char* kSongMode = "song_mode";
 inline constexpr const char* kSwing = "swing";
+inline constexpr const char* kAccentAmount = "accent_amount";
+inline constexpr const char* kAccentEvery = "accent_every";
 
 // Helpers for per-track parameter IDs
 inline std::string trackMidiChId(int trackIdx) { return "track_midi_ch_" + std::to_string(trackIdx); }
@@ -19,6 +21,8 @@ inline std::string trackVolId(int trackIdx) { return "track_vol_" + std::to_stri
 inline std::string trackPanId(int trackIdx) { return "track_pan_" + std::to_string(trackIdx); }
 inline std::string trackTuneId(int trackIdx) { return "track_tune_" + std::to_string(trackIdx); }
 inline std::string trackTimingId(int trackIdx) { return "track_timing_" + std::to_string(trackIdx); }
+inline std::string trackNudgeId(int trackIdx) { return "track_nudge_" + std::to_string(trackIdx); }
+inline std::string trackGrooveId(int trackIdx) { return "track_groove_" + std::to_string(trackIdx); }
 inline std::string trackMuteId(int trackIdx) { return "track_mute_" + std::to_string(trackIdx); }
 inline std::string trackSoloId(int trackIdx) { return "track_solo_" + std::to_string(trackIdx); }
 inline std::string trackFilterId(int trackIdx) { return "track_filter_" + std::to_string(trackIdx); }

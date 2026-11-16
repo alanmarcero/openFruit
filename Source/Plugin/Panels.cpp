@@ -126,6 +126,24 @@ HeaderPanel::HeaderPanel(openfruit::core::FruitEngine& engine,
         apvts_, openfruit::params::kSwing, swingSlider_);
     addAndMakeVisible(swingSlider_);
 
+    accentLabel_.setFont(juce::FontOptions(9.0f, juce::Font::bold));
+    accentLabel_.setTooltip("Accent the first step, then repeat at the selected interval.");
+    addAndMakeVisible(accentLabel_);
+    accentAmountSlider_.setSliderStyle(juce::Slider::LinearHorizontal);
+    accentAmountSlider_.setTextBoxStyle(juce::Slider::NoTextBox, false, 0, 0);
+    accentAmountSlider_.setRange(0.0, 1.0, 0.01);
+    accentAmountSlider_.setTooltip("Periodic accent amount. Stored step velocities remain unchanged.");
+    accentAmountAttachment_ = std::make_unique<juce::AudioProcessorValueTreeState::SliderAttachment>(
+        apvts_, openfruit::params::kAccentAmount, accentAmountSlider_);
+    addAndMakeVisible(accentAmountSlider_);
+    accentEverySlider_.setSliderStyle(juce::Slider::LinearBar);
+    accentEverySlider_.setTextBoxStyle(juce::Slider::NoTextBox, false, 0, 0);
+    accentEverySlider_.setRange(2.0, 16.0, 1.0);
+    accentEverySlider_.setTooltip("Accent every 2 to 16 steps.");
+    accentEveryAttachment_ = std::make_unique<juce::AudioProcessorValueTreeState::SliderAttachment>(
+        apvts_, openfruit::params::kAccentEvery, accentEverySlider_);
+    addAndMakeVisible(accentEverySlider_);
+
     for (int i = 0; i < openfruit::core::kNumPages; ++i) {
         const auto index = static_cast<size_t>(i);
         sectionLabels_[index].setText("SEC" + juce::String(i + 1),
@@ -335,17 +353,20 @@ void HeaderPanel::resized() {
     auto songArea = getLocalBounds().reduced(8);
     songArea.removeFromLeft(190);
     songArea.removeFromTop(60);
-    songModeToggle_.setBounds(songArea.removeFromLeft(32).reduced(1, 2));
+    songModeToggle_.setBounds(songArea.removeFromLeft(26).reduced(1, 2));
     songModeLabel_.setBounds(songArea.removeFromLeft(38).reduced(0, 2));
-    swingLabel_.setBounds(songArea.removeFromLeft(65).reduced(0, 2));
-    swingSlider_.setBounds(songArea.removeFromLeft(120).reduced(0, 2));
+    swingLabel_.setBounds(songArea.removeFromLeft(42).reduced(0, 2));
+    swingSlider_.setBounds(songArea.removeFromLeft(80).reduced(0, 2));
+    accentLabel_.setBounds(songArea.removeFromLeft(32).reduced(0, 2));
+    accentAmountSlider_.setBounds(songArea.removeFromLeft(58).reduced(0, 2));
+    accentEverySlider_.setBounds(songArea.removeFromLeft(40).reduced(0, 2));
     songArea.removeFromLeft(10);
     const int sectionWidth = songArea.getWidth() / openfruit::core::kNumPages;
     for (size_t i = 0; i < sectionLabels_.size(); ++i) {
         auto section = songArea.removeFromLeft(sectionWidth);
-        const int labelWidth = std::min(38, std::max(18, sectionWidth / 4));
-        const int pageWidth = std::min(42, std::max(26, sectionWidth / 4));
-        const int barsWidth = std::min(51, std::max(34, sectionWidth / 3));
+        const int labelWidth = std::min(30, std::max(18, sectionWidth / 5));
+        const int pageWidth = std::min(34, std::max(25, sectionWidth / 4));
+        const int barsWidth = std::min(43, std::max(32, sectionWidth / 3));
         sectionLabels_[i].setBounds(section.removeFromLeft(labelWidth).reduced(1, 2));
         sectionPageBoxes_[i].setBounds(section.removeFromLeft(pageWidth).reduced(1, 2));
         sectionBarsSliders_[i].setBounds(section.removeFromLeft(barsWidth).reduced(1, 2));

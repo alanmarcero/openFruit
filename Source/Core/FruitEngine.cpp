@@ -121,6 +121,21 @@ void FruitEngine::setTrackMidiChannel(int trackIndex, int channel1to16) noexcept
     tracks_[static_cast<size_t>(trackIndex)].midiChannel = std::clamp(channel1to16, 1, 16);
 }
 
+void FruitEngine::setTrackNudge(int trackIndex, float amount) noexcept {
+    if (trackIndex < 0 || trackIndex >= kMaxTracks) return;
+    tracks_[static_cast<size_t>(trackIndex)].nudge = std::clamp(std::isfinite(amount) ? amount : 0.0f, -0.5f, 0.5f);
+}
+
+void FruitEngine::setTrackGroove(int trackIndex, float amount) noexcept {
+    if (trackIndex < 0 || trackIndex >= kMaxTracks) return;
+    tracks_[static_cast<size_t>(trackIndex)].groove = std::clamp(std::isfinite(amount) ? amount : 0.0f, 0.0f, 0.5f);
+}
+
+void FruitEngine::setAccentuator(float amount, int everySteps) noexcept {
+    accentAmount_ = std::clamp(std::isfinite(amount) ? amount : 0.0f, 0.0f, 1.0f);
+    accentEvery_ = std::clamp(everySteps, 2, 16);
+}
+
 int FruitEngine::getTrackMidiChannel(int trackIndex) const noexcept {
     if (trackIndex < 0 || trackIndex >= kMaxTracks) {
         return 1;
@@ -350,8 +365,11 @@ void FruitEngine::scheduleSequencer(double ppqStart, double ppqEnd, int numSampl
             if (step.probability < 1.0f && randomValue >= step.probability) continue;
 
             const double stepDuration = 1.0 / stepsPerBeat;
-            const double swungOffset = (patternStep % 2 == 1) ? swing_ : 0.0;
-            const double stepOffset = static_cast<double>(step.timingOffset) + swungOffset;
+            const double swungOffset = (patternStep % 2 == 1) ? (swing_ + track.groove) : 0.0;
+            const double stepOffset = static_cast<double>(step.timingOffset) + swungOffset + track.nudge;
+            StepData scheduledStep = step;
+            if (accentAmount_ > 0.0f && patternStep % accentEvery_ == 0)
+                scheduledStep.velocity = std::clamp(step.velocity * (1.0f + accentAmount_), 0.0f, 1.0f);
             for (int ratchet = 0; ratchet < step.ratchets; ++ratchet) {
                 const double eventPpq = stepStartPpq + (stepOffset + static_cast<double>(ratchet) / step.ratchets) * stepDuration;
                 if (eventPpq < ppqStart || eventPpq >= ppqEnd) continue;
@@ -361,7 +379,7 @@ void FruitEngine::scheduleSequencer(double ppqStart, double ppqEnd, int numSampl
                 }
                 const int offset = static_cast<int>(std::floor((eventPpq - ppqStart) * samplesPerQuarter + 0.5));
                 if (offset < 0 || offset >= numSamples) continue;
-                scheduledHits_[scheduledHitCount_] = {offset, trackIndex, step, scheduledHitCount_};
+                scheduledHits_[scheduledHitCount_] = {offset, trackIndex, scheduledStep, scheduledHitCount_};
                 ++scheduledHitCount_;
             }
         }
