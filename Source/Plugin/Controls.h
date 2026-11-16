@@ -21,10 +21,12 @@ public:
     std::function<void(bool newActive)> onToggle;
     std::function<void(int newTune)> onTuneChange;
     std::function<void(float newVelocity)> onVelocityChange;
+    std::function<void(openfruit::core::StepData)> onStepDataChange;
 
     void paint(juce::Graphics& g) override;
     void mouseDown(const juce::MouseEvent& e) override;
     void mouseDrag(const juce::MouseEvent& e) override;
+    void mouseUp(const juce::MouseEvent& e) override;
     void mouseWheelMove(const juce::MouseEvent& e, const juce::MouseWheelDetails& wheel) override;
 
 private:
@@ -33,7 +35,25 @@ private:
     openfruit::theme::Palette palette_;
     openfruit::core::StepData data_{};
     bool isPlayhead_ = false;
+    bool tuneDragged_ = false;
+    bool tuneGesture_ = false;
     juce::Point<int> dragStartPos_;
+    float dragStartVelocity_ = 0.85f;
+
+    void showStepMenu();
+    void selectStepMenuItem(int itemId);
+};
+
+class TrackVoiceSettingsPanel : public juce::Component {
+public:
+    TrackVoiceSettingsPanel(int trackIdx, juce::AudioProcessorValueTreeState& apvts);
+    void paint(juce::Graphics& g) override;
+    void resized() override;
+
+private:
+    std::array<juce::Slider, 5> sliders_;
+    std::array<juce::Label, 5> labels_;
+    std::array<std::unique_ptr<juce::AudioProcessorValueTreeState::SliderAttachment>, 5> attachments_;
 };
 
 class TrackRowComponent : public juce::Component {
@@ -68,6 +88,7 @@ private:
     juce::Slider tuneSlider_;
     juce::Slider volSlider_;
     juce::Slider panSlider_;
+    juce::TextButton voiceSettingsBtn_ {"ENV"};
     juce::ToggleButton muteBtn_{ "M" };
     juce::ToggleButton soloBtn_{ "S" };
 

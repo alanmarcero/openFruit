@@ -141,12 +141,17 @@ void CyberStepPad::paint(juce::Graphics& g) {
 
 void CyberStepPad::mouseDown(const juce::MouseEvent& e) {
     if (e.mods.isRightButtonDown()) {
-        // Right click resets tune or toggles tune
+        // Right drag tunes the hit; a stationary right click opens its detail menu.
         dragStartPos_ = e.getPosition();
+        tuneDragged_ = false;
+        tuneGesture_ = true;
         return;
     }
 
     // Left click toggles step
+    dragStartPos_ = e.getPosition();
+    dragStartVelocity_ = data_.velocity;
+    tuneGesture_ = false;
     data_.active = !data_.active;
     repaint();
     if (onToggle) {
@@ -158,6 +163,7 @@ void CyberStepPad::mouseDrag(const juce::MouseEvent& e) {
     if (e.mods.isRightButtonDown()) {
         // Drag vertically to adjust semitone tune (-24 .. +24)
         const int deltaY = dragStartPos_.y - e.y;
+        if (std::abs(deltaY) >= 4) tuneDragged_ = true;
         const int semitones = std::clamp(deltaY / 4, -24, 24);
         if (semitones != data_.semitoneOffset) {
             data_.semitoneOffset = semitones;
@@ -169,7 +175,7 @@ void CyberStepPad::mouseDrag(const juce::MouseEvent& e) {
     } else if (e.mods.isLeftButtonDown() && data_.active) {
         // Drag vertically while active to adjust velocity
         const float delta = static_cast<float>(dragStartPos_.y - e.y) / 60.0f;
-        const float newVel = std::clamp(data_.velocity + delta * 0.05f, 0.05f, 1.0f);
+        const float newVel = std::clamp(dragStartVelocity_ + delta * 0.5f, 0.05f, 1.0f);
         if (std::abs(newVel - data_.velocity) > 0.02f) {
             data_.velocity = newVel;
             repaint();
@@ -178,6 +184,89 @@ void CyberStepPad::mouseDrag(const juce::MouseEvent& e) {
             }
         }
     }
+}
+
+void CyberStepPad::mouseUp(const juce::MouseEvent& e) {
+    if (tuneGesture_) {
+        if (e.mouseWasClicked() && !tuneDragged_) showStepMenu();
+        tuneGesture_ = false;
+    }
+}
+
+void CyberStepPad::showStepMenu() {
+    juce::PopupMenu probability;
+    probability.addItem(101, "0% (never)");
+    probability.addItem(102, "25%");
+    probability.addItem(103, "50%");
+    probability.addItem(104, "75%");
+    probability.addItem(105, "100%");
+
+    juce::PopupMenu ratchets;
+    for (int i = 1; i <= 8; ++i) ratchets.addItem(200 + i, juce::String(i));
+
+    juce::PopupMenu offset;
+    offset.addItem(301, "-50%");
+    offset.addItem(302, "-25%");
+    offset.addItem(303, "0%");
+    offset.addItem(304, "+25%");
+    offset.addItem(305, "+50%");
+
+    juce::PopupMenu start;
+    start.addItem(401, "0%");
+    start.addItem(402, "10%");
+    start.addItem(403, "25%");
+    start.addItem(404, "50%");
+
+    juce::PopupMenu end;
+    end.addItem(501, "50%");
+    end.addItem(502, "75%");
+    end.addItem(503, "90%");
+    end.addItem(504, "100%");
+
+    juce::PopupMenu choke;
+    for (int i = 0; i <= 4; ++i)
+        choke.addItem(600 + i, i == 0 ? "Off" : juce::String(i));
+
+    juce::PopupMenu menu;
+    menu.addSubMenu("Probability", probability);
+    menu.addSubMenu("Ratchets", ratchets);
+    menu.addSubMenu("Timing offset", offset);
+    menu.addSubMenu("Sample start", start);
+    menu.addSubMenu("Sample end", end);
+    menu.addItem(700, "Reverse", true, data_.reverse);
+    menu.addSubMenu("Choke group", choke);
+    menu.showMenuAsync(juce::PopupMenu::Options().withTargetComponent(this),
+        juce::ModalCallbackFunction::create([safeThis = juce::Component::SafePointer<CyberStepPad>(this)](int result) {
+            if (safeThis != nullptr && result != 0) safeThis->selectStepMenuItem(result);
+        }));
+}
+
+void CyberStepPad::selectStepMenuItem(int itemId) {
+    if (itemId >= 101 && itemId <= 105) {
+        constexpr float probabilities[] = {0.0f, 0.25f, 0.5f, 0.75f, 1.0f};
+        data_.probability = probabilities[itemId - 101];
+    } else if (itemId >= 201 && itemId <= 208) {
+        data_.ratchets = itemId - 200;
+    } else if (itemId >= 301 && itemId <= 305) {
+        constexpr float offsets[] = {-0.5f, -0.25f, 0.0f, 0.25f, 0.5f};
+        data_.timingOffset = offsets[itemId - 301];
+    } else if (itemId >= 401 && itemId <= 404) {
+        constexpr float starts[] = {0.0f, 0.1f, 0.25f, 0.5f};
+        data_.sampleStart = starts[itemId - 401];
+    } else if (itemId >= 501 && itemId <= 504) {
+        constexpr float ends[] = {0.5f, 0.75f, 0.9f, 1.0f};
+        data_.sampleEnd = ends[itemId - 501];
+    } else if (itemId == 700) {
+        data_.reverse = !data_.reverse;
+    } else if (itemId >= 600 && itemId <= 604) {
+        data_.chokeGroup = itemId - 600;
+    }
+
+    // Keep sample regions valid when start and end are adjusted independently.
+    data_.sampleStart = std::min(data_.sampleStart, std::max(0.0f, data_.sampleEnd - 0.01f));
+    data_.sampleEnd = std::max(data_.sampleEnd, std::min(1.0f, data_.sampleStart + 0.01f));
+    repaint();
+    if (onStepDataChange) onStepDataChange(data_);
 }
 
 void CyberStepPad::mouseWheelMove(const juce::MouseEvent& /*e*/, const juce::MouseWheelDetails& wheel) {
@@ -211,6 +300,53 @@ void setApvtsParamValue(juce::AudioProcessorValueTreeState* apvts,
 }
 
 } // namespace
+
+TrackVoiceSettingsPanel::TrackVoiceSettingsPanel(int trackIdx,
+                                                 juce::AudioProcessorValueTreeState& apvts)
+{
+    const std::array<std::string, 5> ids = {
+        openfruit::params::trackFilterId(trackIdx),
+        openfruit::params::trackAttackId(trackIdx),
+        openfruit::params::trackDecayId(trackIdx),
+        openfruit::params::trackSustainId(trackIdx),
+        openfruit::params::trackReleaseId(trackIdx)
+    };
+    const std::array<const char*, 5> names = {"Filter", "Attack", "Decay", "Sustain", "Release"};
+    const std::array<const char*, 5> units = {"Hz", "s", "s", "%", "s"};
+    for (size_t i = 0; i < sliders_.size(); ++i) {
+        labels_[i].setText(names[i], juce::dontSendNotification);
+        labels_[i].setJustificationType(juce::Justification::centredLeft);
+        addAndMakeVisible(labels_[i]);
+
+        auto& slider = sliders_[i];
+        slider.setSliderStyle(juce::Slider::LinearHorizontal);
+        slider.setTextBoxStyle(juce::Slider::TextBoxRight, false, 58, 22);
+        slider.setTextValueSuffix(" " + juce::String(units[i]));
+        slider.setNumDecimalPlacesToDisplay(i == 0 || i == 3 ? 0 : 2);
+        addAndMakeVisible(slider);
+        attachments_[i] = std::make_unique<juce::AudioProcessorValueTreeState::SliderAttachment>(
+            apvts, ids[i], slider);
+    }
+    setSize(440, 190);
+}
+
+void TrackVoiceSettingsPanel::paint(juce::Graphics& g) {
+    g.fillAll(findColour(juce::ResizableWindow::backgroundColourId, true));
+    g.setColour(juce::Colours::white.withAlpha(0.8f));
+    g.setFont(juce::FontOptions(14.0f, juce::Font::bold));
+    g.drawText("TRACK VOICE", 12, 4, getWidth() - 24, 22, juce::Justification::centredLeft);
+}
+
+void TrackVoiceSettingsPanel::resized() {
+    auto area = getLocalBounds().reduced(12);
+    area.removeFromTop(22);
+    const int rowHeight = area.getHeight() / static_cast<int>(sliders_.size());
+    for (size_t i = 0; i < sliders_.size(); ++i) {
+        auto row = area.removeFromTop(rowHeight);
+        labels_[i].setBounds(row.removeFromLeft(72));
+        sliders_[i].setBounds(row);
+    }
+}
 
 TrackRowComponent::TrackRowComponent(int trackIdx,
                                      openfruit::core::FruitEngine& engine,
@@ -313,6 +449,15 @@ TrackRowComponent::TrackRowComponent(int trackIdx,
     };
     addAndMakeVisible(soloBtn_);
 
+    voiceSettingsBtn_.setTooltip("Track filter and amplitude envelope");
+    voiceSettingsBtn_.onClick = [this] {
+        if (apvts_ == nullptr) return;
+        juce::CallOutBox::launchAsynchronously(
+            std::make_unique<TrackVoiceSettingsPanel>(trackIdx_, *apvts_),
+            voiceSettingsBtn_.getScreenBounds(), nullptr);
+    };
+    addAndMakeVisible(voiceSettingsBtn_);
+
     // 8. 16 Step Pads
     for (int s = 0; s < openfruit::core::kStepsPerPage; ++s) {
         stepPads_[static_cast<size_t>(s)] = std::make_unique<CyberStepPad>(trackIdx_, s);
@@ -326,6 +471,9 @@ TrackRowComponent::TrackRowComponent(int trackIdx,
         };
         pad->onVelocityChange = [this, s](float vel) {
             engine_.setStepVelocity(trackIdx_, engine_.getActivePage(), s, vel);
+        };
+        pad->onStepDataChange = [this, s](openfruit::core::StepData data) {
+            engine_.setStepData(trackIdx_, engine_.getActivePage(), s, data);
         };
 
         addAndMakeVisible(pad);
@@ -427,6 +575,7 @@ void TrackRowComponent::resized() {
     panSlider_.setBounds(area.removeFromLeft(40).reduced(2));
 
     // 7. Mute & Solo
+    voiceSettingsBtn_.setBounds(area.removeFromLeft(42).reduced(2));
     muteBtn_.setBounds(area.removeFromLeft(24).reduced(2));
     soloBtn_.setBounds(area.removeFromLeft(24).reduced(2));
 

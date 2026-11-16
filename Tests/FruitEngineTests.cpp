@@ -1,6 +1,7 @@
 #include <catch2/catch_test_macros.hpp>
 #include <catch2/matchers/catch_matchers_floating_point.hpp>
 #include <juce_audio_formats/juce_audio_formats.h>
+#include <algorithm>
 #include <cmath>
 #include <numeric>
 #include "FruitEngine.h"
@@ -61,6 +62,128 @@ TEST_CASE("FruitEngine pages and step editing", "[FruitEngine]") {
     // Page A should remain unedited
     auto stepA4 = engine.getStep(0, PageIndex::PageA, 4);
     REQUIRE_FALSE(stepA4.active);
+}
+
+TEST_CASE("FruitEngine schedules probability ratchets at sample offsets", "[FruitEngine][sequencer]") {
+    FruitEngine engine;
+    engine.prepare(48000.0, 8192);
+    auto sample = std::make_shared<AudioSampleBuffer>();
+    sample->sampleRate = 48000.0;
+    sample->numChannels = 1;
+    sample->numSamples = 1;
+    sample->channels = {{1.0f}};
+    sample->isLoaded = true;
+    engine.loadSampleForTrack(0, sample);
+
+    StepData step;
+    step.active = true;
+    step.probability = 1.0f;
+    step.ratchets = 4;
+    engine.setStepData(0, PageIndex::PageA, 0, step);
+    engine.setPlaying(true);
+    std::vector<float> left(6000, 0.0f), right(6000, 0.0f);
+    engine.process(left.data(), right.data(), 6000, 120.0, 0.0, true);
+
+    REQUIRE(left[0] > 0.5f);
+    REQUIRE(left[1500] > 0.5f);
+    REQUIRE(left[3000] > 0.5f);
+    REQUIRE(left[4500] > 0.5f);
+    REQUIRE(left[750] == 0.0f);
+}
+
+TEST_CASE("FruitEngine applies deterministic step probability and timing offset", "[FruitEngine][sequencer]") {
+    const auto renderStep = [](float probability, float offset) {
+        FruitEngine engine;
+        engine.prepare(48000.0, 8192);
+        auto sample = std::make_shared<AudioSampleBuffer>();
+        sample->sampleRate = 48000.0;
+        sample->numChannels = 1;
+        sample->numSamples = 1;
+        sample->channels = {{1.0f}};
+        sample->isLoaded = true;
+        engine.loadSampleForTrack(0, sample);
+        StepData step;
+        step.active = true;
+        step.probability = probability;
+        step.timingOffset = offset;
+        engine.setStepData(0, PageIndex::PageA, 0, step);
+        engine.setPlaying(true);
+        std::vector<float> left(6000, 0.0f), right(6000, 0.0f);
+        engine.process(left.data(), right.data(), 6000, 120.0, 0.0, true);
+        return left;
+    };
+
+    const auto rejected = renderStep(0.0f, 0.0f);
+    const auto shifted = renderStep(1.0f, 0.25f);
+    REQUIRE(std::all_of(rejected.begin(), rejected.end(), [](float sample) { return sample == 0.0f; }));
+    REQUIRE(shifted[0] == 0.0f);
+    REQUIRE(shifted[1500] > 0.5f);
+}
+
+TEST_CASE("FruitEngine host swing delays offbeat steps", "[FruitEngine][sequencer]") {
+    FruitEngine engine;
+    engine.prepare(48000.0, 12000);
+    auto sample = std::make_shared<AudioSampleBuffer>();
+    sample->sampleRate = 48000.0;
+    sample->numChannels = 1;
+    sample->numSamples = 1;
+    sample->channels = {{1.0f}};
+    sample->isLoaded = true;
+    engine.loadSampleForTrack(0, sample);
+    StepData step;
+    step.active = true;
+    engine.setStepData(0, PageIndex::PageA, 1, step);
+    engine.setSwing(0.5f);
+    engine.setPlaying(true);
+    std::vector<float> left(12000, 0.0f), right(12000, 0.0f);
+    engine.process(left.data(), right.data(), 12000, 120.0, 0.0, true);
+
+    REQUIRE(left[6000] == 0.0f);
+    REQUIRE(left[8999] == 0.0f);
+    REQUIRE(left[9000] > 0.5f);
+}
+
+TEST_CASE("FruitEngine chokes an earlier voice in the same step group", "[FruitEngine][sequencer]") {
+    FruitEngine engine;
+    engine.prepare(48000.0, 8192);
+    auto sample = std::make_shared<AudioSampleBuffer>();
+    sample->sampleRate = 48000.0;
+    sample->numChannels = 1;
+    sample->numSamples = 24000;
+    sample->channels = {std::vector<float>(24000, 1.0f)};
+    sample->isLoaded = true;
+    engine.loadSampleForTrack(0, sample);
+    engine.loadSampleForTrack(1, sample);
+
+    StepData first;
+    first.active = true;
+    first.chokeGroup = 1;
+    StepData second = first;
+    engine.setStepData(0, PageIndex::PageA, 0, first);
+    engine.setStepData(1, PageIndex::PageA, 1, second);
+    engine.setPlaying(true);
+    std::vector<float> left(6500, 0.0f), right(6500, 0.0f);
+    engine.process(left.data(), right.data(), 6500, 120.0, 0.0, true);
+
+    REQUIRE_FALSE(engine.getTrack(0).voices[0].isPlaying());
+    REQUIRE(engine.getTrack(1).voices[0].isPlaying());
+}
+
+TEST_CASE("FruitEngine chains song sections and routes section fills to page D", "[FruitEngine][song]") {
+    FruitEngine engine;
+    engine.prepare(48000.0, 1);
+    engine.setSongSection(0, {PageIndex::PageA, 1, false});
+    engine.setSongSection(1, {PageIndex::PageB, 2, true});
+    engine.setSongSection(2, {PageIndex::PageC, 1, false});
+    engine.setSongSection(3, {PageIndex::PageD, 1, false});
+    engine.setSongMode(true);
+
+    REQUIRE(engine.getSongPageAtPpq(0.0) == PageIndex::PageA);
+    REQUIRE(engine.getSongPageAtPpq(3.9) == PageIndex::PageA);
+    REQUIRE(engine.getSongPageAtPpq(4.0) == PageIndex::PageB);
+    REQUIRE(engine.getSongPageAtPpq(7.9) == PageIndex::PageB);
+    REQUIRE(engine.getSongPageAtPpq(11.9) == PageIndex::PageD);
+    REQUIRE(engine.getSongPageAtPpq(20.0) == PageIndex::PageA);
 }
 
 TEST_CASE("FruitEngine live auditioning behavior", "[FruitEngine]") {

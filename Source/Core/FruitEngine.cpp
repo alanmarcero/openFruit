@@ -17,11 +17,19 @@ float softClip(float x) noexcept {
 void TrackState::triggerVoice(std::shared_ptr<const AudioSampleBuffer> sampleToPlay,
                               float velocity,
                               int semitoneOffset,
-                              double sampleRate) {
+                              double sampleRate,
+                              VoiceSettings settings,
+                              int midiNote) {
     if (!sampleToPlay || !sampleToPlay->isLoaded) {
         return;
     }
 
+    settings.filterCutoffHz = filterCutoffHz;
+    settings.attackSeconds = amplitudeAttackSeconds;
+    settings.decaySeconds = amplitudeDecaySeconds;
+    settings.sustainLevel = amplitudeSustain;
+    settings.releaseSeconds = amplitudeReleaseSeconds;
+    settings.midiNote = midiNote;
     voices[static_cast<size_t>(nextVoiceIndex)].start(
         sampleToPlay,
         velocity,
@@ -29,7 +37,8 @@ void TrackState::triggerVoice(std::shared_ptr<const AudioSampleBuffer> sampleToP
         baseTune,
         sampleRate,
         volume,
-        pan
+        pan,
+        settings
     );
     nextVoiceIndex = (nextVoiceIndex + 1) % kMaxVoicesPerTrack;
 }
@@ -43,6 +52,8 @@ FruitEngine::FruitEngine() {
         tracks_[static_cast<size_t>(i)].volume = 1.0f;
         tracks_[static_cast<size_t>(i)].pan = 0.0f;
     }
+    for (int i = 0; i < kNumPages; ++i)
+        songSections_[static_cast<size_t>(i)].page = static_cast<PageIndex>(i);
 }
 
 void FruitEngine::prepare(double sampleRate, int /*maxBlockSize*/) {
@@ -193,12 +204,57 @@ void FruitEngine::setStepTune(int trackIndex, PageIndex page, int stepIndex, int
         std::clamp(semitoneOffset, kMinSemitoneTune, kMaxSemitoneTune);
 }
 
+void FruitEngine::setStepData(int trackIndex, PageIndex page, int stepIndex, StepData data) {
+    if (trackIndex < 0 || trackIndex >= kMaxTracks || stepIndex < 0 || stepIndex >= kStepsPerPage) return;
+    const int pageIndex = std::clamp(static_cast<int>(page), 0, kNumPages - 1);
+    data.velocity = std::clamp(std::isfinite(data.velocity) ? data.velocity : 0.85f, 0.0f, 1.0f);
+    data.semitoneOffset = std::clamp(data.semitoneOffset, kMinSemitoneTune, kMaxSemitoneTune);
+    data.probability = std::clamp(std::isfinite(data.probability) ? data.probability : 1.0f, 0.0f, 1.0f);
+    data.ratchets = std::clamp(data.ratchets, 1, 8);
+    data.timingOffset = std::clamp(std::isfinite(data.timingOffset) ? data.timingOffset : 0.0f, -0.5f, 0.5f);
+    data.sampleStart = std::clamp(std::isfinite(data.sampleStart) ? data.sampleStart : 0.0f, 0.0f, 0.999f);
+    data.sampleEnd = std::clamp(std::isfinite(data.sampleEnd) ? data.sampleEnd : 1.0f, data.sampleStart + 0.001f, 1.0f);
+    data.chokeGroup = std::clamp(data.chokeGroup, 0, 4);
+    const std::lock_guard<std::mutex> lock(engineMutex_);
+    tracks_[static_cast<size_t>(trackIndex)].patternPages.pages[static_cast<size_t>(pageIndex)][static_cast<size_t>(stepIndex)] = data;
+}
+
 StepData FruitEngine::getStep(int trackIndex, PageIndex page, int stepIndex) const {
     if (trackIndex < 0 || trackIndex >= kMaxTracks || stepIndex < 0 || stepIndex >= kStepsPerPage) {
         return {};
     }
     const std::lock_guard<std::mutex> lock(engineMutex_);
-    return tracks_[static_cast<size_t>(trackIndex)].patternPages.pages[static_cast<size_t>(page)][static_cast<size_t>(stepIndex)];
+    const int pageIndex = std::clamp(static_cast<int>(page), 0, kNumPages - 1);
+    return tracks_[static_cast<size_t>(trackIndex)].patternPages.pages[static_cast<size_t>(pageIndex)][static_cast<size_t>(stepIndex)];
+}
+
+void FruitEngine::setSongSection(int index, SongSection section) noexcept {
+    if (index < 0 || index >= kNumPages) return;
+    section.page = static_cast<PageIndex>(std::clamp(static_cast<int>(section.page), 0, kNumPages - 1));
+    section.bars = std::clamp(section.bars, 1, 32);
+    songSections_[static_cast<size_t>(index)] = section;
+}
+
+SongSection FruitEngine::getSongSection(int index) const noexcept {
+    if (index < 0 || index >= kNumPages) return {};
+    return songSections_[static_cast<size_t>(index)];
+}
+
+PageIndex FruitEngine::getSongPageAtPpq(double ppq) const noexcept {
+    if (!songMode_ || !std::isfinite(ppq) || ppq < 0.0) return activePage_;
+    int totalBars = 0;
+    for (const auto& section : songSections_) totalBars += std::clamp(section.bars, 1, 32);
+    const int barInSong = static_cast<int>(std::floor(ppq / 4.0)) % totalBars;
+    int sectionStart = 0;
+    for (const auto& section : songSections_) {
+        const int bars = std::clamp(section.bars, 1, 32);
+        if (barInSong < sectionStart + bars) {
+            if (section.fill && barInSong == sectionStart + bars - 1) return PageIndex::PageD;
+            return section.page;
+        }
+        sectionStart += bars;
+    }
+    return songSections_.back().page;
 }
 
 int FruitEngine::getCurrentStep(int trackIndex) const {
@@ -240,60 +296,96 @@ void FruitEngine::handleMidiNoteOn(int channel1to16, int midiNote, float velocit
         if (!sampleToPlay) {
             continue;
         }
-        track.triggerVoice(sampleToPlay, velocity, semitoneOffset, sampleRate_);
+        track.triggerVoice(sampleToPlay, velocity, semitoneOffset, sampleRate_, {}, midiNote);
     }
 }
 
-void FruitEngine::handleMidiNoteOff(int /*channel1to16*/, int /*midiNote*/) {
-    // One-shot drum samples don't require note-off choke by default
+void FruitEngine::handleMidiNoteOff(int channel1to16, int midiNote) {
+    if (channel1to16 < 1 || channel1to16 > 16 || midiNote < 0 || midiNote > 127) return;
+    const std::lock_guard<std::mutex> lock(engineMutex_);
+    for (auto& track : tracks_) {
+        if (track.midiChannel != channel1to16) continue;
+        for (auto& voice : track.voices)
+            if (voice.isPlaying() && voice.midiNote() == midiNote) voice.noteOff();
+    }
 }
 
-void FruitEngine::advanceSequencer(double ppqStart, double ppqEnd, int /*numSamples*/, double /*bpm*/) {
+void FruitEngine::scheduleSequencer(double ppqStart, double ppqEnd, int numSamples, double bpm) {
+    scheduledHitCount_ = 0;
     const int activeTracks = getActiveTrackCount();
-    const size_t pageIdx = static_cast<size_t>(activePage_);
+    const double samplesPerQuarter = sampleRate_ * 60.0 / bpm;
+    bool full = false;
 
-    for (int t = 0; t < activeTracks; ++t) {
-        auto& track = tracks_[static_cast<size_t>(t)];
-        const double spq = stepsPerQuarter(track.timing);
+    for (int trackIndex = 0; trackIndex < activeTracks && !full; ++trackIndex) {
+        auto& track = tracks_[static_cast<size_t>(trackIndex)];
+        const double stepsPerBeat = stepsPerQuarter(track.timing);
+        const int64_t currentStep = static_cast<int64_t>(std::floor(ppqEnd * stepsPerBeat));
+        const int stepInPage = static_cast<int>((currentStep % kStepsPerPage + kStepsPerPage) % kStepsPerPage);
+        track.currentStep = stepInPage;
+        track.lastTriggeredStep = stepInPage;
 
-        const int64_t stepStart = static_cast<int64_t>(std::floor(ppqStart * spq));
-        const int64_t stepEnd = static_cast<int64_t>(std::floor(ppqEnd * spq));
+        int64_t firstStep = static_cast<int64_t>(std::floor(ppqStart * stepsPerBeat)) - 1;
+        const int64_t lastStep = static_cast<int64_t>(std::ceil(ppqEnd * stepsPerBeat)) + 1;
+        if (lastStep - firstStep > 256) firstStep = lastStep - 256;
 
-        const int step16 = static_cast<int>(stepEnd % kStepsPerPage);
-        track.currentStep = (step16 >= 0) ? step16 : (step16 + kStepsPerPage);
+        for (int64_t absoluteStep = firstStep; absoluteStep <= lastStep && !full; ++absoluteStep) {
+            const int patternStep = static_cast<int>((absoluteStep % kStepsPerPage + kStepsPerPage) % kStepsPerPage);
+            const double stepStartPpq = static_cast<double>(absoluteStep) / stepsPerBeat;
+            const auto page = getSongPageAtPpq(stepStartPpq);
+            const auto& step = track.patternPages.pages[static_cast<size_t>(page)][static_cast<size_t>(patternStep)];
+            if (!step.active || step.probability <= 0.0f) continue;
 
-        // Trigger initial step when playback first starts or loops
-        if (track.lastTriggeredStep == -1) {
-            int startIdx = static_cast<int>(stepStart % kStepsPerPage);
-            if (startIdx < 0) startIdx += kStepsPerPage;
-            track.lastTriggeredStep = startIdx;
+            uint32_t randomState = static_cast<uint32_t>(absoluteStep) ^ (static_cast<uint32_t>(trackIndex + 1) * 0x9e3779b9u);
+            randomState ^= randomState >> 16;
+            randomState *= 0x7feb352du;
+            randomState ^= randomState >> 15;
+            randomState *= 0x846ca68bu;
+            randomState ^= randomState >> 16;
+            const float randomValue = static_cast<float>(randomState >> 8) / 16777216.0f;
+            if (step.probability < 1.0f && randomValue >= step.probability) continue;
 
-            const auto& step = track.patternPages.pages[pageIdx][static_cast<size_t>(startIdx)];
-            if (step.active) {
-                auto sampleToPlay = track.auditionSample ? track.auditionSample : track.sample;
-                if (sampleToPlay) {
-                    track.triggerVoice(sampleToPlay, step.velocity, step.semitoneOffset, sampleRate_);
+            const double stepDuration = 1.0 / stepsPerBeat;
+            const double swungOffset = (patternStep % 2 == 1) ? swing_ : 0.0;
+            const double stepOffset = static_cast<double>(step.timingOffset) + swungOffset;
+            for (int ratchet = 0; ratchet < step.ratchets; ++ratchet) {
+                const double eventPpq = stepStartPpq + (stepOffset + static_cast<double>(ratchet) / step.ratchets) * stepDuration;
+                if (eventPpq < ppqStart || eventPpq >= ppqEnd) continue;
+                if (scheduledHitCount_ >= kMaxScheduledHits) {
+                    full = true;
+                    break;
                 }
-            }
-        }
-
-        // Check if we advanced across a step boundary
-        if (stepEnd > stepStart) {
-            for (int64_t s = stepStart + 1; s <= stepEnd; ++s) {
-                int sIdx = static_cast<int>(s % kStepsPerPage);
-                if (sIdx < 0) sIdx += kStepsPerPage;
-                track.lastTriggeredStep = sIdx;
-
-                const auto& step = track.patternPages.pages[pageIdx][static_cast<size_t>(sIdx)];
-                if (step.active) {
-                    auto sampleToPlay = track.auditionSample ? track.auditionSample : track.sample;
-                    if (sampleToPlay) {
-                        track.triggerVoice(sampleToPlay, step.velocity, step.semitoneOffset, sampleRate_);
-                    }
-                }
+                const int offset = static_cast<int>(std::floor((eventPpq - ppqStart) * samplesPerQuarter + 0.5));
+                if (offset < 0 || offset >= numSamples) continue;
+                scheduledHits_[scheduledHitCount_] = {offset, trackIndex, step, scheduledHitCount_};
+                ++scheduledHitCount_;
             }
         }
     }
+
+    std::sort(scheduledHits_.begin(), scheduledHits_.begin() + scheduledHitCount_,
+        [](const ScheduledHit& left, const ScheduledHit& right) {
+            if (left.sampleOffset != right.sampleOffset) return left.sampleOffset < right.sampleOffset;
+            return left.sequence < right.sequence;
+        });
+}
+
+void FruitEngine::triggerScheduledHit(const ScheduledHit& hit) {
+    auto& target = tracks_[static_cast<size_t>(hit.trackIndex)];
+    auto sampleToPlay = target.auditionSample ? target.auditionSample : target.sample;
+    if (!sampleToPlay) return;
+
+    if (hit.step.chokeGroup > 0) {
+        for (auto& track : tracks_)
+            for (auto& voice : track.voices)
+                if (voice.isPlaying() && voice.chokeGroup() == hit.step.chokeGroup) voice.choke();
+    }
+
+    VoiceSettings settings;
+    settings.sampleStart = hit.step.sampleStart;
+    settings.sampleEnd = hit.step.sampleEnd;
+    settings.reverse = hit.step.reverse;
+    settings.chokeGroup = hit.step.chokeGroup;
+    target.triggerVoice(sampleToPlay, hit.step.velocity, hit.step.semitoneOffset, sampleRate_, settings);
 }
 
 void FruitEngine::process(float* leftChannel,
@@ -307,6 +399,7 @@ void FruitEngine::process(float* leftChannel,
     }
 
     const std::lock_guard<std::mutex> lock(engineMutex_);
+    scheduledHitCount_ = 0;
 
     // 1. Handle host transport start/stop transitions
     if (justManuallyStarted_) {
@@ -344,7 +437,7 @@ void FruitEngine::process(float* leftChannel,
             }
         }
 
-        advanceSequencer(ppqStart, ppqEnd, numSamples, effectiveBpm);
+        scheduleSequencer(ppqStart, ppqEnd, numSamples, effectiveBpm);
         internalPpq_ = ppqEnd;
         lastPpq_ = ppqStart;
     }
@@ -359,27 +452,27 @@ void FruitEngine::process(float* leftChannel,
         }
     }
 
-    // 3. Render Voices
-    for (int t = 0; t < activeTracks; ++t) {
-        auto& track = tracks_[static_cast<size_t>(t)];
-        if (track.mute) {
-            continue;
+    // Render each interval before applying events at its ending sample.
+    const auto renderVoices = [&](int start, int end) {
+        if (end <= start) return;
+        for (int t = 0; t < activeTracks; ++t) {
+            auto& track = tracks_[static_cast<size_t>(t)];
+            if (track.mute || (anySolo && !track.solo)) continue;
+            for (auto& voice : track.voices)
+                if (voice.isPlaying()) voice.renderNextBlock(leftChannel + start, rightChannel + start, end - start);
         }
-        if (anySolo && !track.solo) {
-            continue;
-        }
+        if (previewVoice_.isPlaying())
+            previewVoice_.renderNextBlock(leftChannel + start, rightChannel + start, end - start);
+    };
 
-        for (auto& voice : track.voices) {
-            if (voice.isPlaying()) {
-                voice.renderNextBlock(leftChannel, rightChannel, numSamples);
-            }
-        }
+    int renderPosition = 0;
+    for (size_t i = 0; i < scheduledHitCount_; ++i) {
+        const auto& hit = scheduledHits_[i];
+        renderVoices(renderPosition, hit.sampleOffset);
+        triggerScheduledHit(hit);
+        renderPosition = hit.sampleOffset;
     }
-
-    // Render Preview Voice
-    if (previewVoice_.isPlaying()) {
-        previewVoice_.renderNextBlock(leftChannel, rightChannel, numSamples);
-    }
+    renderVoices(renderPosition, numSamples);
 
     // 4. Apply Master Volume and Soft Saturation
     const float mVol = masterVolume_;

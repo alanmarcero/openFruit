@@ -62,3 +62,26 @@ TEST_CASE("OpenFruit output dB session state keeps legacy master volume", "[plug
     CHECK(std::abs(restored.getRawParameterValue("output_db")->load() + 6.0f) < 0.01f);
     CHECK(restored.getRawParameterValue("master_vol")->load() == 1.0f);
 }
+
+TEST_CASE("OpenFruit exposes per-track filter and envelope controls", "[plugin][parameters]") {
+    ParameterTestProcessor processor;
+    juce::AudioProcessorValueTreeState state(processor, nullptr, "Parameters", openfruit::params::createParameterLayout());
+
+    REQUIRE(state.getParameter(openfruit::params::trackFilterId(0)) != nullptr);
+    REQUIRE(state.getParameter(openfruit::params::trackAttackId(0)) != nullptr);
+    REQUIRE(state.getParameter(openfruit::params::trackDecayId(0)) != nullptr);
+    REQUIRE(state.getParameter(openfruit::params::trackSustainId(0)) != nullptr);
+    REQUIRE(state.getParameter(openfruit::params::trackReleaseId(0)) != nullptr);
+    REQUIRE(state.getParameter(openfruit::params::trackFilterId(15)) != nullptr);
+}
+
+TEST_CASE("OpenFruit exposes song mode sections and swing automation", "[plugin][parameters]") {
+    ParameterTestProcessor processor;
+    juce::AudioProcessorValueTreeState state(processor, nullptr, "Parameters", openfruit::params::createParameterLayout());
+
+    REQUIRE(state.getParameter(openfruit::params::kSongMode) != nullptr);
+    REQUIRE(state.getParameter(openfruit::params::kSwing) != nullptr);
+    REQUIRE(state.getParameter(openfruit::params::songSectionPageId(0)) != nullptr);
+    REQUIRE(state.getParameter(openfruit::params::songSectionBarsId(3)) != nullptr);
+    REQUIRE(state.getParameter(openfruit::params::songSectionFillId(2)) != nullptr);
+}

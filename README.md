@@ -2,21 +2,27 @@
 
 A 16-track step sequencer and sample player based on the classic FL Studio pad tracker layout. It supports variable track counts, per-row micro-timing, pitch detection in the sample browser, and live MIDI auditioning.
 
-![openFruit tracker](assets/openFruit-screenshot.png)
+![openFruit 16-track sequencer with per-step pattern controls](assets/openFruit-screenshot.png)
 
-![openFruit media browser](assets/openFruit-browser-screenshot.png)
+![openFruit Song Mode with chained A–D sections, bar counts, fills, and swing](assets/openFruit-song-mode-screenshot.png)
+
+![openFruit media browser with sample pitch estimates](assets/openFruit-browser-screenshot.png)
 
 ## Features
 
 - Track counts: defaults to 8 active tracks on startup (switchable between 4, 8, 12, or 16 tracks).
 - Transport Play / Pause & Host Sync: pattern playback only runs or auto-plays when the Play button is enabled. Syncs to the host transport when the host starts, plays immediately when Play is pressed, and pauses automatically when the host stops or when Pause is clicked.
 - Always-on MIDI triggering & per-row MIDI routing: incoming MIDI notes always trigger matching rows without needing a mode switch. Each row displays and lets you configure its MIDI channel (`CH 1` through `CH 16`, defaulting to 1–16).
-- Step sequencer: 16 pads per row with 4-beat color groupings.
+- Step sequencer: 16 pads per row with 4-beat color groupings. Right-click a pad for probability, 1–8 ratchets, timing offset, sample start/end, reverse, and choke-group controls; right-drag still changes pitch and left-drag changes velocity.
 - Row timing: 1/16, 1/32, or 1/64 timing selectable per row.
+- Swing and timing: global swing delays alternating steps, while each step can move earlier or later within its step.
+- Sample shaping: trim the playback region and reverse individual hits. Probability and ratchets are evaluated per step, and choke groups cut off earlier matching voices.
+- Track voice shaping: use each row's ENV control for a per-track low-pass filter and amplitude attack, decay, sustain, and release.
 - Tuning: +/- 24 semitones per step pad and +/- 24 semitones base tuning per track.
 - Velocity: adjustable per step pad.
 - Output gain: automatable -24 dB to +12 dB output trim after the master volume and saturation stage.
 - Pattern pages: pages A, B, C, and D switchable by parameter automation or UI buttons.
+- Song Mode: chain pages A–D with independent section page, length (1–32 bars), and fill settings; fill sections route their last bar through Page D.
 - Common audio format support: recursive sample folder browsing and decoding for WAV, BWF, AIFF/AIFC, MP3, FLAC, Ogg Vorbis, M4A/AAC/MP4, CAF, ALAC, WMA, and Opus.
 - Pitch analysis: the sample browser runs a pitch detector over files in the selected folder, estimating fundamental frequency and musical note.
 - File sorting: sort samples by duration, name, or detected pitch.

@@ -3,6 +3,7 @@
 #include "SequencerTypes.h"
 #include "SampleVoice.h"
 #include "SonicAnalyzer.h"
+#include <algorithm>
 #include <vector>
 #include <array>
 #include <memory>
@@ -26,6 +27,11 @@ struct TrackState {
     float pan = 0.0f; // -1.0 .. +1.0
     bool mute = false;
     bool solo = false;
+    float filterCutoffHz = 20000.0f;
+    float amplitudeAttackSeconds = 0.0f;
+    float amplitudeDecaySeconds = 0.0f;
+    float amplitudeSustain = 1.0f;
+    float amplitudeReleaseSeconds = 0.0f;
 
     TrackPatternPages patternPages;
 
@@ -40,7 +46,9 @@ struct TrackState {
     void triggerVoice(std::shared_ptr<const AudioSampleBuffer> sampleToPlay,
                       float velocity,
                       int semitoneOffset,
-                      double sampleRate);
+                      double sampleRate,
+                      VoiceSettings settings = {},
+                      int midiNote = -1);
 };
 
 class FruitEngine {
@@ -96,7 +104,15 @@ public:
     void setStepActive(int trackIndex, PageIndex page, int stepIndex, bool active);
     void setStepVelocity(int trackIndex, PageIndex page, int stepIndex, float velocity);
     void setStepTune(int trackIndex, PageIndex page, int stepIndex, int semitoneOffset);
+    void setStepData(int trackIndex, PageIndex page, int stepIndex, StepData data);
     [[nodiscard]] StepData getStep(int trackIndex, PageIndex page, int stepIndex) const;
+    void setSwing(float amount) noexcept { swing_ = std::clamp(amount, 0.0f, 0.5f); }
+    [[nodiscard]] float getSwing() const noexcept { return swing_; }
+    void setSongMode(bool enabled) noexcept { songMode_ = enabled; }
+    [[nodiscard]] bool getSongMode() const noexcept { return songMode_; }
+    void setSongSection(int index, SongSection section) noexcept;
+    [[nodiscard]] SongSection getSongSection(int index) const noexcept;
+    [[nodiscard]] PageIndex getSongPageAtPpq(double ppq) const noexcept;
 
     // Global volume
     void setMasterVolume(float vol) noexcept { masterVolume_ = vol; }
@@ -123,10 +139,23 @@ private:
     bool justManuallyStarted_ = false;
     bool wasHostPlaying_ = false;
     PageIndex activePage_ = PageIndex::PageA;
+    float swing_ = 0.0f;
+    bool songMode_ = false;
+    std::array<SongSection, kNumPages> songSections_ {};
     ColorTheme colorTheme_ = ColorTheme::CyberpunkNeon;
 
     mutable std::mutex engineMutex_;
     std::array<TrackState, kMaxTracks> tracks_;
+
+    struct ScheduledHit {
+        int sampleOffset = 0;
+        int trackIndex = 0;
+        StepData step;
+        size_t sequence = 0;
+    };
+    static constexpr size_t kMaxScheduledHits = 4096;
+    std::array<ScheduledHit, kMaxScheduledHits> scheduledHits_ {};
+    size_t scheduledHitCount_ = 0;
 
     double internalPpq_ = 0.0;
     double lastPpq_ = 0.0;
@@ -134,7 +163,8 @@ private:
     // Audition preview voice (standalone preview button)
     SampleVoice previewVoice_;
 
-    void advanceSequencer(double ppqStart, double ppqEnd, int numSamples, double bpm);
+    void scheduleSequencer(double ppqStart, double ppqEnd, int numSamples, double bpm);
+    void triggerScheduledHit(const ScheduledHit& hit);
 };
 
 } // namespace openfruit::core

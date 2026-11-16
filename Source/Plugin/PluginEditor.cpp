@@ -64,6 +64,6 @@ void OpenFruitAudioProcessorEditor::paint(juce::Graphics& g) {
 
 void OpenFruitAudioProcessorEditor::resized() {
     auto bounds = getLocalBounds();
-    headerPanel_.setBounds(bounds.removeFromTop(68));
+    headerPanel_.setBounds(bounds.removeFromTop(110));
     trackerPanel_.setBounds(bounds);
 }

@@ -106,6 +106,61 @@ HeaderPanel::HeaderPanel(openfruit::core::FruitEngine& engine,
         apvts_, openfruit::params::kOutputDb, outputDbSlider_);
     addAndMakeVisible(outputDbSlider_);
 
+    songModeAttachment_ = std::make_unique<juce::AudioProcessorValueTreeState::ButtonAttachment>(
+        apvts_, openfruit::params::kSongMode, songModeToggle_);
+    songModeToggle_.setButtonText(juce::String());
+    songModeToggle_.setTooltip("Chain the four sections in Song Mode");
+    addAndMakeVisible(songModeToggle_);
+    songModeLabel_.setFont(juce::FontOptions(9.0f, juce::Font::bold));
+    songModeLabel_.setTooltip("Chain the four sections in Song Mode");
+    addAndMakeVisible(songModeLabel_);
+
+    swingLabel_.setFont(juce::FontOptions(10.0f, juce::Font::bold));
+    addAndMakeVisible(swingLabel_);
+    swingSlider_.setSliderStyle(juce::Slider::LinearHorizontal);
+    swingSlider_.setTextBoxStyle(juce::Slider::NoTextBox, false, 0, 0);
+    swingSlider_.setRange(0.0, 0.5, 0.001);
+    swingSlider_.setNumDecimalPlacesToDisplay(2);
+    swingSlider_.setTooltip("Delay alternating steps by up to half a step");
+    swingAttachment_ = std::make_unique<juce::AudioProcessorValueTreeState::SliderAttachment>(
+        apvts_, openfruit::params::kSwing, swingSlider_);
+    addAndMakeVisible(swingSlider_);
+
+    for (int i = 0; i < openfruit::core::kNumPages; ++i) {
+        const auto index = static_cast<size_t>(i);
+        sectionLabels_[index].setText("SEC" + juce::String(i + 1),
+                                      juce::dontSendNotification);
+        sectionLabels_[index].setFont(juce::FontOptions(9.0f, juce::Font::bold));
+        addAndMakeVisible(sectionLabels_[index]);
+
+        auto& pageBox = sectionPageBoxes_[index];
+        pageBox.addItem("A", 1);
+        pageBox.addItem("B", 2);
+        pageBox.addItem("C", 3);
+        pageBox.addItem("D", 4);
+        pageBox.setTooltip("Pattern page for this song section");
+        sectionPageAttachments_[index] = std::make_unique<juce::AudioProcessorValueTreeState::ComboBoxAttachment>(
+            apvts_, openfruit::params::songSectionPageId(i), pageBox);
+        addAndMakeVisible(pageBox);
+
+        auto& barsSlider = sectionBarsSliders_[index];
+        barsSlider.setSliderStyle(juce::Slider::LinearBar);
+        barsSlider.setTextBoxStyle(juce::Slider::TextBoxRight, false, 30, 20);
+        barsSlider.setRange(1.0, 32.0, 1.0);
+        barsSlider.setTooltip("Number of bars in this section");
+        sectionBarsAttachments_[index] = std::make_unique<juce::AudioProcessorValueTreeState::SliderAttachment>(
+            apvts_, openfruit::params::songSectionBarsId(i), barsSlider);
+        addAndMakeVisible(barsSlider);
+
+        auto& fillButton = sectionFillButtons_[index];
+        fillButton.setButtonText("FILL");
+        fillButton.setClickingTogglesState(true);
+        fillButton.setTooltip("Use Page D as a one-bar fill at this section's end");
+        sectionFillAttachments_[index] = std::make_unique<juce::AudioProcessorValueTreeState::ButtonAttachment>(
+            apvts_, openfruit::params::songSectionFillId(i), fillButton);
+        addAndMakeVisible(fillButton);
+    }
+
     updateFromParameters();
 }
 
@@ -135,6 +190,7 @@ void HeaderPanel::updateFromParameters() {
     if (const auto* output = apvts_.getRawParameterValue(openfruit::params::kOutputDb)) {
         outputDbLabel_.setText("OUT " + juce::String(*output, 1) + " dB", juce::dontSendNotification);
     }
+    swingLabel_.setText("Swing", juce::dontSendNotification);
 
     // 3. Play / Pause Button
     const bool isPlaying = engine_.isPlaying();
@@ -260,21 +316,41 @@ void HeaderPanel::resized() {
     area.removeFromLeft(12);
 
     // 3. Transport Play / Pause Toggle
-    playBtn_.setBounds(area.removeFromLeft(140).reduced(0, 10));
+    playBtn_.setBounds(area.removeFromLeft(140).withY(24).withHeight(32));
 
     area.removeFromLeft(12);
 
     // 4. Color Theme Dropdown
-    themeBox_.setBounds(area.removeFromLeft(140).reduced(0, 10));
+    themeBox_.setBounds(area.removeFromLeft(140).withY(24).withHeight(32));
 
     // Output gain knob and legacy master volume control
     auto masterArea = area.removeFromRight(100);
     masterVolLabel_.setBounds(masterArea.removeFromTop(16));
-    masterVolSlider_.setBounds(masterArea.reduced(2));
+    masterVolSlider_.setBounds(masterArea.withHeight(32).reduced(2));
 
     auto outputArea = area.removeFromRight(72);
     outputDbLabel_.setBounds(outputArea.removeFromTop(14));
-    outputDbSlider_.setBounds(outputArea.reduced(5, 0));
+    outputDbSlider_.setBounds(outputArea.withHeight(36).reduced(5, 0));
+
+    auto songArea = getLocalBounds().reduced(8);
+    songArea.removeFromLeft(190);
+    songArea.removeFromTop(60);
+    songModeToggle_.setBounds(songArea.removeFromLeft(32).reduced(1, 2));
+    songModeLabel_.setBounds(songArea.removeFromLeft(38).reduced(0, 2));
+    swingLabel_.setBounds(songArea.removeFromLeft(65).reduced(0, 2));
+    swingSlider_.setBounds(songArea.removeFromLeft(120).reduced(0, 2));
+    songArea.removeFromLeft(10);
+    const int sectionWidth = songArea.getWidth() / openfruit::core::kNumPages;
+    for (size_t i = 0; i < sectionLabels_.size(); ++i) {
+        auto section = songArea.removeFromLeft(sectionWidth);
+        const int labelWidth = std::min(38, std::max(18, sectionWidth / 4));
+        const int pageWidth = std::min(42, std::max(26, sectionWidth / 4));
+        const int barsWidth = std::min(51, std::max(34, sectionWidth / 3));
+        sectionLabels_[i].setBounds(section.removeFromLeft(labelWidth).reduced(1, 2));
+        sectionPageBoxes_[i].setBounds(section.removeFromLeft(pageWidth).reduced(1, 2));
+        sectionBarsSliders_[i].setBounds(section.removeFromLeft(barsWidth).reduced(1, 2));
+        sectionFillButtons_[i].setBounds(section.reduced(1, 2));
+    }
 }
 
 // ============================================================================
