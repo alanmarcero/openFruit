@@ -65,12 +65,31 @@ struct StepData {
     bool active = false;
     float velocity = 0.85f;    // 0.0 .. 1.0
     int semitoneOffset = 0;    // -24 .. +24 semitones from base sample
+    float probability = 1.0f;
+    int ratchets = 1;
+    float timingOffset = 0.0f;
+    float sampleStart = 0.0f;
+    float sampleEnd = 1.0f;
+    bool reverse = false;
+    int chokeGroup = 0;
 
     bool operator==(const StepData& other) const noexcept {
         return active == other.active &&
                semitoneOffset == other.semitoneOffset &&
-               std::abs(velocity - other.velocity) < 1e-4f;
+               std::abs(velocity - other.velocity) < 1e-4f &&
+               std::abs(probability - other.probability) < 1e-4f &&
+               ratchets == other.ratchets &&
+               std::abs(timingOffset - other.timingOffset) < 1e-4f &&
+               std::abs(sampleStart - other.sampleStart) < 1e-4f &&
+               std::abs(sampleEnd - other.sampleEnd) < 1e-4f &&
+               reverse == other.reverse && chokeGroup == other.chokeGroup;
     }
+};
+
+struct SongSection {
+    PageIndex page = PageIndex::PageA;
+    int bars = 1;
+    bool fill = false;
 };
 
 using PagePattern = std::array<StepData, kStepsPerPage>;

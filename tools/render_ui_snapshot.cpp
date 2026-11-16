@@ -122,6 +122,7 @@ int main() {
 
     const juce::File baseDir = juce::File::getCurrentWorkingDirectory();
     const juce::File trackerScreenshot = baseDir.getChildFile("assets/openFruit-screenshot.png");
+    const juce::File songScreenshot = baseDir.getChildFile("assets/openFruit-song-mode-screenshot.png");
     const juce::File browserScreenshot = baseDir.getChildFile("assets/openFruit-browser-screenshot.png");
     const juce::File sampleDir = baseDir.getChildFile("build/sample_library");
 
@@ -129,6 +130,25 @@ int main() {
     if (saveSnapshot(editor, trackerScreenshot)) {
         std::cout << "Saved tracker screenshot to " << trackerScreenshot.getFullPathName() << "\n";
     }
+
+    auto& apvts = processor.getAPVTS();
+    const auto setParameter = [&apvts](const std::string& id, float plainValue) {
+        if (auto* parameter = apvts.getParameter(id))
+            parameter->setValueNotifyingHost(parameter->convertTo0to1(plainValue));
+    };
+    setParameter(openfruit::params::kSongMode, 1.0f);
+    setParameter(openfruit::params::kPage, 1.0f);
+    setParameter(openfruit::params::songSectionBarsId(1), 4.0f);
+    setParameter(openfruit::params::songSectionFillId(1), 1.0f);
+    processor.getEngine().setActivePage(openfruit::core::PageIndex::PageB);
+    editor->repaint();
+    if (saveSnapshot(editor, songScreenshot)) {
+        std::cout << "Saved Song Mode screenshot to " << songScreenshot.getFullPathName() << "\n";
+    }
+
+    setParameter(openfruit::params::kSongMode, 0.0f);
+    setParameter(openfruit::params::kPage, 0.0f);
+    processor.getEngine().setActivePage(openfruit::core::PageIndex::PageA);
 
     // 2. Setup samples and render Browser Screenshot
     populateSampleFolder(sampleDir, processor.getToneCache());

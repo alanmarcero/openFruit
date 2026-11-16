@@ -47,6 +47,26 @@ juce::AudioProcessorValueTreeState::ParameterLayout createParameterLayout() {
         juce::AudioParameterFloatAttributes().withLabel("dB")
     ));
 
+    params.push_back(std::make_unique<juce::AudioParameterBool>(
+        juce::ParameterID(kSongMode, 1), "Song Mode", false));
+    params.push_back(std::make_unique<juce::AudioParameterFloat>(
+        juce::ParameterID(kSwing, 1), "Swing",
+        juce::NormalisableRange<float>(0.0f, 0.5f, 0.001f), 0.0f,
+        juce::AudioParameterFloatAttributes().withLabel("step")));
+
+    for (int section = 0; section < openfruit::core::kNumPages; ++section) {
+        params.push_back(std::make_unique<juce::AudioParameterChoice>(
+            juce::ParameterID(songSectionPageId(section), 1),
+            "Song Section " + juce::String(section + 1) + " Page",
+            juce::StringArray {"Page A", "Page B", "Page C", "Page D"}, section));
+        params.push_back(std::make_unique<juce::AudioParameterInt>(
+            juce::ParameterID(songSectionBarsId(section), 1),
+            "Song Section " + juce::String(section + 1) + " Bars", 1, 32, 1));
+        params.push_back(std::make_unique<juce::AudioParameterBool>(
+            juce::ParameterID(songSectionFillId(section), 1),
+            "Song Section " + juce::String(section + 1) + " Fill", false));
+    }
+
     // 16 Tracks Parameters
     for (int i = 0; i < openfruit::core::kMaxTracks; ++i) {
         const std::string prefix = "Track " + std::to_string(i + 1) + " ";
@@ -106,6 +126,27 @@ juce::AudioProcessorValueTreeState::ParameterLayout createParameterLayout() {
             prefix + "Solo",
             false
         ));
+
+        params.push_back(std::make_unique<juce::AudioParameterFloat>(
+            juce::ParameterID(trackFilterId(i), 1), prefix + "Filter",
+            juce::NormalisableRange<float>(20.0f, 20000.0f, 1.0f, 0.35f), 20000.0f,
+            juce::AudioParameterFloatAttributes().withLabel("Hz")));
+        params.push_back(std::make_unique<juce::AudioParameterFloat>(
+            juce::ParameterID(trackAttackId(i), 1), prefix + "Attack",
+            juce::NormalisableRange<float>(0.0f, 10.0f, 0.001f), 0.0f,
+            juce::AudioParameterFloatAttributes().withLabel("s")));
+        params.push_back(std::make_unique<juce::AudioParameterFloat>(
+            juce::ParameterID(trackDecayId(i), 1), prefix + "Decay",
+            juce::NormalisableRange<float>(0.0f, 10.0f, 0.001f), 0.0f,
+            juce::AudioParameterFloatAttributes().withLabel("s")));
+        params.push_back(std::make_unique<juce::AudioParameterFloat>(
+            juce::ParameterID(trackSustainId(i), 1), prefix + "Sustain",
+            juce::NormalisableRange<float>(0.0f, 100.0f, 0.1f), 100.0f,
+            juce::AudioParameterFloatAttributes().withLabel("%")));
+        params.push_back(std::make_unique<juce::AudioParameterFloat>(
+            juce::ParameterID(trackReleaseId(i), 1), prefix + "Release",
+            juce::NormalisableRange<float>(0.0f, 20.0f, 0.001f), 0.0f,
+            juce::AudioParameterFloatAttributes().withLabel("s")));
     }
 
     return { params.begin(), params.end() };

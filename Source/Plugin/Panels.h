@@ -52,6 +52,20 @@ private:
     juce::Label outputDbLabel_{ "Output", "Output level in decibels" };
     std::unique_ptr<juce::AudioProcessorValueTreeState::SliderAttachment> outputDbAttachment_;
 
+    juce::ToggleButton songModeToggle_ { "SONG MODE" };
+    juce::Label songModeLabel_ { "SongMode", "SONG" };
+    std::unique_ptr<juce::AudioProcessorValueTreeState::ButtonAttachment> songModeAttachment_;
+    juce::Label swingLabel_ { "Swing", "Swing" };
+    juce::Slider swingSlider_;
+    std::unique_ptr<juce::AudioProcessorValueTreeState::SliderAttachment> swingAttachment_;
+    std::array<juce::Label, openfruit::core::kNumPages> sectionLabels_;
+    std::array<juce::ComboBox, openfruit::core::kNumPages> sectionPageBoxes_;
+    std::array<juce::Slider, openfruit::core::kNumPages> sectionBarsSliders_;
+    std::array<juce::TextButton, openfruit::core::kNumPages> sectionFillButtons_;
+    std::array<std::unique_ptr<juce::AudioProcessorValueTreeState::ComboBoxAttachment>, openfruit::core::kNumPages> sectionPageAttachments_;
+    std::array<std::unique_ptr<juce::AudioProcessorValueTreeState::SliderAttachment>, openfruit::core::kNumPages> sectionBarsAttachments_;
+    std::array<std::unique_ptr<juce::AudioProcessorValueTreeState::ButtonAttachment>, openfruit::core::kNumPages> sectionFillAttachments_;
+
     juce::Image fruitLogo_;
     juce::Image faceplateTexture_;
 };

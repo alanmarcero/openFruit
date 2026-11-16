@@ -1,6 +1,7 @@
 #include "PluginProcessor.h"
 #include "PluginEditor.h"
 #include "DefaultKit.h"
+#include "PatternState.h"
 
 OpenFruitAudioProcessor::OpenFruitAudioProcessor()
     : AudioProcessor(BusesProperties().withOutput("Output", juce::AudioChannelSet::stereo(), true)),
@@ -78,6 +79,17 @@ void OpenFruitAudioProcessor::syncParametersToEngine() {
     if (const auto* p = apvts_.getRawParameterValue(openfruit::params::kOutputDb)) {
         engine_.setOutputDb(*p);
     }
+    if (const auto* p = apvts_.getRawParameterValue(openfruit::params::kSwing)) engine_.setSwing(*p);
+    if (const auto* p = apvts_.getRawParameterValue(openfruit::params::kSongMode)) engine_.setSongMode(*p > 0.5f);
+    for (int section = 0; section < openfruit::core::kNumPages; ++section) {
+        const auto pageId = openfruit::params::songSectionPageId(section);
+        const auto barsId = openfruit::params::songSectionBarsId(section);
+        const auto fillId = openfruit::params::songSectionFillId(section);
+        const int page = static_cast<int>(apvts_.getRawParameterValue(pageId)->load());
+        const int bars = static_cast<int>(apvts_.getRawParameterValue(barsId)->load());
+        const bool fill = apvts_.getRawParameterValue(fillId)->load() > 0.5f;
+        engine_.setSongSection(section, {static_cast<openfruit::core::PageIndex>(page), bars, fill});
+    }
 
     // 4. Per-track parameters
     for (int i = 0; i < openfruit::core::kMaxTracks; ++i) {
@@ -102,6 +114,21 @@ void OpenFruitAudioProcessor::syncParametersToEngine() {
         }
         if (const auto* s = apvts_.getRawParameterValue(openfruit::params::trackSoloId(i))) {
             trk.solo = (*s > 0.5f);
+        }
+        if (const auto* filter = apvts_.getRawParameterValue(openfruit::params::trackFilterId(i))) {
+            trk.filterCutoffHz = *filter;
+        }
+        if (const auto* attack = apvts_.getRawParameterValue(openfruit::params::trackAttackId(i))) {
+            trk.amplitudeAttackSeconds = *attack;
+        }
+        if (const auto* decay = apvts_.getRawParameterValue(openfruit::params::trackDecayId(i))) {
+            trk.amplitudeDecaySeconds = *decay;
+        }
+        if (const auto* sustain = apvts_.getRawParameterValue(openfruit::params::trackSustainId(i))) {
+            trk.amplitudeSustain = *sustain * 0.01f;
+        }
+        if (const auto* release = apvts_.getRawParameterValue(openfruit::params::trackReleaseId(i))) {
+            trk.amplitudeReleaseSeconds = *release;
         }
     }
 }
@@ -155,6 +182,7 @@ juce::AudioProcessorEditor* OpenFruitAudioProcessor::createEditor() {
 
 void OpenFruitAudioProcessor::getStateInformation(juce::MemoryBlock& destData) {
     auto state = apvts_.copyState();
+    state.addChild(openfruit::plugin::makePatternState(engine_), -1, nullptr);
     std::unique_ptr<juce::XmlElement> xml(state.createXml());
     copyXmlToBinary(*xml, destData);
 }
@@ -162,8 +190,12 @@ void OpenFruitAudioProcessor::getStateInformation(juce::MemoryBlock& destData) {
 void OpenFruitAudioProcessor::setStateInformation(const void* data, int sizeInBytes) {
     std::unique_ptr<juce::XmlElement> xmlState(getXmlFromBinary(data, sizeInBytes));
     if (xmlState != nullptr && xmlState->hasTagName(apvts_.state.getType())) {
-        apvts_.replaceState(juce::ValueTree::fromXml(*xmlState));
+        auto state = juce::ValueTree::fromXml(*xmlState);
+        auto patterns = state.getChildWithName("StepPatterns");
+        if (patterns.isValid()) state.removeChild(patterns, nullptr);
+        apvts_.replaceState(state);
         syncParametersToEngine();
+        openfruit::plugin::restorePatternState(patterns, engine_);
     }
 }
 
