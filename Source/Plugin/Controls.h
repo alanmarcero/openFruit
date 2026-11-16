@@ -47,14 +47,11 @@ private:
 class TrackVoiceSettingsPanel : public juce::Component {
 public:
     TrackVoiceSettingsPanel(int trackIdx,
-                            openfruit::core::FruitEngine& engine,
                             juce::AudioProcessorValueTreeState& apvts);
     void paint(juce::Graphics& g) override;
     void resized() override;
 
 private:
-    openfruit::core::FruitEngine& engine_;
-    const int trackIdx_;
     std::array<juce::Slider, 7> sliders_;
     std::array<juce::Label, 7> labels_;
     std::array<std::unique_ptr<juce::AudioProcessorValueTreeState::SliderAttachment>, 7> attachments_;
@@ -89,6 +86,9 @@ private:
     juce::TextButton samplePadBtn_;
     juce::TextButton loadBtn_;
     juce::ComboBox timingBox_;
+    juce::Label tuneLabel_;
+    juce::Label volumeLabel_;
+    juce::Label panLabel_;
     juce::Slider tuneSlider_;
     juce::Slider volSlider_;
     juce::Slider panSlider_;
