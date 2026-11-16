@@ -49,3 +49,27 @@ TEST_CASE("OpenFruit empty pattern state clears existing sequencer pages", "[plu
 
     REQUIRE(engine.getStep(2, PageIndex::PageC, 7) == StepData{});
 }
+
+TEST_CASE("OpenFruit legacy state without pattern data clears reused pages", "[plugin][state]") {
+    FruitEngine engine;
+    StepData oldPattern;
+    oldPattern.active = true;
+    engine.setStepData(0, PageIndex::PageA, 0, oldPattern);
+
+    const juce::ValueTree legacyState {"Parameters"};
+    const auto patterns = legacyState.getChildWithName("StepPatterns");
+    openfruit::plugin::restorePatternStateIfPresent(patterns, engine);
+
+    REQUIRE(engine.getStep(0, PageIndex::PageA, 0) == StepData{});
+}
+
+TEST_CASE("OpenFruit invalid pattern data leaves existing pages intact", "[plugin][state]") {
+    FruitEngine engine;
+    StepData existing;
+    existing.active = true;
+    engine.setStepData(0, PageIndex::PageB, 4, existing);
+
+    openfruit::plugin::restorePatternState({}, engine);
+
+    REQUIRE(engine.getStep(0, PageIndex::PageB, 4) == existing);
+}

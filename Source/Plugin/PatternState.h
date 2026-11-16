@@ -7,5 +7,6 @@ namespace openfruit::plugin {
 
 juce::ValueTree makePatternState(const core::FruitEngine& engine);
 void restorePatternState(const juce::ValueTree& state, core::FruitEngine& engine);
+void restorePatternStateIfPresent(const juce::ValueTree& state, core::FruitEngine& engine);
 
 }

@@ -53,4 +53,12 @@ void restorePatternState(const juce::ValueTree& patterns, core::FruitEngine& eng
     }
 }
 
+void restorePatternStateIfPresent(const juce::ValueTree& patterns, core::FruitEngine& engine) {
+    if (!patterns.isValid()) {
+        engine.clearStepPatterns();
+        return;
+    }
+    restorePatternState(patterns, engine);
+}
+
 }
