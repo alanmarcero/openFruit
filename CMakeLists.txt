@@ -81,6 +81,7 @@ if(OF_BUILD_PLUGIN)
         Source/Plugin/SampleBrowserModal.cpp
         Source/Plugin/Panels.cpp
         Source/Plugin/PatternState.cpp
+        Source/Plugin/MidiEventProcessor.cpp
         Source/Plugin/PluginProcessor.cpp
         Source/Plugin/PluginEditor.cpp)
 
@@ -116,6 +117,7 @@ if(OF_BUILD_PLUGIN)
             Source/Plugin/SampleBrowserModal.cpp
             Source/Plugin/Panels.cpp
             Source/Plugin/PatternState.cpp
+            Source/Plugin/MidiEventProcessor.cpp
             Source/Plugin/PluginProcessor.cpp
             Source/Plugin/PluginEditor.cpp)
 
@@ -153,7 +155,9 @@ if(OF_BUILD_TESTS)
         Tests/FruitEngineTests.cpp
         Tests/PluginParameterTests.cpp
         Tests/PluginStateTests.cpp
+        Tests/PluginMidiTests.cpp
         Source/Plugin/PatternState.cpp
+        Source/Plugin/MidiEventProcessor.cpp
         Source/Plugin/Parameters.cpp)
 
     target_include_directories(openfruit_tests PRIVATE Tests Source/Plugin)

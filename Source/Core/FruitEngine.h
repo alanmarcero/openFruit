@@ -105,6 +105,7 @@ public:
     void setStepVelocity(int trackIndex, PageIndex page, int stepIndex, float velocity);
     void setStepTune(int trackIndex, PageIndex page, int stepIndex, int semitoneOffset);
     void setStepData(int trackIndex, PageIndex page, int stepIndex, StepData data);
+    void clearStepPatterns();
     [[nodiscard]] StepData getStep(int trackIndex, PageIndex page, int stepIndex) const;
     void setSwing(float amount) noexcept { swing_ = std::clamp(amount, 0.0f, 0.5f); }
     [[nodiscard]] float getSwing() const noexcept { return swing_; }

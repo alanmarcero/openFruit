@@ -32,6 +32,7 @@ juce::ValueTree makePatternState(const core::FruitEngine& engine) {
 
 void restorePatternState(const juce::ValueTree& patterns, core::FruitEngine& engine) {
     if (!patterns.hasType("StepPatterns")) return;
+    engine.clearStepPatterns();
     for (int i = 0; i < patterns.getNumChildren(); ++i) {
         const auto child = patterns.getChild(i);
         if (!child.hasType("Step")) continue;
