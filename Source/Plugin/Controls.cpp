@@ -302,17 +302,21 @@ void setApvtsParamValue(juce::AudioProcessorValueTreeState* apvts,
 } // namespace
 
 TrackVoiceSettingsPanel::TrackVoiceSettingsPanel(int trackIdx,
+                                                 openfruit::core::FruitEngine& engine,
                                                  juce::AudioProcessorValueTreeState& apvts)
+    : engine_(engine), trackIdx_(trackIdx)
 {
-    const std::array<std::string, 5> ids = {
+    const std::array<std::string, 7> ids = {
         openfruit::params::trackFilterId(trackIdx),
         openfruit::params::trackAttackId(trackIdx),
         openfruit::params::trackDecayId(trackIdx),
         openfruit::params::trackSustainId(trackIdx),
-        openfruit::params::trackReleaseId(trackIdx)
+        openfruit::params::trackReleaseId(trackIdx),
+        openfruit::params::trackNudgeId(trackIdx),
+        openfruit::params::trackGrooveId(trackIdx)
     };
-    const std::array<const char*, 5> names = {"Filter", "Attack", "Decay", "Sustain", "Release"};
-    const std::array<const char*, 5> units = {"Hz", "s", "s", "%", "s"};
+    const std::array<const char*, 7> names = {"Filter", "Attack", "Decay", "Sustain", "Release", "Nudge", "Groove"};
+    const std::array<const char*, 7> units = {"Hz", "s", "s", "%", "s", "steps", "steps"};
     for (size_t i = 0; i < sliders_.size(); ++i) {
         labels_[i].setText(names[i], juce::dontSendNotification);
         labels_[i].setJustificationType(juce::Justification::centredLeft);
@@ -321,20 +325,28 @@ TrackVoiceSettingsPanel::TrackVoiceSettingsPanel(int trackIdx,
         auto& slider = sliders_[i];
         slider.setSliderStyle(juce::Slider::LinearHorizontal);
         slider.setTextBoxStyle(juce::Slider::TextBoxRight, false, 58, 22);
-        slider.setTextValueSuffix(" " + juce::String(units[i]));
+        slider.setTextValueSuffix(" " + juce::String(i >= 5 ? "stp" : units[i]));
         slider.setNumDecimalPlacesToDisplay(i == 0 || i == 3 ? 0 : 2);
         addAndMakeVisible(slider);
         attachments_[i] = std::make_unique<juce::AudioProcessorValueTreeState::SliderAttachment>(
             apvts, ids[i], slider);
     }
-    setSize(440, 190);
+    sliders_[5].onValueChange = [this] {
+        engine_.setTrackNudge(trackIdx_, static_cast<float>(sliders_[5].getValue()));
+    };
+    sliders_[6].onValueChange = [this] {
+        engine_.setTrackGroove(trackIdx_, static_cast<float>(sliders_[6].getValue()));
+    };
+    engine_.setTrackNudge(trackIdx_, static_cast<float>(sliders_[5].getValue()));
+    engine_.setTrackGroove(trackIdx_, static_cast<float>(sliders_[6].getValue()));
+    setSize(460, 250);
 }
 
 void TrackVoiceSettingsPanel::paint(juce::Graphics& g) {
     g.fillAll(findColour(juce::ResizableWindow::backgroundColourId, true));
     g.setColour(juce::Colours::white.withAlpha(0.8f));
     g.setFont(juce::FontOptions(14.0f, juce::Font::bold));
-    g.drawText("TRACK VOICE", 12, 4, getWidth() - 24, 22, juce::Justification::centredLeft);
+    g.drawText("TRACK SETTINGS", 12, 4, getWidth() - 24, 22, juce::Justification::centredLeft);
 }
 
 void TrackVoiceSettingsPanel::resized() {
@@ -449,11 +461,12 @@ TrackRowComponent::TrackRowComponent(int trackIdx,
     };
     addAndMakeVisible(soloBtn_);
 
-    voiceSettingsBtn_.setTooltip("Track filter and amplitude envelope");
+    voiceSettingsBtn_.setButtonText("EDIT");
+    voiceSettingsBtn_.setTooltip("Track filter, amplitude envelope, nudge, and groove");
     voiceSettingsBtn_.onClick = [this] {
         if (apvts_ == nullptr) return;
         juce::CallOutBox::launchAsynchronously(
-            std::make_unique<TrackVoiceSettingsPanel>(trackIdx_, *apvts_),
+            std::make_unique<TrackVoiceSettingsPanel>(trackIdx_, engine_, *apvts_),
             voiceSettingsBtn_.getScreenBounds(), nullptr);
     };
     addAndMakeVisible(voiceSettingsBtn_);
@@ -567,7 +580,8 @@ void TrackRowComponent::resized() {
     // 4. Timing Dropdown (1/16, 1/32, 1/64)
     timingBox_.setBounds(area.removeFromLeft(54).reduced(2));
 
-    // 5. Tune Slider (-24 .. +24)
+    // 5. Per-lane timing controls
+    // 6. Tune Slider (-24 .. +24)
     tuneSlider_.setBounds(area.removeFromLeft(50).reduced(2));
 
     // 6. Vol & Pan Sliders

@@ -22,6 +22,8 @@ struct TrackState {
     std::shared_ptr<const AudioSampleBuffer> auditionSample; // Live browsing audition buffer
 
     StepTiming timing = StepTiming::Timing1_16;
+    float nudge = 0.0f; // -0.5 .. +0.5 of a step
+    float groove = 0.0f; // additional delay on odd steps, 0 .. 0.5 of a step
     int baseTune = 0; // -24 .. +24 semitones
     float volume = 1.0f; // 0.0 .. 1.5
     float pan = 0.0f; // -1.0 .. +1.0
@@ -109,6 +111,9 @@ public:
     [[nodiscard]] StepData getStep(int trackIndex, PageIndex page, int stepIndex) const;
     void setSwing(float amount) noexcept { swing_ = std::clamp(amount, 0.0f, 0.5f); }
     [[nodiscard]] float getSwing() const noexcept { return swing_; }
+    void setTrackNudge(int trackIndex, float amount) noexcept;
+    void setTrackGroove(int trackIndex, float amount) noexcept;
+    void setAccentuator(float amount, int everySteps) noexcept;
     void setSongMode(bool enabled) noexcept { songMode_ = enabled; }
     [[nodiscard]] bool getSongMode() const noexcept { return songMode_; }
     void setSongSection(int index, SongSection section) noexcept;
@@ -141,6 +146,8 @@ private:
     bool wasHostPlaying_ = false;
     PageIndex activePage_ = PageIndex::PageA;
     float swing_ = 0.0f;
+    float accentAmount_ = 0.0f;
+    int accentEvery_ = 4;
     bool songMode_ = false;
     std::array<SongSection, kNumPages> songSections_ {};
     ColorTheme colorTheme_ = ColorTheme::CyberpunkNeon;

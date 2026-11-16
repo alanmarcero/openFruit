@@ -1,6 +1,7 @@
 #include <juce_gui_basics/juce_gui_basics.h>
 #include "PluginProcessor.h"
 #include "PluginEditor.h"
+#include "Controls.h"
 #include "DefaultKit.h"
 #include "SonicAnalyzer.h"
 #include <iostream>
@@ -124,12 +125,21 @@ int main() {
     const juce::File trackerScreenshot = baseDir.getChildFile("assets/openFruit-screenshot.png");
     const juce::File songScreenshot = baseDir.getChildFile("assets/openFruit-song-mode-screenshot.png");
     const juce::File browserScreenshot = baseDir.getChildFile("assets/openFruit-browser-screenshot.png");
+    const juce::File trackSettingsScreenshot = baseDir.getChildFile("assets/openFruit-track-settings-screenshot.png");
     const juce::File sampleDir = baseDir.getChildFile("build/sample_library");
 
     // 1. Render Tracker Screenshot
     if (saveSnapshot(editor, trackerScreenshot)) {
         std::cout << "Saved tracker screenshot to " << trackerScreenshot.getFullPathName() << "\n";
     }
+
+    openfruit::ui::TrackVoiceSettingsPanel trackSettings(0, processor.getEngine(), processor.getAPVTS());
+    trackSettings.setBounds(editor->getLocalBounds().withSizeKeepingCentre(460, 250));
+    editor->addAndMakeVisible(trackSettings);
+    if (saveSnapshot(editor, trackSettingsScreenshot)) {
+        std::cout << "Saved track settings screenshot to " << trackSettingsScreenshot.getFullPathName() << "\n";
+    }
+    editor->removeChildComponent(&trackSettings);
 
     auto& apvts = processor.getAPVTS();
     const auto setParameter = [&apvts](const std::string& id, float plainValue) {

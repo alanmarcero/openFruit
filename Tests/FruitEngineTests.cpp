@@ -143,6 +143,70 @@ TEST_CASE("FruitEngine host swing delays offbeat steps", "[FruitEngine][sequence
     REQUIRE(left[9000] > 0.5f);
 }
 
+TEST_CASE("FruitEngine applies per-track nudge and groove offsets", "[FruitEngine][sequencer][groove]") {
+    const auto renderImpulse = [](int stepIndex, float nudge, float groove) {
+        FruitEngine engine;
+        engine.prepare(48000.0, 8192);
+        auto sample = std::make_shared<AudioSampleBuffer>();
+        sample->sampleRate = 48000.0;
+        sample->numChannels = 1;
+        sample->numSamples = 1;
+        sample->channels = {{1.0f}};
+        sample->isLoaded = true;
+        engine.loadSampleForTrack(0, sample);
+        StepData step;
+        step.active = true;
+        step.velocity = 1.0f;
+        engine.setStepData(0, PageIndex::PageA, stepIndex, step);
+        engine.setTrackNudge(0, nudge);
+        engine.setTrackGroove(0, groove);
+        engine.setPlaying(true);
+        std::vector<float> left(12000, 0.0f), right(12000, 0.0f);
+        engine.process(left.data(), right.data(), 12000, 120.0, 0.0, true);
+        return left;
+    };
+
+    const auto nudged = renderImpulse(0, 0.25f, 0.0f);
+    REQUIRE(nudged[0] == 0.0f);
+    REQUIRE(nudged[1499] == 0.0f);
+    REQUIRE(nudged[1500] > 0.5f);
+
+    const auto grooved = renderImpulse(1, 0.0f, 0.25f);
+    REQUIRE(grooved[6000] == 0.0f);
+    REQUIRE(grooved[7499] == 0.0f);
+    REQUIRE(grooved[7500] > 0.5f);
+}
+
+TEST_CASE("FruitEngine periodic accents raise only matching step velocities", "[FruitEngine][sequencer][accent]") {
+    const auto renderAccent = [](bool accented) {
+        FruitEngine engine;
+        engine.prepare(48000.0, 8192);
+        auto sample = std::make_shared<AudioSampleBuffer>();
+        sample->sampleRate = 48000.0;
+        sample->numChannels = 1;
+        sample->numSamples = 1;
+        sample->channels = {{1.0f}};
+        sample->isLoaded = true;
+        engine.loadSampleForTrack(0, sample);
+        StepData step;
+        step.active = true;
+        step.velocity = 0.3f;
+        engine.setStepData(0, PageIndex::PageA, 0, step);
+        engine.setStepData(0, PageIndex::PageA, 1, step);
+        engine.setAccentuator(accented ? 1.0f : 0.0f, 4);
+        engine.setPlaying(true);
+        std::vector<float> left(8192, 0.0f), right(8192, 0.0f);
+        engine.process(left.data(), right.data(), 8192, 120.0, 0.0, true);
+        return left;
+    };
+
+    const auto plain = renderAccent(false);
+    const auto accented = renderAccent(true);
+    CHECK(plain[0] > 0.0f);
+    CHECK(accented[0] > plain[0] * 1.5f);
+    CHECK(std::abs(accented[1500] - plain[1500]) < 0.001f);
+}
+
 TEST_CASE("FruitEngine chokes an earlier voice in the same step group", "[FruitEngine][sequencer]") {
     FruitEngine engine;
     engine.prepare(48000.0, 8192);
