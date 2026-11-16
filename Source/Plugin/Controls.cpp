@@ -302,9 +302,7 @@ void setApvtsParamValue(juce::AudioProcessorValueTreeState* apvts,
 } // namespace
 
 TrackVoiceSettingsPanel::TrackVoiceSettingsPanel(int trackIdx,
-                                                 openfruit::core::FruitEngine& engine,
                                                  juce::AudioProcessorValueTreeState& apvts)
-    : engine_(engine), trackIdx_(trackIdx)
 {
     const std::array<std::string, 7> ids = {
         openfruit::params::trackFilterId(trackIdx),
@@ -331,14 +329,6 @@ TrackVoiceSettingsPanel::TrackVoiceSettingsPanel(int trackIdx,
         attachments_[i] = std::make_unique<juce::AudioProcessorValueTreeState::SliderAttachment>(
             apvts, ids[i], slider);
     }
-    sliders_[5].onValueChange = [this] {
-        engine_.setTrackNudge(trackIdx_, static_cast<float>(sliders_[5].getValue()));
-    };
-    sliders_[6].onValueChange = [this] {
-        engine_.setTrackGroove(trackIdx_, static_cast<float>(sliders_[6].getValue()));
-    };
-    engine_.setTrackNudge(trackIdx_, static_cast<float>(sliders_[5].getValue()));
-    engine_.setTrackGroove(trackIdx_, static_cast<float>(sliders_[6].getValue()));
     setSize(460, 250);
 }
 
@@ -412,11 +402,25 @@ TrackRowComponent::TrackRowComponent(int trackIdx,
     };
     addAndMakeVisible(timingBox_);
 
+    const auto setupControlLabel = [this](juce::Label& label, const juce::String& text) {
+        label.setText(text, juce::dontSendNotification);
+        label.setFont(juce::FontOptions(9.0f, juce::Font::bold));
+        label.setJustificationType(juce::Justification::centred);
+        label.setColour(juce::Label::textColourId, palette_.text.withAlpha(0.75f));
+        addAndMakeVisible(label);
+    };
+    setupControlLabel(tuneLabel_, "TUNE");
+    setupControlLabel(volumeLabel_, "LEVEL");
+    setupControlLabel(panLabel_, "PAN");
+
     // 4. Base Tune Slider (-24 .. +24)
-    tuneSlider_.setSliderStyle(juce::Slider::LinearBar);
+    tuneSlider_.setSliderStyle(juce::Slider::LinearHorizontal);
+    tuneSlider_.setTextBoxStyle(juce::Slider::NoTextBox, false, 0, 0);
+    tuneSlider_.setNumDecimalPlacesToDisplay(0);
     tuneSlider_.setRange(-24.0, 24.0, 1.0);
     tuneSlider_.setValue(0.0, juce::dontSendNotification);
     tuneSlider_.setTextValueSuffix(" st");
+    tuneSlider_.setTooltip("Tune this track by up to two octaves");
     tuneSlider_.onValueChange = [this] {
         const int val = static_cast<int>(tuneSlider_.getValue());
         engine_.getTrack(trackIdx_).baseTune = val;
@@ -425,9 +429,12 @@ TrackRowComponent::TrackRowComponent(int trackIdx,
     addAndMakeVisible(tuneSlider_);
 
     // 5. Volume Slider
-    volSlider_.setSliderStyle(juce::Slider::LinearBar);
+    volSlider_.setSliderStyle(juce::Slider::LinearHorizontal);
+    volSlider_.setTextBoxStyle(juce::Slider::NoTextBox, false, 0, 0);
+    volSlider_.setNumDecimalPlacesToDisplay(2);
     volSlider_.setRange(0.0, 1.5, 0.01);
     volSlider_.setValue(1.0, juce::dontSendNotification);
+    volSlider_.setTooltip("Track level");
     volSlider_.onValueChange = [this] {
         const float val = static_cast<float>(volSlider_.getValue());
         engine_.getTrack(trackIdx_).volume = val;
@@ -436,9 +443,12 @@ TrackRowComponent::TrackRowComponent(int trackIdx,
     addAndMakeVisible(volSlider_);
 
     // 6. Pan Slider
-    panSlider_.setSliderStyle(juce::Slider::LinearBar);
+    panSlider_.setSliderStyle(juce::Slider::LinearHorizontal);
+    panSlider_.setTextBoxStyle(juce::Slider::NoTextBox, false, 0, 0);
+    panSlider_.setNumDecimalPlacesToDisplay(2);
     panSlider_.setRange(-1.0, 1.0, 0.01);
     panSlider_.setValue(0.0, juce::dontSendNotification);
+    panSlider_.setTooltip("Track pan");
     panSlider_.onValueChange = [this] {
         const float val = static_cast<float>(panSlider_.getValue());
         engine_.getTrack(trackIdx_).pan = val;
@@ -466,7 +476,7 @@ TrackRowComponent::TrackRowComponent(int trackIdx,
     voiceSettingsBtn_.onClick = [this] {
         if (apvts_ == nullptr) return;
         juce::CallOutBox::launchAsynchronously(
-            std::make_unique<TrackVoiceSettingsPanel>(trackIdx_, engine_, *apvts_),
+            std::make_unique<TrackVoiceSettingsPanel>(trackIdx_, *apvts_),
             voiceSettingsBtn_.getScreenBounds(), nullptr);
     };
     addAndMakeVisible(voiceSettingsBtn_);
@@ -581,12 +591,16 @@ void TrackRowComponent::resized() {
     timingBox_.setBounds(area.removeFromLeft(54).reduced(2));
 
     // 5. Per-lane timing controls
-    // 6. Tune Slider (-24 .. +24)
-    tuneSlider_.setBounds(area.removeFromLeft(50).reduced(2));
-
-    // 6. Vol & Pan Sliders
-    volSlider_.setBounds(area.removeFromLeft(44).reduced(2));
-    panSlider_.setBounds(area.removeFromLeft(40).reduced(2));
+    // 6. Tune, level, and pan
+    auto tuneArea = area.removeFromLeft(68).reduced(2);
+    tuneLabel_.setBounds(tuneArea.removeFromTop(16));
+    tuneSlider_.setBounds(tuneArea);
+    auto volumeArea = area.removeFromLeft(62).reduced(2);
+    volumeLabel_.setBounds(volumeArea.removeFromTop(16));
+    volSlider_.setBounds(volumeArea);
+    auto panArea = area.removeFromLeft(62).reduced(2);
+    panLabel_.setBounds(panArea.removeFromTop(16));
+    panSlider_.setBounds(panArea);
 
     // 7. Mute & Solo
     voiceSettingsBtn_.setBounds(area.removeFromLeft(42).reduced(2));

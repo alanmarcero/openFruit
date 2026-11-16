@@ -133,7 +133,7 @@ int main() {
         std::cout << "Saved tracker screenshot to " << trackerScreenshot.getFullPathName() << "\n";
     }
 
-    openfruit::ui::TrackVoiceSettingsPanel trackSettings(0, processor.getEngine(), processor.getAPVTS());
+    openfruit::ui::TrackVoiceSettingsPanel trackSettings(0, processor.getAPVTS());
     trackSettings.setBounds(editor->getLocalBounds().withSizeKeepingCentre(460, 250));
     editor->addAndMakeVisible(trackSettings);
     if (saveSnapshot(editor, trackSettingsScreenshot)) {

@@ -115,11 +115,9 @@ void OpenFruitAudioProcessor::syncParametersToEngine() {
         }
         if (const auto* nudge = apvts_.getRawParameterValue(openfruit::params::trackNudgeId(i))) {
             engine_.setTrackNudge(i, *nudge);
-            trk.nudge = *nudge;
         }
         if (const auto* groove = apvts_.getRawParameterValue(openfruit::params::trackGrooveId(i))) {
             engine_.setTrackGroove(i, *groove);
-            trk.groove = *groove;
         }
         if (const auto* m = apvts_.getRawParameterValue(openfruit::params::trackMuteId(i))) {
             trk.mute = (*m > 0.5f);
