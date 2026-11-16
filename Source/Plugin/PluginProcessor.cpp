@@ -187,7 +187,7 @@ void OpenFruitAudioProcessor::setStateInformation(const void* data, int sizeInBy
         if (patterns.isValid()) state.removeChild(patterns, nullptr);
         apvts_.replaceState(state);
         syncParametersToEngine();
-        openfruit::plugin::restorePatternState(patterns, engine_);
+        openfruit::plugin::restorePatternStateIfPresent(patterns, engine_);
     }
 }
 
