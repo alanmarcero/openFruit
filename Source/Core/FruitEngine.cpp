@@ -219,6 +219,11 @@ void FruitEngine::setStepData(int trackIndex, PageIndex page, int stepIndex, Ste
     tracks_[static_cast<size_t>(trackIndex)].patternPages.pages[static_cast<size_t>(pageIndex)][static_cast<size_t>(stepIndex)] = data;
 }
 
+void FruitEngine::clearStepPatterns() {
+    const std::lock_guard<std::mutex> lock(engineMutex_);
+    for (auto& track : tracks_) track.patternPages = TrackPatternPages{};
+}
+
 StepData FruitEngine::getStep(int trackIndex, PageIndex page, int stepIndex) const {
     if (trackIndex < 0 || trackIndex >= kMaxTracks || stepIndex < 0 || stepIndex >= kStepsPerPage) {
         return {};

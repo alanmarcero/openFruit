@@ -1,6 +1,7 @@
 #include "PluginProcessor.h"
 #include "PluginEditor.h"
 #include "DefaultKit.h"
+#include "MidiEventProcessor.h"
 #include "PatternState.h"
 
 OpenFruitAudioProcessor::OpenFruitAudioProcessor()
@@ -138,17 +139,7 @@ void OpenFruitAudioProcessor::processBlock(juce::AudioBuffer<float>& buffer, juc
 
     syncParametersToEngine();
 
-    // 1. Process MIDI Events
-    for (const auto metadata : midiMessages) {
-        const auto msg = metadata.getMessage();
-        if (msg.isNoteOn()) {
-            engine_.handleMidiNoteOn(msg.getChannel(), msg.getNoteNumber(), msg.getFloatVelocity());
-        } else if (msg.isNoteOff()) {
-            engine_.handleMidiNoteOff(msg.getChannel(), msg.getNoteNumber());
-        }
-    }
-
-    // 2. Query PlayHead
+    // 1. Query PlayHead
     double bpm = 120.0;
     double ppqPos = 0.0;
     bool isPlaying = false;
@@ -172,8 +163,9 @@ void OpenFruitAudioProcessor::processBlock(juce::AudioBuffer<float>& buffer, juc
     float* left = buffer.getWritePointer(0);
     float* right = (buffer.getNumChannels() > 1) ? buffer.getWritePointer(1) : left;
 
-    // 3. Render Engine
-    engine_.process(left, right, numSamples, bpm, ppqPos, isPlaying);
+    // 3. Render audio alongside MIDI events at their sample offsets.
+    openfruit::plugin::processMidiBlock(engine_, midiMessages, left, right, numSamples,
+                                        bpm, ppqPos, isPlaying, getSampleRate());
 }
 
 juce::AudioProcessorEditor* OpenFruitAudioProcessor::createEditor() {

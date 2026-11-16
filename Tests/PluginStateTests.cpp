@@ -25,9 +25,27 @@ TEST_CASE("OpenFruit step patterns preserve sequencer performance state", "[plug
     const auto saved = openfruit::plugin::makePatternState(source);
 
     FruitEngine restored;
+    StepData stale;
+    stale.active = true;
+    stale.ratchets = 3;
+    restored.setStepData(0, PageIndex::PageD, 15, stale);
     openfruit::plugin::restorePatternState(saved, restored);
 
     REQUIRE(restored.getStep(4, PageIndex::PageC, 11) == active);
     REQUIRE(restored.getStep(7, PageIndex::PageB, 3) == inactive);
+    REQUIRE(restored.getStep(0, PageIndex::PageD, 15) == StepData{});
     REQUIRE_FALSE(restored.getStep(4, PageIndex::PageA, 11).active);
+}
+
+TEST_CASE("OpenFruit empty pattern state clears existing sequencer pages", "[plugin][state]") {
+    FruitEngine engine;
+    StepData existing;
+    existing.active = true;
+    existing.reverse = true;
+    engine.setStepData(2, PageIndex::PageC, 7, existing);
+
+    const juce::ValueTree emptyState {"StepPatterns"};
+    openfruit::plugin::restorePatternState(emptyState, engine);
+
+    REQUIRE(engine.getStep(2, PageIndex::PageC, 7) == StepData{});
 }
