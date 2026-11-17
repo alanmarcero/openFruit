@@ -119,7 +119,7 @@ int main() {
         return 1;
     }
 
-    editor->setSize(1120, 720);
+    editor->setSize(1280, 800);
 
     const juce::File baseDir = juce::File::getCurrentWorkingDirectory();
     const juce::File trackerScreenshot = baseDir.getChildFile("assets/openFruit-screenshot.png");
