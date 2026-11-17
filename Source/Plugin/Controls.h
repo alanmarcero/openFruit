@@ -92,9 +92,9 @@ private:
     juce::Slider tuneSlider_;
     juce::Slider volSlider_;
     juce::Slider panSlider_;
-    juce::TextButton voiceSettingsBtn_ {"ENV"};
-    juce::ToggleButton muteBtn_{ "M" };
-    juce::ToggleButton soloBtn_{ "S" };
+    juce::TextButton voiceSettingsBtn_ {"Settings"};
+    juce::ToggleButton muteBtn_{ "Mute" };
+    juce::ToggleButton soloBtn_{ "Solo" };
 
     std::array<std::unique_ptr<CyberStepPad>, openfruit::core::kStepsPerPage> stepPads_;
 };

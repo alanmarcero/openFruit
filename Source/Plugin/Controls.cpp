@@ -462,6 +462,7 @@ TrackRowComponent::TrackRowComponent(int trackIdx,
         engine_.getTrack(trackIdx_).mute = m;
         setApvtsParamValue(apvts_, openfruit::params::trackMuteId(trackIdx_), m ? 1.0f : 0.0f);
     };
+    muteBtn_.setTooltip("Mute this track");
     addAndMakeVisible(muteBtn_);
 
     soloBtn_.onClick = [this] {
@@ -469,9 +470,9 @@ TrackRowComponent::TrackRowComponent(int trackIdx,
         engine_.getTrack(trackIdx_).solo = s;
         setApvtsParamValue(apvts_, openfruit::params::trackSoloId(trackIdx_), s ? 1.0f : 0.0f);
     };
+    soloBtn_.setTooltip("Solo this track");
     addAndMakeVisible(soloBtn_);
 
-    voiceSettingsBtn_.setButtonText("EDIT");
     voiceSettingsBtn_.setTooltip("Track filter, amplitude envelope, nudge, and groove");
     voiceSettingsBtn_.onClick = [this] {
         if (apvts_ == nullptr) return;
@@ -585,7 +586,7 @@ void TrackRowComponent::resized() {
     samplePadBtn_.setBounds(area.removeFromLeft(136).reduced(2));
 
     // 3. Load Button
-    loadBtn_.setBounds(area.removeFromLeft(44).reduced(2));
+    loadBtn_.setBounds(area.removeFromLeft(52).reduced(2));
 
     // 4. Timing Dropdown (1/16, 1/32, 1/64)
     timingBox_.setBounds(area.removeFromLeft(54).reduced(2));
@@ -603,9 +604,9 @@ void TrackRowComponent::resized() {
     panSlider_.setBounds(panArea);
 
     // 7. Mute & Solo
-    voiceSettingsBtn_.setBounds(area.removeFromLeft(42).reduced(2));
-    muteBtn_.setBounds(area.removeFromLeft(24).reduced(2));
-    soloBtn_.setBounds(area.removeFromLeft(24).reduced(2));
+    voiceSettingsBtn_.setBounds(area.removeFromLeft(64).reduced(2));
+    muteBtn_.setBounds(area.removeFromLeft(48).reduced(2));
+    soloBtn_.setBounds(area.removeFromLeft(48).reduced(2));
 
     // Spacer
     area.removeFromLeft(8);

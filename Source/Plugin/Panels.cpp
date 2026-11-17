@@ -13,7 +13,7 @@ HeaderPanel::HeaderPanel(openfruit::core::FruitEngine& engine,
       faceplateTexture_(juce::ImageCache::getFromMemory(BinaryData::openfruitfaceplate_png, BinaryData::openfruitfaceplate_pngSize)) {
 
     // 1. Track Count Toggle: 4, 8, 12, 16
-    trackCountLabel_.setFont(juce::FontOptions(11.0f, juce::Font::bold));
+    trackCountLabel_.setFont(juce::FontOptions(14.0f, juce::Font::bold));
     addAndMakeVisible(trackCountLabel_);
 
     const std::array<int, 4> counts = { 4, 8, 12, 16 };
@@ -36,7 +36,7 @@ HeaderPanel::HeaderPanel(openfruit::core::FruitEngine& engine,
     }
 
     // 2. Automatable Pattern Pages: A, B, C, D
-    pageLabel_.setFont(juce::FontOptions(11.0f, juce::Font::bold));
+    pageLabel_.setFont(juce::FontOptions(14.0f, juce::Font::bold));
     addAndMakeVisible(pageLabel_);
 
     const std::array<const char*, 4> pageNames = { "Page A", "Page B", "Page C", "Page D" };
@@ -66,6 +66,7 @@ HeaderPanel::HeaderPanel(openfruit::core::FruitEngine& engine,
     themeBox_.addItem("Synthwave Outrun", 3);
     themeBox_.addItem("Acid Matrix", 4);
     themeBox_.setSelectedId(1, juce::dontSendNotification);
+    themeBox_.setTooltip("Choose a color theme for the editor.");
     themeBox_.onChange = [this] {
         const int id = themeBox_.getSelectedId();
         const auto th = static_cast<openfruit::core::ColorTheme>(id - 1);
@@ -79,7 +80,7 @@ HeaderPanel::HeaderPanel(openfruit::core::FruitEngine& engine,
     addAndMakeVisible(themeBox_);
 
     // 5. Master Volume
-    masterVolLabel_.setFont(juce::FontOptions(10.0f, juce::Font::bold));
+    masterVolLabel_.setFont(juce::FontOptions(14.0f, juce::Font::bold));
     addAndMakeVisible(masterVolLabel_);
 
     masterVolSlider_.setSliderStyle(juce::Slider::LinearBar);
@@ -94,7 +95,7 @@ HeaderPanel::HeaderPanel(openfruit::core::FruitEngine& engine,
     };
     addAndMakeVisible(masterVolSlider_);
 
-    outputDbLabel_.setFont(juce::FontOptions(9.0f, juce::Font::bold));
+    outputDbLabel_.setFont(juce::FontOptions(12.0f, juce::Font::bold));
     outputDbLabel_.setJustificationType(juce::Justification::centred);
     addAndMakeVisible(outputDbLabel_);
     outputDbSlider_.setSliderStyle(juce::Slider::RotaryHorizontalVerticalDrag);
@@ -111,11 +112,12 @@ HeaderPanel::HeaderPanel(openfruit::core::FruitEngine& engine,
     songModeToggle_.setButtonText(juce::String());
     songModeToggle_.setTooltip("Chain the four sections in Song Mode");
     addAndMakeVisible(songModeToggle_);
-    songModeLabel_.setFont(juce::FontOptions(9.0f, juce::Font::bold));
+    songModeLabel_.setText("Song mode", juce::dontSendNotification);
+    songModeLabel_.setFont(juce::FontOptions(14.0f, juce::Font::bold));
     songModeLabel_.setTooltip("Chain the four sections in Song Mode");
     addAndMakeVisible(songModeLabel_);
 
-    swingLabel_.setFont(juce::FontOptions(10.0f, juce::Font::bold));
+    swingLabel_.setFont(juce::FontOptions(14.0f, juce::Font::bold));
     addAndMakeVisible(swingLabel_);
     swingSlider_.setSliderStyle(juce::Slider::LinearHorizontal);
     swingSlider_.setTextBoxStyle(juce::Slider::NoTextBox, false, 0, 0);
@@ -126,7 +128,8 @@ HeaderPanel::HeaderPanel(openfruit::core::FruitEngine& engine,
         apvts_, openfruit::params::kSwing, swingSlider_);
     addAndMakeVisible(swingSlider_);
 
-    accentLabel_.setFont(juce::FontOptions(9.0f, juce::Font::bold));
+    accentLabel_.setText("Accent", juce::dontSendNotification);
+    accentLabel_.setFont(juce::FontOptions(14.0f, juce::Font::bold));
     accentLabel_.setTooltip("Accent the first step, then repeat at the selected interval.");
     addAndMakeVisible(accentLabel_);
     accentAmountSlider_.setSliderStyle(juce::Slider::LinearHorizontal);
@@ -146,9 +149,9 @@ HeaderPanel::HeaderPanel(openfruit::core::FruitEngine& engine,
 
     for (int i = 0; i < openfruit::core::kNumPages; ++i) {
         const auto index = static_cast<size_t>(i);
-        sectionLabels_[index].setText("SEC" + juce::String(i + 1),
+        sectionLabels_[index].setText("Section " + juce::String(i + 1),
                                       juce::dontSendNotification);
-        sectionLabels_[index].setFont(juce::FontOptions(9.0f, juce::Font::bold));
+        sectionLabels_[index].setFont(juce::FontOptions(14.0f, juce::Font::bold));
         addAndMakeVisible(sectionLabels_[index]);
 
         auto& pageBox = sectionPageBoxes_[index];
@@ -171,7 +174,7 @@ HeaderPanel::HeaderPanel(openfruit::core::FruitEngine& engine,
         addAndMakeVisible(barsSlider);
 
         auto& fillButton = sectionFillButtons_[index];
-        fillButton.setButtonText("FILL");
+        fillButton.setButtonText("Fill");
         fillButton.setClickingTogglesState(true);
         fillButton.setTooltip("Use Page D as a one-bar fill at this section's end");
         sectionFillAttachments_[index] = std::make_unique<juce::AudioProcessorValueTreeState::ButtonAttachment>(
@@ -304,72 +307,64 @@ void HeaderPanel::paint(juce::Graphics& g) {
     }
 
     // Subtitle badge
-    g.setFont(juce::FontOptions(9.5f, juce::Font::bold));
+    g.setFont(juce::FontOptions(12.0f, juce::Font::bold));
     g.setColour(palette_.accentSecondary);
     g.drawText("16-TRACK STEP TRACKER", 68, 42, 130, 14, juce::Justification::centredLeft, false);
 }
 
 void HeaderPanel::resized() {
     auto area = getLocalBounds().reduced(8);
+    auto outputArea = area.removeFromRight(84);
+    auto masterArea = area.removeFromRight(100);
+    auto topRow = area.removeFromTop(44);
+    topRow.removeFromLeft(190);
 
-    // Skip Logo & emblem area (190 px)
-    area.removeFromLeft(190);
-
-    // 1. Track Count Toggle (4, 8, 12, 16)
-    auto trackArea = area.removeFromLeft(160);
+    auto trackArea = topRow.removeFromLeft(158);
     trackCountLabel_.setBounds(trackArea.removeFromTop(16));
     for (size_t i = 0; i < 4; ++i) {
-        trackCountBtns_[i].setBounds(trackArea.getX() + static_cast<int>(i * 38), trackArea.getY(), 34, 26);
+        trackCountBtns_[i].setBounds(trackArea.getX() + static_cast<int>(i * 38), trackArea.getY(), 36, 36);
     }
 
-    area.removeFromLeft(12);
+    topRow.removeFromLeft(12);
 
-    // 2. Pattern Page Buttons (PAGE A, B, C, D)
-    auto pageArea = area.removeFromLeft(270);
+    auto pageArea = topRow.removeFromLeft(270);
     pageLabel_.setBounds(pageArea.removeFromTop(16));
     for (size_t i = 0; i < 4; ++i) {
-        pageBtns_[i].setBounds(pageArea.getX() + static_cast<int>(i * 66), pageArea.getY(), 62, 26);
+        pageBtns_[i].setBounds(pageArea.getX() + static_cast<int>(i * 66), pageArea.getY(), 62, 36);
     }
 
-    area.removeFromLeft(12);
+    topRow.removeFromLeft(12);
 
-    // 3. Transport Play / Pause Toggle
-    playBtn_.setBounds(area.removeFromLeft(140).withY(24).withHeight(32));
+    playBtn_.setBounds(topRow.removeFromLeft(140).withY(24).withHeight(36));
 
-    area.removeFromLeft(12);
+    topRow.removeFromLeft(12);
 
-    // 4. Color Theme Dropdown
-    themeBox_.setBounds(area.removeFromLeft(140).withY(24).withHeight(32));
+    themeBox_.setBounds(topRow.removeFromLeft(180).withY(24).withHeight(36));
 
-    // Output gain knob and legacy master volume control
-    auto masterArea = area.removeFromRight(100);
     masterVolLabel_.setBounds(masterArea.removeFromTop(16));
-    masterVolSlider_.setBounds(masterArea.withHeight(32).reduced(2));
+    masterVolSlider_.setBounds(masterArea.withHeight(36).reduced(2));
 
-    auto outputArea = area.removeFromRight(72);
     outputDbLabel_.setBounds(outputArea.removeFromTop(14));
-    outputDbSlider_.setBounds(outputArea.withHeight(36).reduced(5, 0));
+    outputDbSlider_.setBounds(outputArea.withHeight(40).reduced(5, 0));
 
     auto songArea = getLocalBounds().reduced(8);
-    songArea.removeFromLeft(190);
-    songArea.removeFromTop(60);
-    songModeToggle_.setBounds(songArea.removeFromLeft(26).reduced(1, 2));
-    songModeLabel_.setBounds(songArea.removeFromLeft(38).reduced(0, 2));
-    swingLabel_.setBounds(songArea.removeFromLeft(42).reduced(0, 2));
-    swingSlider_.setBounds(songArea.removeFromLeft(80).reduced(0, 2));
-    accentLabel_.setBounds(songArea.removeFromLeft(32).reduced(0, 2));
-    accentAmountSlider_.setBounds(songArea.removeFromLeft(58).reduced(0, 2));
-    accentEverySlider_.setBounds(songArea.removeFromLeft(40).reduced(0, 2));
-    songArea.removeFromLeft(10);
-    const int sectionWidth = songArea.getWidth() / openfruit::core::kNumPages;
+    songArea.removeFromTop(58);
+    songModeToggle_.setBounds(songArea.removeFromLeft(44).withHeight(40).reduced(2, 0));
+    songModeLabel_.setBounds(songArea.removeFromLeft(78).withHeight(36));
+    swingLabel_.setBounds(songArea.removeFromLeft(48).withHeight(36));
+    swingSlider_.setBounds(songArea.removeFromLeft(82).withHeight(36));
+    accentLabel_.setBounds(songArea.removeFromLeft(56).withHeight(36));
+    accentAmountSlider_.setBounds(songArea.removeFromLeft(56).withHeight(36));
+    accentEverySlider_.setBounds(songArea.removeFromLeft(44).withHeight(36));
+
+    auto sectionArea = getLocalBounds().reduced(8);
+    sectionArea.removeFromTop(104);
+    const int sectionWidth = sectionArea.getWidth() / openfruit::core::kNumPages;
     for (size_t i = 0; i < sectionLabels_.size(); ++i) {
-        auto section = songArea.removeFromLeft(sectionWidth);
-        const int labelWidth = std::min(30, std::max(18, sectionWidth / 5));
-        const int pageWidth = std::min(34, std::max(25, sectionWidth / 4));
-        const int barsWidth = std::min(43, std::max(32, sectionWidth / 3));
-        sectionLabels_[i].setBounds(section.removeFromLeft(labelWidth).reduced(1, 2));
-        sectionPageBoxes_[i].setBounds(section.removeFromLeft(pageWidth).reduced(1, 2));
-        sectionBarsSliders_[i].setBounds(section.removeFromLeft(barsWidth).reduced(1, 2));
+        auto section = sectionArea.removeFromLeft(sectionWidth);
+        sectionLabels_[i].setBounds(section.removeFromLeft(80).reduced(1, 2));
+        sectionPageBoxes_[i].setBounds(section.removeFromLeft(48).reduced(1, 2));
+        sectionBarsSliders_[i].setBounds(section.removeFromLeft(48).reduced(1, 2));
         sectionFillButtons_[i].setBounds(section.reduced(1, 2));
     }
 }

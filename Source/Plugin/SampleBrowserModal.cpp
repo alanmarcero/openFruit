@@ -558,7 +558,7 @@ void SampleBrowserModal::resized() {
     area.removeFromTop(6);
 
     // Folder navigation row
-    auto topRow = area.removeFromTop(28);
+    auto topRow = area.removeFromTop(40);
     browseFolderBtn_.setBounds(topRow.removeFromRight(120).reduced(2));
     clearCacheBtn_.setBounds(topRow.removeFromRight(130).reduced(2));
     folderLabel_.setBounds(topRow);
@@ -566,16 +566,16 @@ void SampleBrowserModal::resized() {
     area.removeFromTop(6);
 
     // Sorting bar
-    auto sortRow = area.removeFromTop(26);
+    auto sortRow = area.removeFromTop(36);
     sortBox_.setBounds(sortRow.removeFromLeft(220));
 
     area.removeFromTop(6);
 
     // Bottom Action Row
-    auto bottomRow = area.removeFromBottom(36);
+    auto bottomRow = area.removeFromBottom(42);
     commitBtn_.setBounds(bottomRow.removeFromRight(120).reduced(3));
     cancelBtn_.setBounds(bottomRow.removeFromRight(90).reduced(3));
-    autoPlayToggle_.setBounds(bottomRow.removeFromLeft(90));
+    autoPlayToggle_.setBounds(bottomRow.removeFromLeft(118));
     playBtn_.setBounds(bottomRow.removeFromLeft(100).reduced(3));
     midiLiveNoteLabel_.setBounds(bottomRow.reduced(2));
 

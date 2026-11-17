@@ -25,19 +25,19 @@ inline Palette getPalette(openfruit::core::ColorTheme theme) noexcept {
     switch (theme) {
         case openfruit::core::ColorTheme::CyberpunkNeon:
             return Palette{
-                .background = juce::Colour(0xff090c12),
-                .panel = juce::Colour(0xff101622),
-                .panelEdge = juce::Colour(0xff1f2c42),
-                .text = juce::Colour(0xffe6f1ff),
-                .textDim = juce::Colour(0xff7b91af),
-                .accentPrimary = juce::Colour(0xffff007f),    // Cyber Magenta
-                .accentSecondary = juce::Colour(0xff00f0ff),  // Neon Cyan
-                .padInactiveBeatA = juce::Colour(0xff1b2333),
-                .padInactiveBeatB = juce::Colour(0xff131a27),
-                .padActive = juce::Colour(0xffff007f),
-                .padGlow = juce::Colour(0x66ff007f),
-                .playheadGlow = juce::Colour(0xff00f0ff),
-                .midiChannelBadge = juce::Colour(0xffff9900)  // Cyber Orange
+                .background = juce::Colour(0xff0d1317),
+                .panel = juce::Colour(0xff152026),
+                .panelEdge = juce::Colour(0xff283842),
+                .text = juce::Colour(0xffe6f0f5),
+                .textDim = juce::Colour(0xff869ca8),
+                .accentPrimary = juce::Colour(0xff48f0c8),
+                .accentSecondary = juce::Colour(0xffffbe3b),
+                .padInactiveBeatA = juce::Colour(0xff202d33),
+                .padInactiveBeatB = juce::Colour(0xff182329),
+                .padActive = juce::Colour(0xff48f0c8),
+                .padGlow = juce::Colour(0x6648f0c8),
+                .playheadGlow = juce::Colour(0xff48f0c8),
+                .midiChannelBadge = juce::Colour(0xffffbe3b)
             };
 
         case openfruit::core::ColorTheme::FruityClassic:

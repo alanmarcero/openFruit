@@ -33,8 +33,8 @@ OpenFruitAudioProcessorEditor::OpenFruitAudioProcessorEditor(OpenFruitAudioProce
     trackerPanel_.updatePlayhead();
 
     setResizable(true, true);
-    setResizeLimits(880, 500, 1920, 1200);
-    setSize(1120, 720);
+    setResizeLimits(1280, 800, 1920, 1200);
+    setSize(1280, 800);
 
     startTimerHz(30); // 30 fps UI animation & playhead updates
 }
@@ -64,6 +64,6 @@ void OpenFruitAudioProcessorEditor::paint(juce::Graphics& g) {
 
 void OpenFruitAudioProcessorEditor::resized() {
     auto bounds = getLocalBounds();
-    headerPanel_.setBounds(bounds.removeFromTop(110));
+    headerPanel_.setBounds(bounds.removeFromTop(160));
     trackerPanel_.setBounds(bounds);
 }

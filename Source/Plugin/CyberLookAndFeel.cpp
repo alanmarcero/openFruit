@@ -75,7 +75,7 @@ void CyberLookAndFeel::drawButtonText(juce::Graphics& g,
     const auto bounds = button.getLocalBounds();
     const bool isToggle = button.getToggleState();
 
-    g.setFont(juce::FontOptions(11.5f, juce::Font::bold));
+    g.setFont(juce::FontOptions(14.0f, juce::Font::bold));
 
     // Subtle text shadow for crisp legibility
     g.setColour(juce::Colours::black.withAlpha(0.55f));
@@ -96,12 +96,12 @@ void CyberLookAndFeel::drawToggleButton(juce::Graphics& g,
     const juce::String text = button.getButtonText();
     const bool isOn = button.getToggleState();
 
-    if (text == "M" || text == "S") {
+    if (text == "Mute" || text == "Solo") {
         // Hardware LED Push-Switch for Mute and Solo
-        const bool isMute = (text == "M");
+        const bool isMute = (text == "Mute");
         const juce::Colour activeColour = isMute
-            ? juce::Colour(0xffff2d55)   // High-intensity Crimson for Mute
-            : palette_.accentSecondary; // Electric Cyan/Lime for Solo
+            ? palette_.accentSecondary
+            : palette_.accentPrimary;
 
         // Outer socket well
         g.setColour(palette_.background.darker(0.7f));
@@ -129,7 +129,7 @@ void CyberLookAndFeel::drawToggleButton(juce::Graphics& g,
             g.fillRoundedRectangle(inner.getX() + 2.0f, inner.getY() + 1.0f, inner.getWidth() - 4.0f, 1.5f, 0.75f);
 
             // Illuminated white text
-            g.setFont(juce::FontOptions(11.0f, juce::Font::bold));
+            g.setFont(juce::FontOptions(14.0f, juce::Font::bold));
             g.setColour(juce::Colours::black.withAlpha(0.4f));
             g.drawText(text, inner.translated(0.0f, 1.0f).toNearestInt(), juce::Justification::centred, false);
             g.setColour(juce::Colours::white);
@@ -145,7 +145,7 @@ void CyberLookAndFeel::drawToggleButton(juce::Graphics& g,
             g.setGradientFill(offGrad);
             g.fillRoundedRectangle(inner, 2.5f);
 
-            g.setFont(juce::FontOptions(11.0f, juce::Font::bold));
+            g.setFont(juce::FontOptions(14.0f, juce::Font::bold));
             g.setColour(palette_.textDim.withAlpha(isHighlighted ? 0.9f : 0.6f));
             g.drawText(text, inner.toNearestInt(), juce::Justification::centred, false);
         }
@@ -170,7 +170,7 @@ void CyberLookAndFeel::drawToggleButton(juce::Graphics& g,
     g.fillEllipse(knobRect);
 
     if (text.isNotEmpty()) {
-        g.setFont(juce::FontOptions(11.5f, juce::Font::bold));
+        g.setFont(juce::FontOptions(14.0f, juce::Font::bold));
         g.setColour(palette_.text);
         const auto textRect = bounds.withTrimmedLeft(pillWidth + 8.0f);
         g.drawText(text, textRect.toNearestInt(), juce::Justification::centredLeft, true);
@@ -295,7 +295,7 @@ void CyberLookAndFeel::drawComboBox(juce::Graphics& g, int width, int height, bo
 
 void CyberLookAndFeel::positionComboBoxText(juce::ComboBox& box, juce::Label& label) {
     label.setBounds(4, 1, box.getWidth() - 20, box.getHeight() - 2);
-    label.setFont(juce::FontOptions(11.0f, juce::Font::bold));
+    label.setFont(juce::FontOptions(14.0f, juce::Font::bold));
     label.setColour(juce::Label::textColourId, palette_.text);
 }
 
