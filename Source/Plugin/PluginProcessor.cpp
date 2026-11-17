@@ -1,6 +1,7 @@
 #include "PluginProcessor.h"
 #include "PluginEditor.h"
 #include "DefaultKit.h"
+#include "WavReader.h"
 #include "MidiEventProcessor.h"
 #include "PatternState.h"
 
@@ -11,28 +12,39 @@ OpenFruitAudioProcessor::OpenFruitAudioProcessor()
     analysisQueue_ = std::make_unique<openfruit::core::AnalysisQueue>(toneCache_, 5);
     toneCache_.loadFromFile(openfruit::core::ToneCache::getDefaultCachePath());
 
-    // Load factory default drum kit
-    const auto kit = openfruit::kit::createDefaultKit(44100.0);
-    for (size_t i = 0; i < kit.size() && i < static_cast<size_t>(openfruit::core::kMaxTracks); ++i) {
-        engine_.loadSampleForTrack(static_cast<int>(i), kit[i]);
-    }
-
-    // Set a classic default 4-on-the-floor groove on Track 0 (Kick) and Track 1 (Snare)
-    engine_.setStepActive(0, openfruit::core::PageIndex::PageA, 0, true);
-    engine_.setStepActive(0, openfruit::core::PageIndex::PageA, 4, true);
-    engine_.setStepActive(0, openfruit::core::PageIndex::PageA, 8, true);
-    engine_.setStepActive(0, openfruit::core::PageIndex::PageA, 12, true);
-
-    engine_.setStepActive(1, openfruit::core::PageIndex::PageA, 4, true);
-    engine_.setStepActive(1, openfruit::core::PageIndex::PageA, 12, true);
-
-    // Hi-hats on 8ths
-    engine_.setStepActive(3, openfruit::core::PageIndex::PageA, 2, true);
-    engine_.setStepActive(3, openfruit::core::PageIndex::PageA, 6, true);
-    engine_.setStepActive(3, openfruit::core::PageIndex::PageA, 10, true);
-    engine_.setStepActive(3, openfruit::core::PageIndex::PageA, 14, true);
+    loadFactoryKit(false);
+    // Four related phrases: straight floor, syncopated hats, halftime, and a tom fill.
+    constexpr uint16_t patterns[4][8] = {
+        {0x1111, 0x1010, 0x1000, 0x5555, 0x4444, 0x0080, 0x0000, 0x0000},
+        {0x1511, 0x1010, 0x0010, 0x55d5, 0x4044, 0x2080, 0x0800, 0x0000},
+        {0x0401, 0x0100, 0x0100, 0x5151, 0x0040, 0x2008, 0x0020, 0x8000},
+        {0x1111, 0x9010, 0x1000, 0x1555, 0x0444, 0x0080, 0x5000, 0xa000}
+    };
+    for (int page = 0; page < 4; ++page)
+        for (int track = 0; track < 8; ++track)
+            for (int index = 0; index < 16; ++index) {
+                if ((patterns[page][track] & (1u << index)) == 0) continue;
+                openfruit::core::StepData step;
+                step.active = true;
+                step.velocity = track == 0 ? .94f : (index % 4 == 0 ? .80f : (index % 2 == 0 ? .72f : .49f));
+                if (track == 3 || track == 4) step.chokeGroup = 1;
+                if (page == 3 && track == 1 && index == 15) step.ratchets = 2;
+                engine_.setStepData(track, static_cast<openfruit::core::PageIndex>(page), index, step);
+            }
 
     syncParametersToEngine();
+}
+
+void OpenFruitAudioProcessor::loadFactoryKit(bool legacy) {
+    // Factory buffers are immutable and shared between instances.
+    static const auto current = openfruit::kit::createDefaultKit();
+    const auto& kit = [&]() -> const auto& {
+        if (!legacy) return current;
+        static const auto previous = openfruit::kit::createDefaultKit(44100.0, true);
+        return previous;
+    }();
+    for (size_t i = 0; i < kit.size(); ++i) engine_.loadSampleForTrack(static_cast<int>(i), kit[i]);
+    legacyKit_ = legacy;
 }
 
 OpenFruitAudioProcessor::~OpenFruitAudioProcessor() {
@@ -150,7 +162,7 @@ void OpenFruitAudioProcessor::processBlock(juce::AudioBuffer<float>& buffer, juc
 
     // 1. Query PlayHead
     double bpm = 120.0;
-    double ppqPos = 0.0;
+    double ppqPos = std::numeric_limits<double>::quiet_NaN();
     bool isPlaying = false;
 
     if (auto* playHead = getPlayHead()) {
@@ -183,6 +195,13 @@ juce::AudioProcessorEditor* OpenFruitAudioProcessor::createEditor() {
 
 void OpenFruitAudioProcessor::getStateInformation(juce::MemoryBlock& destData) {
     auto state = apvts_.copyState();
+    state.setProperty("factoryKit", legacyKit_ ? 1 : 2, nullptr);
+    juce::ValueTree files {"SampleFiles"};
+    for (int i = 0; i < openfruit::core::kMaxTracks; ++i) {
+        if (const auto sample = engine_.loadedSample(i); sample && juce::File::isAbsolutePath(sample->filePath))
+            files.setProperty("track" + juce::String(i), juce::String(sample->filePath), nullptr);
+    }
+    state.addChild(files, -1, nullptr);
     state.addChild(openfruit::plugin::makePatternState(engine_), -1, nullptr);
     std::unique_ptr<juce::XmlElement> xml(state.createXml());
     copyXmlToBinary(*xml, destData);
@@ -194,6 +213,22 @@ void OpenFruitAudioProcessor::setStateInformation(const void* data, int sizeInBy
         auto state = juce::ValueTree::fromXml(*xmlState);
         auto patterns = state.getChildWithName("StepPatterns");
         if (patterns.isValid()) state.removeChild(patterns, nullptr);
+        loadFactoryKit(static_cast<int>(state.getProperty("factoryKit", 1)) < 2);
+        auto files = state.getChildWithName("SampleFiles");
+        if (files.isValid()) {
+            state.removeChild(files, nullptr);
+            for (int i = 0; i < openfruit::core::kMaxTracks; ++i) {
+                const auto path = files.getProperty("track" + juce::String(i)).toString();
+                if (!juce::File::isAbsolutePath(path)) continue;
+                auto sample = openfruit::core::WavReader::loadSample(path.toStdString());
+                if (!sample) {
+                    sample = std::make_shared<openfruit::core::AudioSampleBuffer>();
+                    sample->filePath = path.toStdString();
+                    sample->sampleName = "Missing: " + juce::File(path).getFileNameWithoutExtension().toStdString();
+                }
+                engine_.loadSampleForTrack(i, std::move(sample));
+            }
+        }
         apvts_.replaceState(state);
         syncParametersToEngine();
         openfruit::plugin::restorePatternStateIfPresent(patterns, engine_);

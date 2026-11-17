@@ -59,6 +59,8 @@ public:
 private:
     std::shared_ptr<const AudioSampleBuffer> sample_;
     double readPosition_ = 0.0;
+    int integrationTaps_ = 1;
+    double tapSpacing_ = 1.0;
     double speedRatio_ = 1.0;
     double hostSampleRate_ = 44100.0;
     double lowPassCoefficient_ = 1.0;

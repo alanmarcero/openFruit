@@ -94,10 +94,19 @@ SampleBrowserModal::SampleBrowserModal(int targetTrackIdx,
 
     const int midiCh = engine_.getTrack(targetTrackIdx).midiChannel;
 
+    browseFolderBtn_.setTooltip("Choose a folder or audio file");
+    clearCacheBtn_.setTooltip("Clear cached pitch analysis and rescan this folder");
+    sortBox_.setTooltip("Change sample order");
+    autoPlayToggle_.setTooltip("Audition each sample as you select it");
+    playBtn_.setTooltip("Hear the selected sample in this track");
+    commitBtn_.setTooltip("Assign the selected sample and return to the pattern");
+    cancelBtn_.setTooltip("Return to the pattern with the current sample");
+    commitBtn_.setButtonText("Load sample");
+    table_.setRowHeight(34);
     // 1. Title Label
-    titleLabel_.setText("Sample browser: track " + juce::String(targetTrackIdx + 1) + " (MIDI channel " + juce::String(midiCh) + ")",
+    titleLabel_.setText("Sample library    /    Track " + juce::String(targetTrackIdx + 1).paddedLeft('0', 2),
                         juce::dontSendNotification);
-    titleLabel_.setFont(juce::FontOptions(14.0f, juce::Font::bold));
+    titleLabel_.setFont(juce::FontOptions(26.0f, juce::Font::bold));
     addAndMakeVisible(titleLabel_);
 
     // 2. Folder Navigation & Buttons
@@ -154,9 +163,9 @@ SampleBrowserModal::SampleBrowserModal(int targetTrackIdx,
 
     // 4. Table List Box
     table_.setModel(this);
-    table_.getHeader().addColumn("File", 1, 310, 150, 500);
-    table_.getHeader().addColumn("Estimated Tone / Pitch", 2, 230, 140, 350);
-    table_.getHeader().addColumn("Length", 3, 110, 80, 180);
+    table_.getHeader().addColumn("File", 1, 310, 150, 1100);
+    table_.getHeader().addColumn("Estimated Tone / Pitch", 2, 230, 140, 800);
+    table_.getHeader().addColumn("Length", 3, 110, 80, 600);
     table_.setMultipleSelectionEnabled(false);
     addAndMakeVisible(table_);
 
@@ -178,6 +187,7 @@ SampleBrowserModal::SampleBrowserModal(int targetTrackIdx,
     cancelBtn_.onClick = [this] { cancelAndClose(); };
     addAndMakeVisible(cancelBtn_);
 
+    selectedRowsChanged(-1);
     // Default to music directory if exists
     auto defaultDir = juce::File::getSpecialLocation(juce::File::userMusicDirectory);
     if (defaultDir.exists()) {
@@ -186,11 +196,13 @@ SampleBrowserModal::SampleBrowserModal(int targetTrackIdx,
 }
 
 SampleBrowserModal::~SampleBrowserModal() {
+    engine_.clearAuditionSampleForTrack(targetTrackIdx_);
     queue_.clearQueue();
 }
 
 void SampleBrowserModal::setTheme(const openfruit::theme::Palette& palette) {
     palette_ = palette;
+    table_.setColour(juce::ListBox::backgroundColourId, palette_.panel);
     repaint();
     table_.repaint();
 }
@@ -198,7 +210,8 @@ void SampleBrowserModal::setTheme(const openfruit::theme::Palette& palette) {
 void SampleBrowserModal::setFolder(const juce::File& folder) {
     if (!folder.isDirectory()) return;
     currentFolder_ = folder;
-    folderLabel_.setText("Folder: " + currentFolder_.getFullPathName(), juce::dontSendNotification);
+    folderLabel_.setTooltip(currentFolder_.getFullPathName());
+    folderLabel_.setText("Folder   /   " + currentFolder_.getFileName(), juce::dontSendNotification);
     if (onFolderChanged) {
         onFolderChanged(currentFolder_);
     }
@@ -206,6 +219,8 @@ void SampleBrowserModal::setFolder(const juce::File& folder) {
 }
 
 void SampleBrowserModal::refreshFileList() {
+    table_.deselectAllRows();
+    engine_.clearAuditionSampleForTrack(targetTrackIdx_);
     files_.clear();
     queue_.clearQueue();
 
@@ -269,6 +284,8 @@ void SampleBrowserModal::refreshFileList() {
 }
 
 void SampleBrowserModal::sortItems() {
+    const int row = table_.getSelectedRow();
+    const auto selected = row >= 0 && row < static_cast<int>(files_.size()) ? files_[static_cast<size_t>(row)].fullPath : std::string{};
     if (sortMode_ == 1) {
         // Sort by length ascending (shortest first)
         std::sort(files_.begin(), files_.end(), [](const BrowserFileItem& a, const BrowserFileItem& b) {
@@ -291,6 +308,10 @@ void SampleBrowserModal::sortItems() {
         });
     }
     table_.updateContent();
+    if (!selected.empty()) {
+        const juce::ScopedValueSetter<bool> preserve(restoringSelection_, true);
+        selectFileByPath(selected);
+    }
     table_.repaint();
 }
 
@@ -376,6 +397,10 @@ void SampleBrowserModal::paintCell(juce::Graphics& g, int rowNumber, int columnI
 }
 
 void SampleBrowserModal::selectedRowsChanged(int lastRowSelected) {
+    if (restoringSelection_) return;
+    const bool selected = lastRowSelected >= 0 && lastRowSelected < static_cast<int>(files_.size());
+    commitBtn_.setEnabled(selected);
+    playBtn_.setEnabled(selected);
     if (lastRowSelected < 0 || lastRowSelected >= static_cast<int>(files_.size())) {
         return;
     }
@@ -383,9 +408,10 @@ void SampleBrowserModal::selectedRowsChanged(int lastRowSelected) {
     const auto& item = files_[static_cast<size_t>(lastRowSelected)];
     auto sample = decodeItemToSample(item);
     if (!sample) {
+        engine_.clearAuditionSampleForTrack(targetTrackIdx_);
+        commitBtn_.setEnabled(false);
         return;
     }
-
     engine_.setAuditionSampleForTrack(targetTrackIdx_, sample);
     if (autoPlayToggle_.getToggleState()) {
         engine_.triggerTrackManual(targetTrackIdx_, 0.9f, 0);
@@ -410,6 +436,7 @@ void SampleBrowserModal::sortOrderChanged(int newSortColumnId, bool isForwards) 
     if (newSortColumnId == 2) {
         sortMode_ = 4;
     }
+    sortBox_.setSelectedId(sortMode_, juce::dontSendNotification);
     sortItems();
 }
 
@@ -439,31 +466,7 @@ void SampleBrowserModal::filesDropped(const juce::StringArray& files, int /*x*/,
 }
 
 std::shared_ptr<openfruit::core::AudioSampleBuffer> SampleBrowserModal::decodeItemToSample(const BrowserFileItem& item) {
-    const auto wav = openfruit::core::WavReader::readWavFile(item.fullPath);
-    if (!wav.isValid || wav.channels.empty()) {
-        return nullptr;
-    }
-
-    auto sample = std::make_shared<openfruit::core::AudioSampleBuffer>();
-    sample->filePath = item.fullPath;
-    sample->sampleName = juce::File(item.fullPath).getFileNameWithoutExtension().toStdString();
-    if (sample->sampleName.empty()) {
-        sample->sampleName = item.fileName;
-    }
-    sample->numChannels = wav.numChannels;
-    sample->sampleRate = wav.sampleRate;
-    sample->numSamples = wav.numSamples;
-    sample->channels = wav.channels;
-    sample->toneResult = item.toneResult;
-    if (!item.hasTone && !wav.monoChannel.empty()) {
-        sample->toneResult = openfruit::core::SonicAnalyzer::analyze(
-            wav.monoChannel.data(),
-            static_cast<int64_t>(wav.monoChannel.size()),
-            static_cast<double>(wav.sampleRate)
-        );
-    }
-    sample->isLoaded = true;
-    return sample;
+    return core::WavReader::loadSample(item.fullPath, item.hasTone ? &item.toneResult : nullptr);
 }
 
 void SampleBrowserModal::selectFileByPath(const std::string& fullPath) {
@@ -516,73 +519,31 @@ void SampleBrowserModal::cancelAndClose() {
 }
 
 void SampleBrowserModal::paint(juce::Graphics& g) {
-    const auto bounds = getLocalBounds().toFloat();
-
-    // Dark semi-translucent backdrop
-    g.fillAll(palette_.background.withAlpha(0.97f));
-
-    // Outer cyber panel border with neon glow
-    g.setColour(palette_.accentSecondary.withAlpha(0.35f));
-    g.drawRoundedRectangle(bounds.reduced(1.0f), 6.0f, 2.0f);
-
-    g.setColour(palette_.panelEdge);
-    g.drawRoundedRectangle(bounds.reduced(2.0f), 5.0f, 1.0f);
-
-    // Header bar gradient backdrop
-    const auto headerRect = juce::Rectangle<float>(2.0f, 2.0f, bounds.getWidth() - 4.0f, 36.0f);
-    juce::ColourGradient hgrad(
-        palette_.panel.brighter(0.2f), 0.0f, headerRect.getY(),
-        palette_.panel.darker(0.15f), 0.0f, headerRect.getBottom(),
-        false
-    );
-    g.setGradientFill(hgrad);
-    g.fillRoundedRectangle(headerRect, 5.0f);
-
-    // Header bottom line
-    g.setColour(palette_.panelEdge.withAlpha(0.7f));
-    g.drawLine(2.0f, 38.0f, bounds.getRight() - 2.0f, 38.0f, 1.0f);
-
-    // Bottom action bar backdrop
-    const auto bottomRect = juce::Rectangle<float>(2.0f, bounds.getBottom() - 44.0f, bounds.getWidth() - 4.0f, 42.0f);
-    g.setColour(palette_.panel.darker(0.3f));
-    g.fillRoundedRectangle(bottomRect, 4.0f);
-    g.setColour(palette_.panelEdge.withAlpha(0.6f));
-    g.drawLine(2.0f, bounds.getBottom() - 44.0f, bounds.getRight() - 2.0f, bounds.getBottom() - 44.0f, 1.0f);
+    g.fillAll(palette_.background);
+    g.setColour(palette_.panel);
+    g.fillRoundedRectangle(getLocalBounds().toFloat().reduced(1), 8);
 }
 
 void SampleBrowserModal::resized() {
-    auto area = getLocalBounds().reduced(12);
-
-    // Title
-    titleLabel_.setBounds(area.removeFromTop(24));
-    area.removeFromTop(6);
-
-    // Folder navigation row
-    auto topRow = area.removeFromTop(40);
-    browseFolderBtn_.setBounds(topRow.removeFromRight(120).reduced(2));
-    clearCacheBtn_.setBounds(topRow.removeFromRight(130).reduced(2));
-    folderLabel_.setBounds(topRow);
-
-    area.removeFromTop(6);
-
-    // Sorting bar
-    auto sortRow = area.removeFromTop(36);
-    sortBox_.setBounds(sortRow.removeFromLeft(220));
-
-    area.removeFromTop(6);
-
-    // Bottom Action Row
-    auto bottomRow = area.removeFromBottom(42);
-    commitBtn_.setBounds(bottomRow.removeFromRight(120).reduced(3));
-    cancelBtn_.setBounds(bottomRow.removeFromRight(90).reduced(3));
-    autoPlayToggle_.setBounds(bottomRow.removeFromLeft(118));
-    playBtn_.setBounds(bottomRow.removeFromLeft(100).reduced(3));
-    midiLiveNoteLabel_.setBounds(bottomRow.reduced(2));
-
-    area.removeFromBottom(8);
-
-    // Table view
-    table_.setBounds(area);
+    auto area = getLocalBounds().reduced(24, 14);
+    auto heading = area.removeFromTop(46);
+    clearCacheBtn_.setBounds(heading.removeFromRight(106).reduced(2,5));
+    browseFolderBtn_.setBounds(heading.removeFromRight(128).reduced(2,5));
+    titleLabel_.setBounds(heading);
+    auto tools = area.removeFromTop(46).reduced(0,5);
+    sortBox_.setBounds(tools.removeFromRight(235));
+    folderLabel_.setBounds(tools.reduced(2,0));
+    auto actions = area.removeFromBottom(48).reduced(0,5);
+    commitBtn_.setBounds(actions.removeFromRight(128).reduced(2,0));
+    cancelBtn_.setBounds(actions.removeFromRight(88).reduced(2,0));
+    autoPlayToggle_.setBounds(actions.removeFromLeft(105).reduced(2,0));
+    playBtn_.setBounds(actions.removeFromLeft(94).reduced(2,0));
+    midiLiveNoteLabel_.setBounds(actions.reduced(12,0));
+    table_.setBounds(area.reduced(0,4));
+    auto& header = table_.getHeader();
+    header.setColumnWidth(1, table_.getWidth()*48/100);
+    header.setColumnWidth(2, table_.getWidth()*33/100);
+    header.setColumnWidth(3, table_.getWidth()*18/100);
 }
 
 } // namespace openfruit::ui

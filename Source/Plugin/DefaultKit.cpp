@@ -29,7 +29,7 @@ std::shared_ptr<openfruit::core::AudioSampleBuffer> createBuffer(const std::stri
 
 } // namespace
 
-std::vector<std::shared_ptr<openfruit::core::AudioSampleBuffer>> createDefaultKit(double sampleRate) {
+static std::vector<std::shared_ptr<openfruit::core::AudioSampleBuffer>> createLegacyKit(double sampleRate) {
     std::vector<std::shared_ptr<openfruit::core::AudioSampleBuffer>> kit;
     kit.reserve(16);
 
@@ -282,6 +282,95 @@ std::vector<std::shared_ptr<openfruit::core::AudioSampleBuffer>> createDefaultKi
         kit.push_back(createBuffer("Crash", data, sampleRate));
     }
 
+    return kit;
+}
+
+std::vector<std::shared_ptr<core::AudioSampleBuffer>> createDefaultKit(double sampleRate, bool legacy) {
+    if (legacy) return createLegacyKit(sampleRate);
+    enum class Voice { drum, snare, clap, metal, wood, shaker, bass, chord, zap };
+    struct Sound { const char* name; Voice voice; double hz, sweep, length, air, level; };
+    constexpr Sound sounds[] = {
+        {"Navel kick", Voice::drum, 47, 152, .39, .12, .91},
+        {"Rind snare", Voice::snare, 192, 80, .23, .68, .75},
+        {"Palm clap", Voice::clap, 940, 0, .21, 1, .71},
+        {"Pip hat", Voice::metal, 2730, 0, .095, .62, .54},
+        {"Peel hat", Voice::metal, 2060, 0, .29, .83, .62},
+        {"Bamboo rim", Voice::wood, 718, 88, .11, .13, .66},
+        {"Clay tom", Voice::drum, 99, 69, .28, .06, .74},
+        {"Glass tom", Voice::drum, 157, 124, .21, .08, .70},
+        {"Seed shaker", Voice::shaker, 3640, 0, .14, 1, .52},
+        {"Pulp sub", Voice::bass, 43.654, 0, .53, 0, .84},
+        {"Brass bell", Voice::wood, 554, 14, .30, .04, .60},
+        {"Citrus stab", Voice::chord, 220, 0, .34, .02, .64},
+        {"Pith pluck", Voice::wood, 329.63, 50, .21, .06, .65},
+        {"Steel seed", Voice::metal, 967, 0, .31, .21, .57},
+        {"Ribbon zap", Voice::zap, 93, 1580, .22, .04, .59},
+        {"Orchard ride", Voice::metal, 1279, 0, .65, .48, .62}
+    };
+    std::mt19937 random(18723);
+    std::uniform_real_distribution<double> noise(-1.0, 1.0);
+    std::vector<std::shared_ptr<core::AudioSampleBuffer>> kit;
+    for (const auto& sound : sounds) {
+        std::vector<float> pcm(static_cast<size_t>(sampleRate * sound.length));
+        double slow = 0, fast = 0, peak = 0;
+        const double slowPole = 1.0 - std::exp(-kTwoPi * 650.0 / sampleRate);
+        const double fastPole = 1.0 - std::exp(-kTwoPi * 5100.0 / sampleRate);
+        for (size_t i = 0; i < pcm.size(); ++i) {
+            const double t = static_cast<double>(i) / sampleRate;
+            const double raw = noise(random);
+            slow += slowPole * (raw - slow);
+            fast += fastPole * (raw - fast);
+            const double high = raw - fast, band = fast - slow;
+            const double phase = kTwoPi * sound.hz * t;
+            const double body = std::exp(-6.0 * t / sound.length);
+            const double strike = std::exp(-t / .0045);
+            double value = 0;
+            switch (sound.voice) {
+                case Voice::drum:
+                case Voice::zap: {
+                    const double bend = sound.voice == Voice::zap ? .044 : .018;
+                    const double swept = phase + kTwoPi * sound.sweep * bend * -std::expm1(-t / bend);
+                    value = std::tanh(1.35 * std::sin(swept) + .24 * std::sin(2 * swept) * std::exp(-38*t)) * body
+                          + sound.air * high * strike;
+                    break;
+                }
+                case Voice::snare:
+                    value = (.40 * std::sin(phase + .65 * -std::expm1(-75*t)) + .16 * std::sin(1.58 * phase))
+                              * std::exp(-56*t) + sound.air * (band + .35*high) * body;
+                    break;
+                case Voice::clap: {
+                    double burst = 0;
+                    for (const double onset : {0.0, .009, .021, .035})
+                        if (t >= onset) burst += std::exp(-(t-onset) / (onset > .03 ? .034 : .0028));
+                    value = (band + .15*high) * burst;
+                    break;
+                }
+                case Voice::metal:
+                    value = ((.44*std::sin(phase) + .32*std::sin(1.51*phase) + .24*std::sin(2.037*phase))
+                              * (1.0 - sound.air) + sound.air*(high + .17*band)) * body;
+                    break;
+                case Voice::wood:
+                    value = (std::sin(phase) + .54*std::sin(1.48*phase) + .32*std::sin(2.73*phase)*std::exp(-45*t))
+                              * body + sound.air*high*strike;
+                    break;
+                case Voice::shaker:
+                    value = high * (1.0 - std::exp(-170*t)) * body * (.78 + .22*std::sin(715*t));
+                    break;
+                case Voice::bass:
+                    value = (std::sin(phase) + .19*std::sin(2*phase) + .09*std::sin(3*phase)*std::exp(-16*t)) * body;
+                    break;
+                case Voice::chord:
+                    for (const double ratio : {1.0, 1.189207, 1.498307})
+                        value += (std::sin(ratio*phase) + .33*std::sin(2*ratio*phase)*std::exp(-24*t)) * body;
+                    break;
+            }
+            value *= std::min(1.0, t/.0007) * std::min(1.0, (sound.length-t)/.006);
+            pcm[i] = static_cast<float>(value);
+            peak = std::max(peak, std::abs(value));
+        }
+        for (auto& sample : pcm) sample *= static_cast<float>(sound.level / std::max(.001,peak));
+        kit.push_back(createBuffer(sound.name, pcm, sampleRate));
+    }
     return kit;
 }
 

@@ -86,6 +86,8 @@ void FruitEngine::reset() {
         track.lastTriggeredStep = -1;
     }
     previewVoice_.stop();
+    visualPpq_ = 0.0;
+    displayBarPhase_.store(0.0f, std::memory_order_relaxed);
     internalPpq_ = 0.0;
     lastPpq_ = 0.0;
     justManuallyStarted_ = false;
@@ -156,6 +158,11 @@ TrackState& FruitEngine::getTrack(int trackIndex) {
 const TrackState& FruitEngine::getTrack(int trackIndex) const {
     const int idx = std::clamp(trackIndex, 0, kMaxTracks - 1);
     return tracks_[static_cast<size_t>(idx)];
+}
+
+std::shared_ptr<const AudioSampleBuffer> FruitEngine::loadedSample(int trackIndex) const {
+    const std::lock_guard<std::mutex> lock(engineMutex_);
+    return getTrack(trackIndex).sample;
 }
 
 void FruitEngine::loadSampleForTrack(int trackIndex, std::shared_ptr<const AudioSampleBuffer> sample) {
@@ -463,6 +470,14 @@ void FruitEngine::process(float* leftChannel,
         scheduleSequencer(ppqStart, ppqEnd, numSamples, effectiveBpm);
         internalPpq_ = ppqEnd;
         lastPpq_ = ppqStart;
+    }
+
+    if (isHostPlaying || isPlaying_.load()) {
+        const double quarter = isHostPlaying ? (std::isfinite(ppqPosition) ? ppqPosition : visualPpq_) : lastPpq_;
+        const double beatEnd = quarter + numSamples * ((bpm > 10.0 ? bpm : 120.0) / (60.0 * sampleRate_));
+        visualPpq_ = beatEnd;
+        const double bar = beatEnd * 0.25;
+        displayBarPhase_.store(static_cast<float>(bar - std::floor(bar)), std::memory_order_relaxed);
     }
 
     // 2. Determine Solo state

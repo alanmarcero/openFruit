@@ -9,7 +9,9 @@
 
 namespace openfruit::ui {
 
-class CyberStepPad : public juce::Component {
+inline constexpr int kLaneWidth = 382;
+
+class CyberStepPad : public juce::Component, public juce::SettableTooltipClient {
 public:
     CyberStepPad(int trackIdx, int stepIdx);
     ~CyberStepPad() override = default;
@@ -35,6 +37,9 @@ private:
     openfruit::theme::Palette palette_;
     openfruit::core::StepData data_{};
     bool isPlayhead_ = false;
+    bool wasActive_ = false;
+    bool velocityDragged_ = false;
+    int dragStartTune_ = 0;
     bool tuneDragged_ = false;
     bool tuneGesture_ = false;
     juce::Point<int> dragStartPos_;
@@ -52,9 +57,17 @@ public:
     void resized() override;
 
 private:
-    std::array<juce::Slider, 7> sliders_;
-    std::array<juce::Label, 7> labels_;
-    std::array<std::unique_ptr<juce::AudioProcessorValueTreeState::SliderAttachment>, 7> attachments_;
+    int track_;
+    juce::TextButton close_ {"Done"};
+    juce::ComboBox midi_, timing_;
+    std::array<juce::Label, 2> routingLabels_;
+    std::unique_ptr<juce::AudioProcessorValueTreeState::ComboBoxAttachment> timingAttachment_;
+    std::unique_ptr<juce::ParameterAttachment> midiAttachment_;
+    std::array<juce::Slider, 10> sliders_;
+    std::array<juce::Label, 10> labels_;
+    std::array<std::unique_ptr<juce::AudioProcessorValueTreeState::SliderAttachment>, 10> attachments_;
+public:
+    std::function<void()> onClose;
 };
 
 class TrackRowComponent : public juce::Component {
@@ -68,7 +81,7 @@ public:
     void updateFromEngine();
     void updatePlayhead(int currentStep);
 
-    std::function<void(int trackIdx)> onOpenBrowser;
+    std::function<void(int trackIdx)> onOpenBrowser, onOpenSettings;
     std::function<void(int trackIdx)> onSampleAudition;
 
     void paint(juce::Graphics& g) override;
@@ -82,16 +95,7 @@ private:
     juce::AudioProcessorValueTreeState* apvts_ = nullptr;
     openfruit::theme::Palette palette_;
 
-    juce::ComboBox midiChannelBox_;
-    juce::TextButton samplePadBtn_;
-    juce::TextButton loadBtn_;
-    juce::ComboBox timingBox_;
-    juce::Label tuneLabel_;
-    juce::Label volumeLabel_;
-    juce::Label panLabel_;
-    juce::Slider tuneSlider_;
-    juce::Slider volSlider_;
-    juce::Slider panSlider_;
+    juce::TextButton samplePadBtn_, loadBtn_;
     juce::TextButton voiceSettingsBtn_ {"Settings"};
     juce::ToggleButton muteBtn_{ "Mute" };
     juce::ToggleButton soloBtn_{ "Solo" };

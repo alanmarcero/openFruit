@@ -483,3 +483,19 @@ TEST_CASE("WavReader supports all common audio file extensions", "[WavReader]") 
 
     tempDir.deleteRecursively();
 }
+
+TEST_CASE("Citrus clock follows the real host bar and manual transport", "[FruitEngine][clock]") {
+    FruitEngine engine;
+    engine.prepare(48000, 480);
+    std::array<float,480> left{}, right{};
+    auto block = [&](double ppq, double bpm, bool playing) {
+        engine.process(left.data(), right.data(), 480, bpm, ppq, playing);
+        return engine.displayBarPhase();
+    };
+    REQUIRE(std::abs(block(8.98,120,true) - .25f) < 1e-5f);
+    REQUIRE(std::abs(block(-1.01,60,true) - .75f) < 1e-5f);
+    REQUIRE(std::abs(block(0,60,false) - .75f) < 1e-5f);
+    engine.setPlaying(true);
+    REQUIRE(std::abs(block(0,120,false) - .005f) < 1e-5f);
+    REQUIRE(std::abs(block(0,120,false) - .010f) < 1e-5f);
+}

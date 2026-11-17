@@ -11,6 +11,9 @@ OpenFruitAudioProcessorEditor::OpenFruitAudioProcessorEditor(OpenFruitAudioProce
     cyberLookAndFeel_.setPalette(palette);
     setLookAndFeel(&cyberLookAndFeel_);
 
+    headerPanel_.onArrangementChanged = [this] { resized(); };
+    headerPanel_.setTheme(palette);
+    trackerPanel_.setTheme(palette);
     headerPanel_.onTrackCountChanged = [this] {
         trackerPanel_.setVisibleTrackCount(processorRef_.getEngine().getActiveTrackCount());
     };
@@ -33,8 +36,8 @@ OpenFruitAudioProcessorEditor::OpenFruitAudioProcessorEditor(OpenFruitAudioProce
     trackerPanel_.updatePlayhead();
 
     setResizable(true, true);
-    setResizeLimits(1280, 800, 1920, 1200);
-    setSize(1280, 800);
+    setResizeLimits(1120, 680, 1920, 1200);
+    setSize(1200, 744);
 
     startTimerHz(30); // 30 fps UI animation & playhead updates
 }
@@ -45,6 +48,11 @@ OpenFruitAudioProcessorEditor::~OpenFruitAudioProcessorEditor() {
 }
 
 void OpenFruitAudioProcessorEditor::timerCallback() {
+    const int page = static_cast<int>(processorRef_.getEngine().getActivePage());
+    if (page != displayedPage_) {
+        displayedPage_ = page;
+        trackerPanel_.repaint();
+    }
     headerPanel_.updateFromParameters();
     trackerPanel_.updateFromEngine();
     trackerPanel_.updatePlayhead();
@@ -64,6 +72,6 @@ void OpenFruitAudioProcessorEditor::paint(juce::Graphics& g) {
 
 void OpenFruitAudioProcessorEditor::resized() {
     auto bounds = getLocalBounds();
-    headerPanel_.setBounds(bounds.removeFromTop(160));
+    headerPanel_.setBounds(bounds.removeFromTop(headerPanel_.arrangementVisible() ? 206 : 142));
     trackerPanel_.setBounds(bounds);
 }

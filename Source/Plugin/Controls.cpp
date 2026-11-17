@@ -8,6 +8,8 @@ namespace openfruit::ui {
 CyberStepPad::CyberStepPad(int trackIdx, int stepIdx)
     : trackIdx_(trackIdx), stepIdx_(stepIdx), palette_(openfruit::theme::getPalette(openfruit::core::ColorTheme::CyberpunkNeon)) {
     setRepaintsOnMouseActivity(true);
+    setTooltip("Click to toggle. Drag vertically for velocity. Right-drag or scroll to tune. Right-click for step settings.");
+    setName("Track " + juce::String(trackIdx+1) + " step " + juce::String(stepIdx+1));
 }
 
 void CyberStepPad::setTheme(const openfruit::theme::Palette& palette) {
@@ -28,114 +30,28 @@ void CyberStepPad::setIsCurrentPlayhead(bool isPlayhead) {
 }
 
 void CyberStepPad::paint(juce::Graphics& g) {
-    const auto bounds = getLocalBounds().toFloat().reduced(1.0f);
-    const int beatGroup = (stepIdx_ / 4) % 2;
-
-    // Recessed dark socket well (machined chassis socket)
-    g.setColour(palette_.background.darker(0.85f));
-    g.fillRoundedRectangle(bounds, 4.0f);
-    g.setColour(palette_.panelEdge.darker(0.3f));
-    g.drawRoundedRectangle(bounds, 4.0f, 1.0f);
-
-    const auto padBounds = bounds.reduced(1.6f);
-
+    auto cell = getLocalBounds().toFloat().reduced(1.5f, 3.0f);
+    const auto accent = trackIdx_ % 4 < 2 ? palette_.accentPrimary : palette_.accentSecondary;
+    const auto off = (stepIdx_ / 4) % 2 == 0 ? palette_.padInactiveBeatA : palette_.padInactiveBeatB;
+    g.setColour(data_.active ? accent.withMultipliedBrightness(.75f + .25f*data_.velocity) : off);
+    g.fillRoundedRectangle(cell, 5.0f);
     if (data_.active) {
-        // Active Step: Rich illuminated silicone button
-        const float velNorm = std::clamp(data_.velocity, 0.1f, 1.0f);
-        juce::Colour activeColor = palette_.padActive.interpolatedWith(juce::Colours::white, (velNorm - 0.5f) * 0.25f);
-
-        // Multi-tier neon bloom glow
-        g.setColour(palette_.padGlow.withAlpha(0.30f));
-        g.drawRoundedRectangle(bounds.expanded(2.0f), 5.0f, 3.0f);
-        g.setColour(palette_.padActive.withAlpha(0.60f));
-        g.drawRoundedRectangle(bounds, 4.0f, 1.5f);
-
-        // 3D Illuminated Pad Body Gradient
-        juce::ColourGradient grad(
-            activeColor.brighter(0.40f), padBounds.getX(), padBounds.getY(),
-            activeColor.darker(0.30f), padBounds.getX(), padBounds.getBottom(),
-            false
-        );
-        g.setGradientFill(grad);
-        g.fillRoundedRectangle(padBounds, 3.0f);
-
-        // Top specular glass highlight
-        g.setColour(juce::Colours::white.withAlpha(0.45f));
-        g.fillRoundedRectangle(padBounds.getX() + 2.0f, padBounds.getY() + 1.0f, padBounds.getWidth() - 4.0f, 2.0f, 1.0f);
-
-        // Illuminated velocity bar at bottom
-        const float barHeight = 3.5f;
-        const float barWidth = (padBounds.getWidth() - 6.0f) * velNorm;
-        const auto barRect = juce::Rectangle<float>(
-            padBounds.getX() + 3.0f,
-            padBounds.getBottom() - barHeight - 2.5f,
-            barWidth,
-            barHeight
-        );
-        // Bar background track
-        g.setColour(juce::Colours::black.withAlpha(0.45f));
-        g.fillRoundedRectangle(padBounds.getX() + 3.0f, padBounds.getBottom() - barHeight - 2.5f, padBounds.getWidth() - 6.0f, barHeight, 1.5f);
-        // Bar glowing fill
-        g.setColour(palette_.accentSecondary);
-        g.fillRoundedRectangle(barRect, 1.5f);
-
-        // Semitone tune offset badge (if tuned)
-        if (data_.semitoneOffset != 0) {
-            const std::string badge = (data_.semitoneOffset > 0 ? "+" : "") + std::to_string(data_.semitoneOffset);
-            const float badgeW = 22.0f;
-            const float badgeH = 14.0f;
-            const auto badgeRect = juce::Rectangle<float>(padBounds.getCentreX() - badgeW * 0.5f,
-                                                          padBounds.getCentreY() - badgeH * 0.5f - 1.0f,
-                                                          badgeW, badgeH);
-
-            g.setColour(juce::Colours::black.withAlpha(0.70f));
-            g.fillRoundedRectangle(badgeRect, 3.0f);
-            g.setColour(palette_.accentSecondary.withAlpha(0.75f));
-            g.drawRoundedRectangle(badgeRect, 3.0f, 1.0f);
-
-            g.setFont(juce::FontOptions(10.0f, juce::Font::bold));
-            g.setColour(palette_.accentSecondary);
-            g.drawText(badge, badgeRect.toNearestInt(), juce::Justification::centred, false);
+        const auto ink = juce::Colour(0xff171b20);
+        g.setColour(ink.withAlpha(.34f));
+        auto velocity = cell.reduced(5.0f).removeFromBottom(3.0f);
+        g.fillRoundedRectangle(velocity, 1.5f);
+        g.setColour(ink);
+        g.fillRoundedRectangle(velocity.withWidth(velocity.getWidth() * data_.velocity), 1.5f);
+        if (data_.semitoneOffset != 0 || data_.ratchets > 1) {
+            const juce::String value = data_.ratchets > 1 ? "x" + juce::String(data_.ratchets)
+                    : (data_.semitoneOffset > 0 ? "+" : "") + juce::String(data_.semitoneOffset);
+            g.setFont(juce::FontOptions(13.0f, juce::Font::bold));
+            g.drawText(value, cell.toNearestInt(), juce::Justification::centred);
         }
-    } else {
-        // Inactive Step: Tactile hardware keycap with 4-beat alternating contrast
-        const juce::Colour baseColor = (beatGroup == 0) ? palette_.padInactiveBeatA : palette_.padInactiveBeatB;
-
-        juce::ColourGradient grad(
-            baseColor.brighter(0.20f), padBounds.getX(), padBounds.getY(),
-            baseColor.darker(0.30f), padBounds.getX(), padBounds.getBottom(),
-            false
-        );
-        g.setGradientFill(grad);
-        g.fillRoundedRectangle(padBounds, 3.0f);
-
-        // Subtle top specular edge
-        g.setColour(juce::Colours::white.withAlpha(0.12f));
-        g.fillRoundedRectangle(padBounds.getX() + 2.0f, padBounds.getY() + 1.0f, padBounds.getWidth() - 4.0f, 1.5f, 0.75f);
-
-        // Subtle center tactile pip / dimple
-        const float cx = padBounds.getCentreX();
-        const float cy = padBounds.getCentreY();
-        g.setColour(baseColor.darker(0.35f));
-        g.fillEllipse(cx - 1.5f, cy - 1.5f, 3.0f, 3.0f);
-        g.setColour(juce::Colours::white.withAlpha(0.08f));
-        g.drawEllipse(cx - 1.5f, cy - 1.5f, 3.0f, 3.0f, 0.5f);
     }
-
-    // Playhead glowing aura and pointer pip
-    if (isPlayhead_) {
-        // Glowing halo
-        g.setColour(palette_.playheadGlow.withAlpha(0.40f));
-        g.drawRoundedRectangle(bounds.expanded(2.0f), 5.0f, 3.0f);
-        g.setColour(palette_.playheadGlow);
-        g.drawRoundedRectangle(bounds.expanded(0.5f), 4.0f, 2.0f);
-
-        // Top illuminated pointer notch
-        const float pipW = 6.0f;
-        const float pipH = 3.0f;
-        const auto pipRect = juce::Rectangle<float>(bounds.getCentreX() - pipW * 0.5f, bounds.getY() - 1.0f, pipW, pipH);
-        g.setColour(palette_.playheadGlow);
-        g.fillRoundedRectangle(pipRect, 1.5f);
+    if (isPlayhead_ || isMouseOver() || hasKeyboardFocus(false)) {
+        g.setColour(isPlayhead_ ? palette_.playheadGlow : palette_.text);
+        g.drawRoundedRectangle(cell, 5.0f, 2.0f);
     }
 }
 
@@ -143,6 +59,7 @@ void CyberStepPad::mouseDown(const juce::MouseEvent& e) {
     if (e.mods.isRightButtonDown()) {
         // Right drag tunes the hit; a stationary right click opens its detail menu.
         dragStartPos_ = e.getPosition();
+        dragStartTune_ = data_.semitoneOffset;
         tuneDragged_ = false;
         tuneGesture_ = true;
         return;
@@ -152,11 +69,8 @@ void CyberStepPad::mouseDown(const juce::MouseEvent& e) {
     dragStartPos_ = e.getPosition();
     dragStartVelocity_ = data_.velocity;
     tuneGesture_ = false;
-    data_.active = !data_.active;
-    repaint();
-    if (onToggle) {
-        onToggle(data_.active);
-    }
+    wasActive_ = data_.active;
+    velocityDragged_ = false;
 }
 
 void CyberStepPad::mouseDrag(const juce::MouseEvent& e) {
@@ -164,7 +78,7 @@ void CyberStepPad::mouseDrag(const juce::MouseEvent& e) {
         // Drag vertically to adjust semitone tune (-24 .. +24)
         const int deltaY = dragStartPos_.y - e.y;
         if (std::abs(deltaY) >= 4) tuneDragged_ = true;
-        const int semitones = std::clamp(deltaY / 4, -24, 24);
+        const int semitones = std::clamp(dragStartTune_ + deltaY / 4, -24, 24);
         if (semitones != data_.semitoneOffset) {
             data_.semitoneOffset = semitones;
             repaint();
@@ -172,7 +86,12 @@ void CyberStepPad::mouseDrag(const juce::MouseEvent& e) {
                 onTuneChange(semitones);
             }
         }
-    } else if (e.mods.isLeftButtonDown() && data_.active) {
+    } else if (e.mods.isLeftButtonDown() && std::abs(dragStartPos_.y - e.y) >= 3) {
+        velocityDragged_ = true;
+        if (!data_.active) {
+            data_.active = true;
+            if (onToggle) onToggle(true);
+        }
         // Drag vertically while active to adjust velocity
         const float delta = static_cast<float>(dragStartPos_.y - e.y) / 60.0f;
         const float newVel = std::clamp(dragStartVelocity_ + delta * 0.5f, 0.05f, 1.0f);
@@ -190,6 +109,10 @@ void CyberStepPad::mouseUp(const juce::MouseEvent& e) {
     if (tuneGesture_) {
         if (e.mouseWasClicked() && !tuneDragged_) showStepMenu();
         tuneGesture_ = false;
+    } else if (!velocityDragged_) {
+        data_.active = !wasActive_;
+        if (onToggle) onToggle(data_.active);
+        repaint();
     }
 }
 
@@ -235,6 +158,7 @@ void CyberStepPad::showStepMenu() {
     menu.addSubMenu("Sample end", end);
     menu.addItem(700, "Reverse", true, data_.reverse);
     menu.addSubMenu("Choke group", choke);
+    menu.setLookAndFeel(&getLookAndFeel());
     menu.showMenuAsync(juce::PopupMenu::Options().withTargetComponent(this),
         juce::ModalCallbackFunction::create([safeThis = juce::Component::SafePointer<CyberStepPad>(this)](int result) {
             if (safeThis != nullptr && result != 0) safeThis->selectStepMenuItem(result);
@@ -304,17 +228,30 @@ void setApvtsParamValue(juce::AudioProcessorValueTreeState* apvts,
 TrackVoiceSettingsPanel::TrackVoiceSettingsPanel(int trackIdx,
                                                  juce::AudioProcessorValueTreeState& apvts)
 {
-    const std::array<std::string, 7> ids = {
-        openfruit::params::trackFilterId(trackIdx),
-        openfruit::params::trackAttackId(trackIdx),
-        openfruit::params::trackDecayId(trackIdx),
-        openfruit::params::trackSustainId(trackIdx),
-        openfruit::params::trackReleaseId(trackIdx),
-        openfruit::params::trackNudgeId(trackIdx),
-        openfruit::params::trackGrooveId(trackIdx)
-    };
-    const std::array<const char*, 7> names = {"Filter", "Attack", "Decay", "Sustain", "Release", "Nudge", "Groove"};
-    const std::array<const char*, 7> units = {"Hz", "s", "s", "%", "s", "steps", "steps"};
+    track_ = trackIdx;
+    close_.onClick = [this] { if (onClose) onClose(); };
+    close_.setTooltip("Return to the pattern grid");
+    addAndMakeVisible(close_);
+    for (int i = 1; i <= 16; ++i) midi_.addItem("Channel " + juce::String(i), i);
+    midi_.setTooltip("Incoming MIDI channel for this track");
+    midiAttachment_ = std::make_unique<juce::ParameterAttachment>(*apvts.getParameter(params::trackMidiChId(trackIdx)),
+        [this](float value) { midi_.setSelectedId(juce::roundToInt(value), juce::dontSendNotification); });
+    midiAttachment_->sendInitialUpdate();
+    midi_.onChange = [this] { midiAttachment_->setValueAsCompleteGesture(static_cast<float>(midi_.getSelectedId())); };
+    timing_.addItemList({"1/16", "1/32", "1/64"}, 1);
+    timing_.setTooltip("Duration of one step for this track");
+    timingAttachment_ = std::make_unique<juce::AudioProcessorValueTreeState::ComboBoxAttachment>(apvts, params::trackTimingId(trackIdx), timing_);
+    addAndMakeVisible(midi_);
+    addAndMakeVisible(timing_);
+    routingLabels_[0].setText("MIDI input", juce::dontSendNotification);
+    routingLabels_[1].setText("Step rate", juce::dontSendNotification);
+    for (auto& label : routingLabels_) addAndMakeVisible(label);
+    const std::array<std::string, 10> ids = {
+        params::trackTuneId(trackIdx), params::trackVolId(trackIdx), params::trackPanId(trackIdx),
+        params::trackFilterId(trackIdx), params::trackNudgeId(trackIdx), params::trackGrooveId(trackIdx),
+        params::trackAttackId(trackIdx), params::trackDecayId(trackIdx), params::trackSustainId(trackIdx), params::trackReleaseId(trackIdx)};
+    const std::array<const char*, 10> names = {"Pitch", "Level", "Pan", "Low-pass", "Nudge", "Groove", "Attack", "Decay", "Sustain", "Release"};
+    const std::array<const char*, 10> units = {" st", "", "", " Hz", " stp", " stp", " s", " s", "%", " s"};
     for (size_t i = 0; i < sliders_.size(); ++i) {
         labels_[i].setText(names[i], juce::dontSendNotification);
         labels_[i].setJustificationType(juce::Justification::centredLeft);
@@ -322,29 +259,45 @@ TrackVoiceSettingsPanel::TrackVoiceSettingsPanel(int trackIdx,
 
         auto& slider = sliders_[i];
         slider.setSliderStyle(juce::Slider::LinearHorizontal);
-        slider.setTextBoxStyle(juce::Slider::TextBoxRight, false, 58, 22);
-        slider.setTextValueSuffix(" " + juce::String(i >= 5 ? "stp" : units[i]));
-        slider.setNumDecimalPlacesToDisplay(i == 0 || i == 3 ? 0 : 2);
+        slider.setTextBoxStyle(juce::Slider::TextBoxRight, false, 82, 28);
+        slider.setTooltip(juce::String(names[i]) + " for track " + juce::String(trackIdx+1));
         addAndMakeVisible(slider);
         attachments_[i] = std::make_unique<juce::AudioProcessorValueTreeState::SliderAttachment>(
             apvts, ids[i], slider);
+        slider.setTextValueSuffix(units[i]);
+        slider.setNumDecimalPlacesToDisplay(i == 0 || i == 3 || i == 8 ? 0 : 2);
     }
-    setSize(460, 250);
 }
 
 void TrackVoiceSettingsPanel::paint(juce::Graphics& g) {
     g.fillAll(findColour(juce::ResizableWindow::backgroundColourId, true));
-    g.setColour(juce::Colours::white.withAlpha(0.8f));
-    g.setFont(juce::FontOptions(14.0f, juce::Font::bold));
-    g.drawText("TRACK SETTINGS", 12, 4, getWidth() - 24, 22, juce::Justification::centredLeft);
+    auto area = getLocalBounds().reduced(36, 16);
+    g.setColour(findColour(juce::Label::textColourId, true));
+    g.setFont(juce::FontOptions(28.0f, juce::Font::bold));
+    g.drawText("Track " + juce::String(track_ + 1).paddedLeft('0', 2) + "   /   Voice settings",
+               area.removeFromTop(48), juce::Justification::centredLeft);
+    area.removeFromTop(70);
+    const int column = area.getWidth() / 2;
+    g.setFont(juce::FontOptions(16.0f, juce::Font::bold));
+    g.setColour(findColour(juce::Slider::thumbColourId, true));
+    g.drawText("Mix and timing", area.getX(), area.getY(), column, 26, juce::Justification::centredLeft);
+    g.drawText("Amplitude envelope", area.getX()+column, area.getY(), column, 26, juce::Justification::centredLeft);
 }
 
 void TrackVoiceSettingsPanel::resized() {
-    auto area = getLocalBounds().reduced(12);
-    area.removeFromTop(22);
-    const int rowHeight = area.getHeight() / static_cast<int>(sliders_.size());
+    auto area = getLocalBounds().reduced(36, 16);
+    auto title = area.removeFromTop(48);
+    close_.setBounds(title.removeFromRight(98).reduced(0, 5));
+    auto route = area.removeFromTop(70).reduced(0, 17);
+    for (size_t i = 0; i < 2; ++i) {
+        routingLabels_[i].setBounds(route.removeFromLeft(82));
+        (i == 0 ? midi_ : timing_).setBounds(route.removeFromLeft(138));
+        route.removeFromLeft(28);
+    }
+    area.removeFromTop(34);
+    const int w = area.getWidth()/2;
     for (size_t i = 0; i < sliders_.size(); ++i) {
-        auto row = area.removeFromTop(rowHeight);
+        auto row = juce::Rectangle<int>(area.getX() + (i < 6 ? 0 : w), area.getY() + 43*static_cast<int>(i < 6 ? i : i-6), w-26, 38);
         labels_[i].setBounds(row.removeFromLeft(72));
         sliders_[i].setBounds(row);
     }
@@ -357,20 +310,6 @@ TrackRowComponent::TrackRowComponent(int trackIdx,
       engine_(engine),
       apvts_(apvts),
       palette_(openfruit::theme::getPalette(openfruit::core::ColorTheme::CyberpunkNeon)) {
-
-    // 0. Per-row MIDI Channel Selector (CH 1 .. CH 16, defaults to trackIdx + 1)
-    for (int ch = 1; ch <= 16; ++ch) {
-        midiChannelBox_.addItem("CH " + juce::String(ch), ch);
-    }
-    const int initialCh = std::clamp(engine_.getTrack(trackIdx_).midiChannel, 1, 16);
-    midiChannelBox_.setSelectedId(initialCh, juce::dontSendNotification);
-    midiChannelBox_.setTooltip("MIDI input channel for this row");
-    midiChannelBox_.onChange = [this] {
-        const int ch = std::clamp(midiChannelBox_.getSelectedId(), 1, 16);
-        engine_.setTrackMidiChannel(trackIdx_, ch);
-        setApvtsParamValue(apvts_, openfruit::params::trackMidiChId(trackIdx_), static_cast<float>(ch));
-    };
-    addAndMakeVisible(midiChannelBox_);
 
     // 1. Sample Trigger Pad Button
     samplePadBtn_.setButtonText("Loading");
@@ -386,75 +325,6 @@ TrackRowComponent::TrackRowComponent(int trackIdx,
         if (onOpenBrowser) onOpenBrowser(trackIdx_);
     };
     addAndMakeVisible(loadBtn_);
-
-    // 3. Timing Selector (1/16, 1/32, 1/64)
-    timingBox_.addItem("1/16", 1);
-    timingBox_.addItem("1/32", 2);
-    timingBox_.addItem("1/64", 3);
-    timingBox_.setSelectedId(1, juce::dontSendNotification);
-    timingBox_.onChange = [this] {
-        const int id = timingBox_.getSelectedId();
-        auto& t = engine_.getTrack(trackIdx_);
-        if (id == 1) t.timing = openfruit::core::StepTiming::Timing1_16;
-        if (id == 2) t.timing = openfruit::core::StepTiming::Timing1_32;
-        if (id == 3) t.timing = openfruit::core::StepTiming::Timing1_64;
-        setApvtsParamValue(apvts_, openfruit::params::trackTimingId(trackIdx_), static_cast<float>(id - 1));
-    };
-    addAndMakeVisible(timingBox_);
-
-    const auto setupControlLabel = [this](juce::Label& label, const juce::String& text) {
-        label.setText(text, juce::dontSendNotification);
-        label.setFont(juce::FontOptions(9.0f, juce::Font::bold));
-        label.setJustificationType(juce::Justification::centred);
-        label.setColour(juce::Label::textColourId, palette_.text.withAlpha(0.75f));
-        addAndMakeVisible(label);
-    };
-    setupControlLabel(tuneLabel_, "TUNE");
-    setupControlLabel(volumeLabel_, "LEVEL");
-    setupControlLabel(panLabel_, "PAN");
-
-    // 4. Base Tune Slider (-24 .. +24)
-    tuneSlider_.setSliderStyle(juce::Slider::LinearHorizontal);
-    tuneSlider_.setTextBoxStyle(juce::Slider::NoTextBox, false, 0, 0);
-    tuneSlider_.setNumDecimalPlacesToDisplay(0);
-    tuneSlider_.setRange(-24.0, 24.0, 1.0);
-    tuneSlider_.setValue(0.0, juce::dontSendNotification);
-    tuneSlider_.setTextValueSuffix(" st");
-    tuneSlider_.setTooltip("Tune this track by up to two octaves");
-    tuneSlider_.onValueChange = [this] {
-        const int val = static_cast<int>(tuneSlider_.getValue());
-        engine_.getTrack(trackIdx_).baseTune = val;
-        setApvtsParamValue(apvts_, openfruit::params::trackTuneId(trackIdx_), static_cast<float>(val));
-    };
-    addAndMakeVisible(tuneSlider_);
-
-    // 5. Volume Slider
-    volSlider_.setSliderStyle(juce::Slider::LinearHorizontal);
-    volSlider_.setTextBoxStyle(juce::Slider::NoTextBox, false, 0, 0);
-    volSlider_.setNumDecimalPlacesToDisplay(2);
-    volSlider_.setRange(0.0, 1.5, 0.01);
-    volSlider_.setValue(1.0, juce::dontSendNotification);
-    volSlider_.setTooltip("Track level");
-    volSlider_.onValueChange = [this] {
-        const float val = static_cast<float>(volSlider_.getValue());
-        engine_.getTrack(trackIdx_).volume = val;
-        setApvtsParamValue(apvts_, openfruit::params::trackVolId(trackIdx_), val);
-    };
-    addAndMakeVisible(volSlider_);
-
-    // 6. Pan Slider
-    panSlider_.setSliderStyle(juce::Slider::LinearHorizontal);
-    panSlider_.setTextBoxStyle(juce::Slider::NoTextBox, false, 0, 0);
-    panSlider_.setNumDecimalPlacesToDisplay(2);
-    panSlider_.setRange(-1.0, 1.0, 0.01);
-    panSlider_.setValue(0.0, juce::dontSendNotification);
-    panSlider_.setTooltip("Track pan");
-    panSlider_.onValueChange = [this] {
-        const float val = static_cast<float>(panSlider_.getValue());
-        engine_.getTrack(trackIdx_).pan = val;
-        setApvtsParamValue(apvts_, openfruit::params::trackPanId(trackIdx_), val);
-    };
-    addAndMakeVisible(panSlider_);
 
     // 7. Mute & Solo
     muteBtn_.onClick = [this] {
@@ -473,13 +343,10 @@ TrackRowComponent::TrackRowComponent(int trackIdx,
     soloBtn_.setTooltip("Solo this track");
     addAndMakeVisible(soloBtn_);
 
-    voiceSettingsBtn_.setTooltip("Track filter, amplitude envelope, nudge, and groove");
-    voiceSettingsBtn_.onClick = [this] {
-        if (apvts_ == nullptr) return;
-        juce::CallOutBox::launchAsynchronously(
-            std::make_unique<TrackVoiceSettingsPanel>(trackIdx_, *apvts_),
-            voiceSettingsBtn_.getScreenBounds(), nullptr);
-    };
+    voiceSettingsBtn_.setButtonText("Edit");
+    voiceSettingsBtn_.setTooltip("Edit tuning, level, MIDI, timing, filter and amplitude envelope");
+    voiceSettingsBtn_.onClick = [this] { if (onOpenSettings) onOpenSettings(trackIdx_); };
+    loadBtn_.setTooltip("Choose a sample for this track");
     addAndMakeVisible(voiceSettingsBtn_);
 
     // 8. 16 Step Pads
@@ -515,30 +382,10 @@ void TrackRowComponent::setTheme(const openfruit::theme::Palette& palette) {
 void TrackRowComponent::updateFromEngine() {
     const auto& track = engine_.getTrack(trackIdx_);
 
-    // Update track sample button text with sample name and estimated tone
-    std::string btnText = track.name;
-    if (track.sample) {
-        btnText = track.sample->sampleName;
-        if (!track.sample->toneResult.noteName.empty() && track.sample->toneResult.noteName != "---") {
-            const std::string shortNote = (track.sample->toneResult.hasClearTone ? "" : "~") +
-                                          track.sample->toneResult.noteName;
-            btnText += " [" + shortNote + "]";
-            samplePadBtn_.setTooltip(track.sample->sampleName + " - " + track.sample->toneResult.formattedTone());
-        }
-    }
-    samplePadBtn_.setButtonText(btnText);
-
-    // Update MIDI channel dropdown
-    midiChannelBox_.setSelectedId(std::clamp(track.midiChannel, 1, 16), juce::dontSendNotification);
-
-    // Update timing
-    if (track.timing == openfruit::core::StepTiming::Timing1_16) timingBox_.setSelectedId(1, juce::dontSendNotification);
-    if (track.timing == openfruit::core::StepTiming::Timing1_32) timingBox_.setSelectedId(2, juce::dontSendNotification);
-    if (track.timing == openfruit::core::StepTiming::Timing1_64) timingBox_.setSelectedId(3, juce::dontSendNotification);
-
-    tuneSlider_.setValue(track.baseTune, juce::dontSendNotification);
-    volSlider_.setValue(track.volume, juce::dontSendNotification);
-    panSlider_.setValue(track.pan, juce::dontSendNotification);
+    const auto sample = engine_.loadedSample(trackIdx_);
+    const juce::String name = sample ? sample->sampleName : track.name;
+    samplePadBtn_.setButtonText(name);
+    samplePadBtn_.setTooltip("Audition " + name + (sample ? "   " + juce::String(sample->toneResult.formattedTone()) : ""));
     muteBtn_.setToggleState(track.mute, juce::dontSendNotification);
     soloBtn_.setToggleState(track.solo, juce::dontSendNotification);
 
@@ -556,69 +403,25 @@ void TrackRowComponent::updatePlayhead(int currentStep) {
 }
 
 void TrackRowComponent::paint(juce::Graphics& g) {
-    const auto bounds = getLocalBounds().toFloat();
-
-    // Channel strip background gradient with subtle bevel
-    juce::ColourGradient stripGrad(
-        palette_.panel.brighter(0.06f).withAlpha(0.75f), bounds.getX(), bounds.getY(),
-        palette_.panel.darker(0.20f).withAlpha(0.85f), bounds.getX(), bounds.getBottom(),
-        false
-    );
-    g.setGradientFill(stripGrad);
-    g.fillRoundedRectangle(bounds.reduced(1.0f), 4.0f);
-
-    // Subtle perimeter edge
-    g.setColour(palette_.panelEdge.withAlpha(0.40f));
-    g.drawRoundedRectangle(bounds.reduced(1.0f), 4.0f, 1.0f);
-
-    // Track divider line at bottom
-    g.setColour(palette_.panelEdge.withAlpha(0.45f));
-    g.drawLine(0.0f, bounds.getBottom(), bounds.getRight(), bounds.getBottom(), 1.0f);
+    g.fillAll(trackIdx_ % 2 == 0 ? palette_.panel : palette_.background);
+    g.setColour(palette_.textDim);
+    g.setFont(juce::FontOptions(14.0f, juce::Font::bold));
+    g.drawText(juce::String(trackIdx_+1).paddedLeft('0',2), 1, 0, 29, getHeight(), juce::Justification::centred);
 }
 
 void TrackRowComponent::resized() {
-    auto area = getLocalBounds().reduced(2);
-
-    // 1. Per-row MIDI Channel Dropdown (CH 1 .. CH 16)
-    midiChannelBox_.setBounds(area.removeFromLeft(58).reduced(2));
-
-    // 2. Track Sample Trigger Pad
-    samplePadBtn_.setBounds(area.removeFromLeft(136).reduced(2));
-
-    // 3. Load Button
-    loadBtn_.setBounds(area.removeFromLeft(52).reduced(2));
-
-    // 4. Timing Dropdown (1/16, 1/32, 1/64)
-    timingBox_.setBounds(area.removeFromLeft(54).reduced(2));
-
-    // 5. Per-lane timing controls
-    // 6. Tune, level, and pan
-    auto tuneArea = area.removeFromLeft(68).reduced(2);
-    tuneLabel_.setBounds(tuneArea.removeFromTop(16));
-    tuneSlider_.setBounds(tuneArea);
-    auto volumeArea = area.removeFromLeft(62).reduced(2);
-    volumeLabel_.setBounds(volumeArea.removeFromTop(16));
-    volSlider_.setBounds(volumeArea);
-    auto panArea = area.removeFromLeft(62).reduced(2);
-    panLabel_.setBounds(panArea.removeFromTop(16));
-    panSlider_.setBounds(panArea);
-
-    // 7. Mute & Solo
-    voiceSettingsBtn_.setBounds(area.removeFromLeft(64).reduced(2));
-    muteBtn_.setBounds(area.removeFromLeft(48).reduced(2));
-    soloBtn_.setBounds(area.removeFromLeft(48).reduced(2));
-
-    // Spacer
-    area.removeFromLeft(8);
-
-    // 8. 16 Step Pads
-    const int numPads = openfruit::core::kStepsPerPage;
-    const float padWidth = static_cast<float>(area.getWidth()) / static_cast<float>(numPads);
-
-    for (int s = 0; s < numPads; ++s) {
-        const int x = area.getX() + static_cast<int>(static_cast<float>(s) * padWidth);
-        const int nextX = area.getX() + static_cast<int>(static_cast<float>(s + 1) * padWidth);
-        stepPads_[static_cast<size_t>(s)]->setBounds(x, area.getY() + 2, nextX - x - 2, area.getHeight() - 4);
+    auto area = getLocalBounds();
+    auto controls = area.removeFromLeft(kLaneWidth).withSizeKeepingCentre(kLaneWidth, 36);
+    controls.removeFromLeft(31);
+    samplePadBtn_.setBounds(controls.removeFromLeft(140).reduced(2,0));
+    loadBtn_.setBounds(controls.removeFromLeft(62).reduced(2,0));
+    voiceSettingsBtn_.setBounds(controls.removeFromLeft(44).reduced(2,0));
+    muteBtn_.setBounds(controls.removeFromLeft(48).reduced(2,0));
+    soloBtn_.setBounds(controls.removeFromLeft(48).reduced(2,0));
+    for (int s = 0; s < core::kStepsPerPage; ++s) {
+        const int left = area.getX() + s * area.getWidth() / 16;
+        const int right = area.getX() + (s+1) * area.getWidth() / 16;
+        stepPads_[static_cast<size_t>(s)]->setBounds(left, 2, right-left, area.getHeight()-4);
     }
 }
 

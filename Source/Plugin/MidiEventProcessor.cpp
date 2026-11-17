@@ -18,7 +18,7 @@ void processMidiBlock(core::FruitEngine& engine,
     const double quarterNotesPerSample = effectiveBpm / (effectiveSampleRate * 60.0);
     const auto renderSegment = [&](int start, int end) {
         if (end <= start) return;
-        const double segmentPpq = ppqPosition >= 0.0
+        const double segmentPpq = std::isfinite(ppqPosition)
             ? ppqPosition + static_cast<double>(start) * quarterNotesPerSample
             : ppqPosition;
         engine.process(left + start, right + start, end - start, bpm, segmentPpq, isHostPlaying);

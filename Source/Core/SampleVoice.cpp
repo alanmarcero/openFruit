@@ -79,6 +79,9 @@ void SampleVoice::start(std::shared_ptr<const AudioSampleBuffer> sample,
     const double pitchFactor = std::pow(2.0, static_cast<double>(totalSemitones) / 12.0);
     speedRatio_ = pitchFactor * (sample_->sampleRate / hostSampleRate);
 
+    integrationTaps_ = std::clamp(static_cast<int>(std::ceil(speedRatio_)), 1, 32);
+    tapSpacing_ = speedRatio_ / integrationTaps_;
+
     // Pan law (equal power)
     const float clampedPan = std::clamp(pan, -1.0f, 1.0f);
     const float panAngle = (clampedPan + 1.0f) * 0.25f * kPi; // 0 .. pi/2
@@ -147,8 +150,18 @@ void SampleVoice::renderNextBlock(float* leftOut, float* rightOut, int numFrames
             break;
         }
 
-        float sampL = interpolateCubic(leftBuf, totalLength, readPosition_, sampleStart_, sampleEnd_);
-        float sampR = interpolateCubic(rightBuf, totalLength, readPosition_, sampleStart_, sampleEnd_);
+        // Average the source footprint before decimation to reject folded harmonics.
+        const auto readChannel = [&](const float* channel) {
+            if (integrationTaps_ == 1)
+                return interpolateCubic(channel, totalLength, readPosition_, sampleStart_, sampleEnd_);
+            const double first = readPosition_ - 0.5 * (integrationTaps_ - 1) * tapSpacing_;
+            float sum = 0.0f;
+            for (int tap = 0; tap < integrationTaps_; ++tap)
+                sum += interpolateCubic(channel, totalLength, first + tap * tapSpacing_, sampleStart_, sampleEnd_);
+            return sum / static_cast<float>(integrationTaps_);
+        };
+        float sampL = readChannel(leftBuf);
+        float sampR = rightBuf == leftBuf ? sampL : readChannel(rightBuf);
         filterLeft_ += static_cast<float>(lowPassCoefficient_) * (sampL - filterLeft_);
         filterRight_ += static_cast<float>(lowPassCoefficient_) * (sampR - filterRight_);
         sampL = filterLeft_;

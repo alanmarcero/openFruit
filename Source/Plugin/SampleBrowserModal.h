@@ -70,6 +70,7 @@ private:
     std::vector<BrowserFileItem> files_;
 
     // Sorting modes: 0=Name, 1=Length Asc, 2=Length Desc, 3=Tone
+    bool restoringSelection_ = false;
     int sortMode_ = 1; // Default: sort by length (requested by user)
 
     juce::Label titleLabel_;
