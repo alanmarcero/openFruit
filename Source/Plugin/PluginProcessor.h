@@ -48,6 +48,8 @@ private:
     std::unique_ptr<openfruit::core::AnalysisQueue> analysisQueue_;
     juce::AudioProcessorValueTreeState apvts_;
 
+    bool legacyKit_ = false;
+    void loadFactoryKit(bool legacy);
     void syncParametersToEngine();
 
     JUCE_DECLARE_NON_COPYABLE_WITH_LEAK_DETECTOR(OpenFruitAudioProcessor)

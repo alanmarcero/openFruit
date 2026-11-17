@@ -120,3 +120,27 @@ TEST_CASE("SampleVoice applies track amplitude ADSR and low-pass settings", "[Sa
     REQUIRE(release[0] > release[15]);
     REQUIRE(release[15] < left[7]);
 }
+
+TEST_CASE("Fast forward and reverse sampling reject folded source harmonics", "[SampleVoice][resampling]") {
+    for (double rate : {32000.0, 44100.0, 48000.0, 96000.0}) {
+        for (const bool reverse : {false, true}) {
+            auto sample = std::make_shared<AudioSampleBuffer>();
+            sample->sampleRate = rate;
+            sample->numChannels = 1;
+            sample->numSamples = 8192;
+            sample->channels = {std::vector<float>(8192)};
+            sample->isLoaded = true;
+            for (int i = 0; i < 8192; ++i)
+                sample->channels.front()[static_cast<size_t>(i)] = .35f + (i % 2 == 0 ? .6f : -.6f);
+            VoiceSettings settings;
+            settings.reverse = reverse;
+            settings.sampleStart = .25f;
+            settings.sampleEnd = .75f;
+            SampleVoice voice;
+            voice.start(sample, 1, 24, 0, rate, 1, -1, settings);
+            std::array<float,256> left{}, right{};
+            voice.renderNextBlock(left.data(), right.data(), 256);
+            for (int i = 16; i < 250; ++i) REQUIRE_THAT(left[static_cast<size_t>(i)], Catch::Matchers::WithinAbs(.35, .001));
+        }
+    }
+}

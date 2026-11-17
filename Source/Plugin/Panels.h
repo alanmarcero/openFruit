@@ -21,7 +21,8 @@ public:
     void updateFromParameters();
 
     std::function<void()> onTrackCountChanged;
-    std::function<void()> onThemeChanged;
+    std::function<void()> onThemeChanged, onArrangementChanged;
+    bool arrangementVisible() const noexcept { return arrangementVisible_; }
 
     void paint(juce::Graphics& g) override;
     void resized() override;
@@ -53,7 +54,7 @@ private:
     std::unique_ptr<juce::AudioProcessorValueTreeState::SliderAttachment> outputDbAttachment_;
 
     juce::ToggleButton songModeToggle_ { "SONG MODE" };
-    juce::Label songModeLabel_ { "SongMode", "SONG" };
+    juce::Label intervalLabel_ {"Interval", "Every"};
     std::unique_ptr<juce::AudioProcessorValueTreeState::ButtonAttachment> songModeAttachment_;
     juce::Label swingLabel_ { "Swing", "Swing" };
     juce::Slider swingSlider_;
@@ -71,8 +72,9 @@ private:
     std::array<std::unique_ptr<juce::AudioProcessorValueTreeState::SliderAttachment>, openfruit::core::kNumPages> sectionBarsAttachments_;
     std::array<std::unique_ptr<juce::AudioProcessorValueTreeState::ButtonAttachment>, openfruit::core::kNumPages> sectionFillAttachments_;
 
-    juce::Image fruitLogo_;
-    juce::Image faceplateTexture_;
+    std::unique_ptr<juce::Drawable> fruitLogo_;
+    bool arrangementVisible_ = false;
+    float lastPhase_ = -1.0f;
 };
 
 class TrackerPanel : public juce::Component {
@@ -93,6 +95,7 @@ public:
 
     SampleBrowserModal* openSampleBrowser(int trackIdx, const juce::File& folder = {});
     void closeSampleBrowser();
+    void openTrackSettings(int track);
     SampleBrowserModal* getActiveBrowser() noexcept { return activeBrowser_.get(); }
 
 private:
@@ -105,10 +108,12 @@ private:
 
     int visibleTrackCount_ = 8;
     juce::File lastBrowsedFolder_;
+    juce::Component grid_;
+    juce::Viewport viewport_;
     std::array<std::unique_ptr<TrackRowComponent>, openfruit::core::kMaxTracks> rows_;
 
     std::unique_ptr<SampleBrowserModal> activeBrowser_;
-    juce::Image faceplateTexture_;
+    std::unique_ptr<TrackVoiceSettingsPanel> settings_;
 };
 
 } // namespace openfruit::ui

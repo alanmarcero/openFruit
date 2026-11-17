@@ -144,4 +144,8 @@ jobs:
           tag_name: ${{ github.ref_name }}
           name: openFruit ${{ github.ref_name }}
           files: openFruit-*.zip
+          body: |
+            Redesigned native sequencer, Citrus kit and reduced aliasing during pitched-up sample playback.
+
+            ![openFruit sequencer](https://raw.githubusercontent.com/alanmarcero/openFruit/${{ github.ref_name }}/assets/openFruit-screenshot.png)
           generate_release_notes: true

@@ -494,4 +494,19 @@ WavAudioData WavReader::readWavFromMemory(const uint8_t* data,
                                audioFormat, false, analysisOnly, maxFrames);
 }
 
+std::shared_ptr<AudioSampleBuffer> WavReader::loadSample(const std::string& path, const ToneAnalysisResult* analysis) {
+    auto decoded = readWavFile(path);
+    if (!decoded.isValid || decoded.channels.empty()) return {};
+    auto sample = std::make_shared<AudioSampleBuffer>();
+    sample->filePath = path;
+    sample->sampleName = juce::File(path).getFileNameWithoutExtension().toStdString();
+    sample->numChannels = decoded.numChannels;
+    sample->sampleRate = decoded.sampleRate;
+    sample->numSamples = decoded.numSamples;
+    sample->channels = std::move(decoded.channels);
+    sample->toneResult = analysis ? *analysis : SonicAnalyzer::analyze(decoded.monoChannel.data(), decoded.numSamples, decoded.sampleRate);
+    sample->isLoaded = true;
+    return sample;
+}
+
 } // namespace openfruit::core

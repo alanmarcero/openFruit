@@ -15,6 +15,7 @@ public:
     void paint(juce::Graphics& g) override;
     void resized() override;
 
+    void refresh() { timerCallback(); }
     void openSampleBrowser(int trackIdx, const juce::File& folder = {}) {
         trackerPanel_.openSampleBrowser(trackIdx, folder);
     }
@@ -26,6 +27,8 @@ private:
     openfruit::ui::CyberLookAndFeel cyberLookAndFeel_;
     openfruit::ui::HeaderPanel headerPanel_;
     openfruit::ui::TrackerPanel trackerPanel_;
+    juce::TooltipWindow tooltips_ {this, 550};
+    int displayedPage_ = -1;
 
     JUCE_DECLARE_NON_COPYABLE_WITH_LEAK_DETECTOR(OpenFruitAudioProcessorEditor)
 };

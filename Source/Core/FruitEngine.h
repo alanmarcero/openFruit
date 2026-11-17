@@ -83,6 +83,8 @@ public:
     void setPlaying(bool playing) noexcept;
     [[nodiscard]] bool isPlaying() const noexcept { return isPlaying_.load(); }
 
+    [[nodiscard]] float displayBarPhase() const noexcept { return displayBarPhase_.load(std::memory_order_relaxed); }
+
     // Per-Track MIDI Channel (1..16)
     void setTrackMidiChannel(int trackIndex, int channel1to16) noexcept;
     [[nodiscard]] int getTrackMidiChannel(int trackIndex) const noexcept;
@@ -95,6 +97,7 @@ public:
     [[nodiscard]] const TrackState& getTrack(int trackIndex) const;
 
     // Load sample permanently to track
+    [[nodiscard]] std::shared_ptr<const AudioSampleBuffer> loadedSample(int trackIndex) const;
     void loadSampleForTrack(int trackIndex, std::shared_ptr<const AudioSampleBuffer> sample);
 
     // Set audition sample for live browsing / live MIDI auditioning
@@ -165,6 +168,8 @@ private:
     std::array<ScheduledHit, kMaxScheduledHits> scheduledHits_ {};
     size_t scheduledHitCount_ = 0;
 
+    std::atomic<float> displayBarPhase_ {0.0f};
+    double visualPpq_ = 0.0;
     double internalPpq_ = 0.0;
     double lastPpq_ = 0.0;
 

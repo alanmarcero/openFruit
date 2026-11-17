@@ -4,32 +4,33 @@ A step sequencer and sample player for drum patterns. Create patterns one hit at
 
 ![openFruit step sequencer](assets/openFruit-screenshot.png)
 
-![openFruit Song Mode](assets/openFruit-song-mode-screenshot.png)
-
-![openFruit sample browser with estimated pitch](assets/openFruit-browser-screenshot.png)
-
-![openFruit track settings](assets/openFruit-track-settings-screenshot.png)
-
 [Download the latest release](https://github.com/alanmarcero/openFruit/releases/latest) · [Install with OpenVST Manager](https://github.com/alanmarcero/alan-m-OpenVSTManager/releases/latest)
 
-## Make patterns
+## Play a pattern
 
-- Choose 4, 8, 12, or 16 tracks. Each has a sample, MIDI channel (1–16), level, pan, tuning (±24 semitones), mute, and solo.
-- Shape each track with a low-pass filter and attack, decay, sustain, and release controls. Add timing nudge and groove.
-- Each page has 16 steps per track. Set velocity and pitch for each step, up to two octaves in either direction.
-- Right-click a step to set its probability, 1–8 repeats, timing offset, sample start and end, reverse playback, or choke group.
-- Choose each track's step rate: 1/16, 1/32, or 1/64. Add global swing and set the accent amount and interval, from every 2–16 steps.
-- Switch between pages A–D with the editor or host automation. Song Mode chains four sections with a page, 1–32 bars, and an optional final-bar fill from Page D.
-- Play or pause in the editor, or sync to your host transport. Incoming MIDI triggers tracks on their selected channels.
-- Adjust master volume. Output trim ranges from −24 to +12 dB. The plugin saves patterns and settings with your DAW session.
+Press **Play** to start the sequencer and arm host sync. The citrus wheel turns once per four quarter notes and follows tempo changes and seeks. In standalone it follows the sequencer’s internal clock. Select **A**, **B**, **C**, or **D** to edit a page. Their startup phrases cover a straight floor groove, syncopated hats, halftime and a tom fill.
 
-## Browse samples
+Click a sample name to audition it. Click any of its 16 pads to toggle a hit, drag vertically for velocity, or scroll and right-drag for pitch. Right-click for probability, 1–8 ratchets, timing offset, sample start and end, reverse playback, and choke group. Mute and Solo are beside the sample. Select 4, 8, 12 or 16 tracks. Larger patterns scroll vertically at compact sizes.
 
-Browse folders and subfolders. Auto Play previews the selected sample; Preview replays it, and Load assigns it to the track. Clear cached pitch results when needed. A track pad also auditions its sample. Incoming MIDI on that track's channel can play the selected browser sample.
+**Song mode** reveals four sections. Choose the page and length for each (1–32 bars). **Fill** plays page D during the final bar. Global swing delays alternate steps. Accent sets periodic emphasis and its interval, from 2 to 16 steps. The master level and output trim (−24 to +12 dB) sit beside the transport.
 
-The browser estimates each sample's pitch and note, then sorts files by length, name, or pitch. Supported files include WAV/BWF, AIFF/AIFC, MP3, FLAC, Ogg Vorbis, M4A/AAC/MP4/M4R, CAF, ALAC, WMA, Opus, AU, SND, and WV. Support can vary by system.
+![openFruit Song mode](assets/openFruit-song-mode-screenshot.png)
 
-Choose a Cyberpunk Neon, Fruity Classic, Synthwave Outrun, or Acid Matrix editor theme. The plug-in starts with eight active tracks and a built-in sample kit.
+## Shape a track
+
+**Edit** opens its MIDI channel, step rate (1/16, 1/32, 1/64), pitch (±24 semitones), level, pan, low-pass filter, nudge, groove, and attack, decay, sustain and release envelope. Incoming MIDI plays the track on its selected channel. Each step also has ±24 semitones of tuning.
+
+![openFruit native voice settings](assets/openFruit-track-settings-screenshot.png)
+
+The Citrus kit has 16 synthesized one-shots. A swept kick, layered snare, retriggered clap and two metallic hats share the kit with tuned wood percussion, sub bass, chord stab, zap and ride. Pitched-up playback averages the source between output samples to reduce folded high frequencies in both forward and reverse playback.
+
+## Browse and recall samples
+
+**Browse** opens the sample library for that lane. Choose or drop a folder or audio file. Sort by duration, name or estimated pitch. **Autoplay** auditions each selection. **Preview** replays it, and **Load sample** assigns it to the track. The selected file also responds to incoming MIDI on the track’s channel.
+
+![openFruit sample library](assets/openFruit-browser-screenshot.png)
+
+The browser handles WAV/BWF, AIFF/AIFC, MP3, FLAC, Ogg Vorbis and additional formats supplied by the operating system. Sessions save file paths, patterns and automation. Keep source audio files at those paths. Projects saved by an earlier version reopen with the original factory kit and their stored patterns. The four editor themes use dark backgrounds.
 
 ## Formats
 

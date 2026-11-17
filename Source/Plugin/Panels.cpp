@@ -9,15 +9,20 @@ HeaderPanel::HeaderPanel(openfruit::core::FruitEngine& engine,
     : engine_(engine),
       apvts_(apvts),
       palette_(openfruit::theme::getPalette(openfruit::core::ColorTheme::CyberpunkNeon)),
-      fruitLogo_(juce::ImageCache::getFromMemory(BinaryData::cyberfruit_png, BinaryData::cyberfruit_pngSize)),
-      faceplateTexture_(juce::ImageCache::getFromMemory(BinaryData::openfruitfaceplate_png, BinaryData::openfruitfaceplate_pngSize)) {
+      fruitLogo_(juce::Drawable::createFromImageData(BinaryData::citrusclock_svg, BinaryData::citrusclock_svgSize)) {
 
-    // 1. Track Count Toggle: 4, 8, 12, 16
+    trackCountLabel_.setText("Tracks", juce::dontSendNotification);
+    pageLabel_.setText("Pattern", juce::dontSendNotification);
+    masterVolLabel_.setText("Master", juce::dontSendNotification);
+    masterVolSlider_.setTooltip("Master mix level");
+    playBtn_.setTooltip("Start or pause the sequencer; play arms host transport sync");
+    // Track Count Toggle: 4, 8, 12, 16
     trackCountLabel_.setFont(juce::FontOptions(14.0f, juce::Font::bold));
     addAndMakeVisible(trackCountLabel_);
 
     const std::array<int, 4> counts = { 4, 8, 12, 16 };
     for (size_t i = 0; i < 4; ++i) {
+        trackCountBtns_[i].setTooltip("Show " + juce::String(counts[i]) + " tracks");
         trackCountBtns_[i].setButtonText(std::to_string(counts[i]));
         trackCountBtns_[i].setClickingTogglesState(false);
         trackCountBtns_[i].onClick = [this, count = counts[i], idx = static_cast<int>(i)] {
@@ -39,8 +44,9 @@ HeaderPanel::HeaderPanel(openfruit::core::FruitEngine& engine,
     pageLabel_.setFont(juce::FontOptions(14.0f, juce::Font::bold));
     addAndMakeVisible(pageLabel_);
 
-    const std::array<const char*, 4> pageNames = { "Page A", "Page B", "Page C", "Page D" };
+    const std::array<const char*, 4> pageNames = { "A", "B", "C", "D" };
     for (size_t i = 0; i < 4; ++i) {
+        pageBtns_[i].setTooltip("Edit and play pattern " + juce::String(pageNames[i]));
         pageBtns_[i].setButtonText(pageNames[i]);
         pageBtns_[i].setClickingTogglesState(false);
         pageBtns_[i].onClick = [this, pageIdx = static_cast<openfruit::core::PageIndex>(i)] {
@@ -83,7 +89,8 @@ HeaderPanel::HeaderPanel(openfruit::core::FruitEngine& engine,
     masterVolLabel_.setFont(juce::FontOptions(14.0f, juce::Font::bold));
     addAndMakeVisible(masterVolLabel_);
 
-    masterVolSlider_.setSliderStyle(juce::Slider::LinearBar);
+    masterVolSlider_.setSliderStyle(juce::Slider::LinearHorizontal);
+    masterVolSlider_.setTextBoxStyle(juce::Slider::TextBoxRight, false, 49, 26);
     masterVolSlider_.setRange(0.0, 1.5, 0.01);
     masterVolSlider_.setValue(1.0, juce::dontSendNotification);
     masterVolSlider_.onValueChange = [this] {
@@ -98,7 +105,7 @@ HeaderPanel::HeaderPanel(openfruit::core::FruitEngine& engine,
     outputDbLabel_.setFont(juce::FontOptions(12.0f, juce::Font::bold));
     outputDbLabel_.setJustificationType(juce::Justification::centred);
     addAndMakeVisible(outputDbLabel_);
-    outputDbSlider_.setSliderStyle(juce::Slider::RotaryHorizontalVerticalDrag);
+    outputDbSlider_.setSliderStyle(juce::Slider::LinearHorizontal);
     outputDbSlider_.setTextBoxStyle(juce::Slider::NoTextBox, false, 0, 0);
     outputDbSlider_.setRange(-24.0, 12.0, 0.1);
     outputDbSlider_.setDoubleClickReturnValue(true, 0.0);
@@ -109,13 +116,10 @@ HeaderPanel::HeaderPanel(openfruit::core::FruitEngine& engine,
 
     songModeAttachment_ = std::make_unique<juce::AudioProcessorValueTreeState::ButtonAttachment>(
         apvts_, openfruit::params::kSongMode, songModeToggle_);
-    songModeToggle_.setButtonText(juce::String());
+    songModeToggle_.setButtonText("Song mode");
     songModeToggle_.setTooltip("Chain the four sections in Song Mode");
     addAndMakeVisible(songModeToggle_);
-    songModeLabel_.setText("Song mode", juce::dontSendNotification);
-    songModeLabel_.setFont(juce::FontOptions(14.0f, juce::Font::bold));
-    songModeLabel_.setTooltip("Chain the four sections in Song Mode");
-    addAndMakeVisible(songModeLabel_);
+    addAndMakeVisible(intervalLabel_);
 
     swingLabel_.setFont(juce::FontOptions(14.0f, juce::Font::bold));
     addAndMakeVisible(swingLabel_);
@@ -139,8 +143,8 @@ HeaderPanel::HeaderPanel(openfruit::core::FruitEngine& engine,
     accentAmountAttachment_ = std::make_unique<juce::AudioProcessorValueTreeState::SliderAttachment>(
         apvts_, openfruit::params::kAccentAmount, accentAmountSlider_);
     addAndMakeVisible(accentAmountSlider_);
-    accentEverySlider_.setSliderStyle(juce::Slider::LinearBar);
-    accentEverySlider_.setTextBoxStyle(juce::Slider::NoTextBox, false, 0, 0);
+    accentEverySlider_.setSliderStyle(juce::Slider::LinearHorizontal);
+    accentEverySlider_.setTextBoxStyle(juce::Slider::TextBoxRight, false, 32, 26);
     accentEverySlider_.setRange(2.0, 16.0, 1.0);
     accentEverySlider_.setTooltip("Accent every 2 to 16 steps.");
     accentEveryAttachment_ = std::make_unique<juce::AudioProcessorValueTreeState::SliderAttachment>(
@@ -165,12 +169,13 @@ HeaderPanel::HeaderPanel(openfruit::core::FruitEngine& engine,
         addAndMakeVisible(pageBox);
 
         auto& barsSlider = sectionBarsSliders_[index];
-        barsSlider.setSliderStyle(juce::Slider::LinearBar);
-        barsSlider.setTextBoxStyle(juce::Slider::TextBoxRight, false, 30, 20);
+        barsSlider.setSliderStyle(juce::Slider::LinearHorizontal);
+        barsSlider.setTextBoxStyle(juce::Slider::TextBoxRight, false, 47, 27);
         barsSlider.setRange(1.0, 32.0, 1.0);
         barsSlider.setTooltip("Number of bars in this section");
         sectionBarsAttachments_[index] = std::make_unique<juce::AudioProcessorValueTreeState::SliderAttachment>(
             apvts_, openfruit::params::songSectionBarsId(i), barsSlider);
+        barsSlider.setTextValueSuffix(" bars");
         addAndMakeVisible(barsSlider);
 
         auto& fillButton = sectionFillButtons_[index];
@@ -191,181 +196,96 @@ void HeaderPanel::setTheme(const openfruit::theme::Palette& palette) {
 }
 
 void HeaderPanel::updateFromParameters() {
-    // 1. Page buttons highlight
-    const auto activePage = engine_.getActivePage();
+    const int page = static_cast<int>(*apvts_.getRawParameterValue(params::kPage));
+    const int count = static_cast<int>(*apvts_.getRawParameterValue(params::kTrackCount));
+    for (int i = 0; i < 4; ++i) {
+        pageBtns_[static_cast<size_t>(i)].setToggleState(i == page, juce::dontSendNotification);
+        trackCountBtns_[static_cast<size_t>(i)].setToggleState(i == count, juce::dontSendNotification);
+    }
+    const bool song = *apvts_.getRawParameterValue(params::kSongMode) > .5f;
     for (size_t i = 0; i < 4; ++i) {
-        const bool active = (static_cast<int>(activePage) == static_cast<int>(i));
-        pageBtns_[i].setColour(juce::TextButton::buttonColourId,
-                               active ? palette_.accentPrimary : palette_.panel);
+        sectionLabels_[i].setVisible(song);
+        sectionPageBoxes_[i].setVisible(song);
+        sectionBarsSliders_[i].setVisible(song);
+        sectionFillButtons_[i].setVisible(song);
     }
-
-    // 2. Track Count buttons highlight
-    const int activeTracks = engine_.getActiveTrackCount();
-    const std::array<int, 4> counts = { 4, 8, 12, 16 };
-    for (size_t i = 0; i < 4; ++i) {
-        const bool active = (activeTracks == counts[i]);
-        trackCountBtns_[i].setColour(juce::TextButton::buttonColourId,
-                                    active ? palette_.accentSecondary : palette_.panel);
+    if (song != arrangementVisible_) {
+        arrangementVisible_ = song;
+        if (onArrangementChanged) onArrangementChanged();
     }
-
-    if (const auto* output = apvts_.getRawParameterValue(openfruit::params::kOutputDb)) {
-        outputDbLabel_.setText("OUT " + juce::String(*output, 1) + " dB", juce::dontSendNotification);
+    const int themeId = static_cast<int>(*apvts_.getRawParameterValue(params::kTheme)) + 1;
+    if (themeId != themeBox_.getSelectedId()) {
+        themeBox_.setSelectedId(themeId, juce::dontSendNotification);
+        engine_.setColorTheme(static_cast<core::ColorTheme>(themeId-1));
+        if (onThemeChanged) onThemeChanged();
     }
-    swingLabel_.setText("Swing", juce::dontSendNotification);
-
-    // 3. Play / Pause Button
-    const bool isPlaying = engine_.isPlaying();
-    playBtn_.setButtonText(isPlaying ? "Pause" : "Play");
-    playBtn_.setColour(juce::TextButton::buttonColourId,
-                       isPlaying ? palette_.accentPrimary : palette_.panel);
+    masterVolSlider_.setValue(*apvts_.getRawParameterValue(params::kMasterVol), juce::dontSendNotification);
+    outputDbLabel_.setText("Output  " + juce::String(*apvts_.getRawParameterValue(params::kOutputDb), 1) + " dB", juce::dontSendNotification);
+    const bool playing = engine_.isPlaying();
+    playBtn_.setButtonText(playing ? "Pause" : "Play");
+    playBtn_.setToggleState(playing, juce::dontSendNotification);
+    const float phase = engine_.displayBarPhase();
+    if (std::abs(phase - lastPhase_) > 1.0e-6f) { lastPhase_ = phase; repaint(8, 6, 75, 75); }
 }
 
 void HeaderPanel::paint(juce::Graphics& g) {
-    const auto bounds = getLocalBounds().toFloat();
-
-    // Top faceplate header gradient
-    juce::ColourGradient grad(
-        palette_.panel.brighter(0.12f), 0.0f, 0.0f,
-        palette_.panel.darker(0.35f), 0.0f, bounds.getBottom(),
-        false
-    );
-    g.setGradientFill(grad);
-    g.fillRect(bounds);
-
-    // Subtle faceplate texture overlay
-    if (faceplateTexture_.isValid()) {
-        g.setOpacity(0.15f);
-        g.drawImage(faceplateTexture_, bounds, juce::RectanglePlacement::fillDestination);
-        g.setOpacity(1.0f);
+    g.fillAll(palette_.background);
+    g.setColour(palette_.panel);
+    g.fillRoundedRectangle(10, 8, static_cast<float>(getWidth()-20), 70, 10);
+    if (fruitLogo_) {
+        juce::Graphics::ScopedSaveState state(g);
+        g.addTransform(juce::AffineTransform::rotation(engine_.displayBarPhase() * juce::MathConstants<float>::twoPi, 48.0f, 43.0f));
+        fruitLogo_->drawWithin(g, {21, 16, 54, 54}, juce::RectanglePlacement::centred, 1.0f);
     }
-
-    // Glowing divider line at bottom
-    juce::ColourGradient divGrad(
-        palette_.accentPrimary, 0.0f, bounds.getBottom() - 1.0f,
-        palette_.accentSecondary, bounds.getRight(), bounds.getBottom() - 1.0f,
-        false
-    );
-    g.setGradientFill(divGrad);
-    g.drawLine(0.0f, bounds.getBottom() - 1.0f, bounds.getRight(), bounds.getBottom() - 1.0f, 1.5f);
-
-    // Cyber Citrus Badge
-    const float iconX = 14.0f;
-    const float iconY = 12.0f;
-    const float iconSize = 44.0f;
-
-    // Glowing outer circular socket
-    g.setColour(palette_.background.darker(0.85f));
-    g.fillEllipse(iconX, iconY, iconSize, iconSize);
-
-    g.setColour(palette_.accentPrimary.withAlpha(0.30f));
-    g.drawEllipse(iconX - 2.0f, iconY - 2.0f, iconSize + 4.0f, iconSize + 4.0f, 2.0f);
-
-    g.setColour(palette_.accentPrimary);
-    g.drawEllipse(iconX, iconY, iconSize, iconSize, 1.5f);
-
-    if (fruitLogo_.isValid()) {
-        // Render high-res cyberfruit inside badge
-        juce::Graphics::ScopedSaveState ss(g);
-        juce::Path clipCircle;
-        clipCircle.addEllipse(iconX + 1.0f, iconY + 1.0f, iconSize - 2.0f, iconSize - 2.0f);
-        g.reduceClipRegion(clipCircle);
-        g.drawImage(fruitLogo_, juce::Rectangle<float>(iconX + 1.0f, iconY + 1.0f, iconSize - 2.0f, iconSize - 2.0f),
-                    juce::RectanglePlacement::centred | juce::RectanglePlacement::onlyReduceInSize);
-    } else {
-        // Fallback vector citrus emblem
-        const float cx = iconX + iconSize * 0.5f;
-        const float cy = iconY + iconSize * 0.5f;
-        const float innerR = iconSize * 0.40f;
-        for (int i = 0; i < 6; ++i) {
-            const float angle = static_cast<float>(i) * 3.14159265f / 3.0f;
-            g.setColour(palette_.accentPrimary.withAlpha(0.65f));
-            g.drawLine(cx, cy, cx + std::cos(angle) * innerR, cy + std::sin(angle) * innerR, 1.2f);
-        }
-        juce::Path leaf;
-        leaf.startNewSubPath(cx, iconY - 1.0f);
-        leaf.quadraticTo(cx + 8.0f, iconY - 7.0f, cx + 4.0f, iconY - 10.0f);
-        leaf.quadraticTo(cx + 1.0f, iconY - 6.0f, cx, iconY - 1.0f);
-        leaf.closeSubPath();
-        g.setColour(palette_.accentSecondary);
-        g.fillPath(leaf);
+    g.setColour(palette_.text);
+    g.setFont(juce::FontOptions(32.0f, juce::Font::bold));
+    g.drawText("openFruit", 86, 12, 230, 40, juce::Justification::centredLeft);
+    g.setColour(palette_.textDim);
+    g.setFont(juce::FontOptions(14.0f));
+    g.drawText("Drum sampler  /  Step sequencer", 88, 47, 252, 23, juce::Justification::centredLeft);
+    if (arrangementVisible_) {
+        g.setColour(palette_.panel);
+        g.fillRoundedRectangle(12, 141, static_cast<float>(getWidth()-24), 56, 7);
     }
-
-    // Title: openFruit with 3D drop shadow
-    g.setFont(juce::FontOptions(22.0f, juce::Font::bold));
-    g.setColour(juce::Colours::black.withAlpha(0.7f));
-    g.drawText("openFruit", 69, 11, 105, 30, juce::Justification::centredLeft, false);
-    g.setColour(palette_.accentPrimary);
-    g.drawText("openFruit", 68, 10, 105, 30, juce::Justification::centredLeft, false);
-
-    // Status LED in Title
-    const bool isPlaying = engine_.isPlaying();
-    g.setColour(isPlaying ? palette_.accentPrimary : palette_.panelEdge);
-    g.fillEllipse(176.0f, 22.0f, 6.0f, 6.0f);
-    if (isPlaying) {
-        g.setColour(palette_.accentPrimary.withAlpha(0.4f));
-        g.drawEllipse(174.0f, 20.0f, 10.0f, 10.0f, 1.2f);
-    }
-
-    // Subtitle badge
-    g.setFont(juce::FontOptions(12.0f, juce::Font::bold));
-    g.setColour(palette_.accentSecondary);
-    g.drawText("16-TRACK STEP TRACKER", 68, 42, 130, 14, juce::Justification::centredLeft, false);
 }
 
 void HeaderPanel::resized() {
-    auto area = getLocalBounds().reduced(8);
-    auto outputArea = area.removeFromRight(84);
-    auto masterArea = area.removeFromRight(100);
-    auto topRow = area.removeFromTop(44);
-    topRow.removeFromLeft(190);
+    auto top = juce::Rectangle<int>(24, 19, getWidth()-48, 48);
+    auto output = top.removeFromRight(120);
+    outputDbLabel_.setBounds(output.removeFromTop(18));
+    outputDbSlider_.setBounds(output.reduced(4,0));
+    auto master = top.removeFromRight(156);
+    masterVolLabel_.setBounds(master.removeFromTop(18));
+    masterVolSlider_.setBounds(master.reduced(3,0));
+    top.removeFromRight(22);
+    themeBox_.setBounds(top.removeFromRight(172).withSizeKeepingCentre(172,36));
+    top.removeFromRight(12);
+    playBtn_.setBounds(top.removeFromRight(92).withSizeKeepingCentre(92,36));
 
-    auto trackArea = topRow.removeFromLeft(158);
-    trackCountLabel_.setBounds(trackArea.removeFromTop(16));
+    auto row = juce::Rectangle<int>(20, 88, getWidth()-40, 44);
+    pageLabel_.setBounds(row.removeFromLeft(57));
+    for (auto& button : pageBtns_) button.setBounds(row.removeFromLeft(40).reduced(2,4));
+    row.removeFromLeft(16);
+    trackCountLabel_.setBounds(row.removeFromLeft(54));
+    for (auto& button : trackCountBtns_) button.setBounds(row.removeFromLeft(40).reduced(2,4));
+    row.removeFromLeft(16);
+    songModeToggle_.setBounds(row.removeFromLeft(123).reduced(1,4));
+    row.removeFromLeft(12);
+    swingLabel_.setBounds(row.removeFromLeft(49));
+    swingSlider_.setBounds(row.removeFromLeft(87));
+    accentLabel_.setBounds(row.removeFromLeft(56));
+    accentAmountSlider_.setBounds(row.removeFromLeft(77));
+    intervalLabel_.setBounds(row.removeFromLeft(48));
+    accentEverySlider_.setBounds(row.removeFromLeft(85));
+
+    auto sections = juce::Rectangle<int>(22, 151, getWidth()-44, 36);
+    const int width = sections.getWidth()/4;
     for (size_t i = 0; i < 4; ++i) {
-        trackCountBtns_[i].setBounds(trackArea.getX() + static_cast<int>(i * 38), trackArea.getY(), 36, 36);
-    }
-
-    topRow.removeFromLeft(12);
-
-    auto pageArea = topRow.removeFromLeft(270);
-    pageLabel_.setBounds(pageArea.removeFromTop(16));
-    for (size_t i = 0; i < 4; ++i) {
-        pageBtns_[i].setBounds(pageArea.getX() + static_cast<int>(i * 66), pageArea.getY(), 62, 36);
-    }
-
-    topRow.removeFromLeft(12);
-
-    playBtn_.setBounds(topRow.removeFromLeft(140).withY(24).withHeight(36));
-
-    topRow.removeFromLeft(12);
-
-    themeBox_.setBounds(topRow.removeFromLeft(180).withY(24).withHeight(36));
-
-    masterVolLabel_.setBounds(masterArea.removeFromTop(16));
-    masterVolSlider_.setBounds(masterArea.withHeight(36).reduced(2));
-
-    outputDbLabel_.setBounds(outputArea.removeFromTop(14));
-    outputDbSlider_.setBounds(outputArea.withHeight(40).reduced(5, 0));
-
-    auto songArea = getLocalBounds().reduced(8);
-    songArea.removeFromTop(58);
-    songModeToggle_.setBounds(songArea.removeFromLeft(44).withHeight(40).reduced(2, 0));
-    songModeLabel_.setBounds(songArea.removeFromLeft(78).withHeight(36));
-    swingLabel_.setBounds(songArea.removeFromLeft(48).withHeight(36));
-    swingSlider_.setBounds(songArea.removeFromLeft(82).withHeight(36));
-    accentLabel_.setBounds(songArea.removeFromLeft(56).withHeight(36));
-    accentAmountSlider_.setBounds(songArea.removeFromLeft(56).withHeight(36));
-    accentEverySlider_.setBounds(songArea.removeFromLeft(44).withHeight(36));
-
-    auto sectionArea = getLocalBounds().reduced(8);
-    sectionArea.removeFromTop(104);
-    const int sectionWidth = sectionArea.getWidth() / openfruit::core::kNumPages;
-    for (size_t i = 0; i < sectionLabels_.size(); ++i) {
-        auto section = sectionArea.removeFromLeft(sectionWidth);
-        sectionLabels_[i].setBounds(section.removeFromLeft(80).reduced(1, 2));
-        sectionPageBoxes_[i].setBounds(section.removeFromLeft(48).reduced(1, 2));
-        sectionBarsSliders_[i].setBounds(section.removeFromLeft(48).reduced(1, 2));
-        sectionFillButtons_[i].setBounds(section.reduced(1, 2));
+        auto section = sections.removeFromLeft(width).reduced(5,0);
+        sectionLabels_[i].setBounds(section.removeFromLeft(65));
+        sectionPageBoxes_[i].setBounds(section.removeFromLeft(48));
+        sectionFillButtons_[i].setBounds(section.removeFromRight(44));
+        sectionBarsSliders_[i].setBounds(section.reduced(3,0));
     }
 }
 
@@ -381,14 +301,16 @@ TrackerPanel::TrackerPanel(openfruit::core::FruitEngine& engine,
       cache_(cache),
       queue_(queue),
       apvts_(apvts),
-      palette_(openfruit::theme::getPalette(openfruit::core::ColorTheme::CyberpunkNeon)),
-      faceplateTexture_(juce::ImageCache::getFromMemory(BinaryData::openfruitfaceplate_png, BinaryData::openfruitfaceplate_pngSize)) {
-
+      palette_(openfruit::theme::getPalette(openfruit::core::ColorTheme::CyberpunkNeon)) {
+    viewport_.setViewedComponent(&grid_, false);
+    viewport_.setScrollBarsShown(true, false);
+    addAndMakeVisible(viewport_);
     for (int i = 0; i < openfruit::core::kMaxTracks; ++i) {
         rows_[static_cast<size_t>(i)] = std::make_unique<TrackRowComponent>(i, engine_, apvts_);
         auto* row = rows_[static_cast<size_t>(i)].get();
         row->onOpenBrowser = [this](int trackIdx) { openSampleBrowser(trackIdx); };
-        addAndMakeVisible(row);
+        row->onOpenSettings = [this](int track) { openTrackSettings(track); };
+        grid_.addAndMakeVisible(row);
     }
 }
 
@@ -407,11 +329,14 @@ void TrackerPanel::setVisibleTrackCount(int count) {
     visibleTrackCount_ = std::clamp(count, 4, 16);
     for (int i = 0; i < openfruit::core::kMaxTracks; ++i) {
         rows_[static_cast<size_t>(i)]->setVisible(i < visibleTrackCount_);
+        if (i < visibleTrackCount_) rows_[static_cast<size_t>(i)]->updateFromEngine();
     }
     resized();
 }
 
 void TrackerPanel::updateFromEngine() {
+    const int count = engine_.getActiveTrackCount();
+    if (count != visibleTrackCount_) setVisibleTrackCount(count);
     for (int i = 0; i < visibleTrackCount_; ++i) {
         rows_[static_cast<size_t>(i)]->updateFromEngine();
     }
@@ -420,11 +345,13 @@ void TrackerPanel::updateFromEngine() {
 void TrackerPanel::updatePlayhead() {
     for (int i = 0; i < visibleTrackCount_; ++i) {
         const int step = engine_.getCurrentStep(i);
-        rows_[static_cast<size_t>(i)]->updatePlayhead(step);
+        rows_[static_cast<size_t>(i)]->updatePlayhead(engine_.isPlaying() ? step : -1);
     }
 }
 
 SampleBrowserModal* TrackerPanel::openSampleBrowser(int trackIdx, const juce::File& folder) {
+    viewport_.setVisible(false);
+    settings_.reset();
     activeBrowser_ = std::make_unique<SampleBrowserModal>(trackIdx, engine_, cache_, queue_);
     activeBrowser_->setTheme(palette_);
     activeBrowser_->onClose = [this] { closeSampleBrowser(); };
@@ -439,7 +366,7 @@ SampleBrowserModal* TrackerPanel::openSampleBrowser(int trackIdx, const juce::Fi
         activeBrowser_->setFolder(lastBrowsedFolder_);
     }
     addAndMakeVisible(activeBrowser_.get());
-    activeBrowser_->setBounds(getLocalBounds().reduced(20));
+    activeBrowser_->setBounds(getLocalBounds().reduced(12, 4));
     return activeBrowser_.get();
 }
 
@@ -448,36 +375,51 @@ void TrackerPanel::closeSampleBrowser() {
         removeChildComponent(activeBrowser_.get());
         activeBrowser_.reset();
     }
+    viewport_.setVisible(true);
     updateFromEngine();
 }
 
-void TrackerPanel::paint(juce::Graphics& g) {
-    const auto bounds = getLocalBounds().toFloat();
-    g.fillAll(palette_.background);
+void TrackerPanel::openTrackSettings(int track) {
+    if (!apvts_) return;
+    closeSampleBrowser();
+    viewport_.setVisible(false);
+    settings_ = std::make_unique<TrackVoiceSettingsPanel>(track, *apvts_);
+    settings_->onClose = [this] { settings_.reset(); viewport_.setVisible(true); repaint(); };
+    addAndMakeVisible(*settings_);
+    resized();
+}
 
-    if (faceplateTexture_.isValid()) {
-        g.setOpacity(0.12f);
-        g.drawImage(faceplateTexture_, bounds, juce::RectanglePlacement::fillDestination);
-        g.setOpacity(1.0f);
+void TrackerPanel::paint(juce::Graphics& g) {
+    g.fillAll(palette_.background);
+    if (settings_ || activeBrowser_) return;
+    g.setColour(palette_.text);
+    g.setFont(juce::FontOptions(24.0f, juce::Font::bold));
+    g.drawText("Pattern " + juce::String(core::pageName(engine_.getActivePage())), 20, 0, 200, 37, juce::Justification::centredLeft);
+    g.setFont(juce::FontOptions(13.0f));
+    g.setColour(palette_.textDim);
+    g.drawText("Click a pad to toggle   /   Drag for velocity   /   Right-click to edit", 190, 2, getWidth()-216, 34, juce::Justification::centredRight);
+    g.drawText("Track   /   Sample", 23, 41, 206, 24, juce::Justification::centredLeft);
+    const int start = 12 + kLaneWidth;
+    const int width = grid_.getWidth() - kLaneWidth;
+    for (int i = 0; i < 16; ++i) {
+        g.setColour(i % 4 == 0 ? palette_.accentSecondary : palette_.textDim);
+        g.drawText(juce::String(i+1), start+i*width/16, 41, (i+1)*width/16-i*width/16, 24, juce::Justification::centred);
     }
 }
 
 void TrackerPanel::resized() {
-    const auto bounds = getLocalBounds();
-    const int count = visibleTrackCount_;
-    if (count <= 0) return;
-
-    const float rowHeight = static_cast<float>(bounds.getHeight()) / static_cast<float>(count);
-
-    for (int i = 0; i < count; ++i) {
-        const int y = static_cast<int>(static_cast<float>(i) * rowHeight);
-        const int nextY = static_cast<int>(static_cast<float>(i + 1) * rowHeight);
-        rows_[static_cast<size_t>(i)]->setBounds(bounds.getX(), y, bounds.getWidth(), nextY - y);
-    }
-
-    if (activeBrowser_) {
-        activeBrowser_->setBounds(bounds.reduced(24));
-    }
+    auto area = getLocalBounds().reduced(12,4);
+    if (activeBrowser_) activeBrowser_->setBounds(area);
+    if (settings_) settings_->setBounds(area);
+    area.removeFromTop(64);
+    viewport_.setBounds(area);
+    const int rowHeight = juce::jlimit(46, 74, area.getHeight() / visibleTrackCount_);
+    const int height = rowHeight * visibleTrackCount_;
+    const int width = area.getWidth() - (height > area.getHeight() ? viewport_.getScrollBarThickness() : 0);
+    grid_.setSize(width, height);
+    for (int i = 0; i < visibleTrackCount_; ++i)
+        rows_[static_cast<size_t>(i)]->setBounds(0, i*rowHeight, width, rowHeight);
+    repaint();
 }
 
 } // namespace openfruit::ui

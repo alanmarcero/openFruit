@@ -1,5 +1,6 @@
 #pragma once
 
+#include "SampleVoice.h"
 #include <string>
 #include <vector>
 #include <cstdint>
@@ -18,6 +19,7 @@ struct WavAudioData {
 
 class WavReader {
 public:
+    static std::shared_ptr<AudioSampleBuffer> loadSample(const std::string& path, const ToneAnalysisResult* analysis = nullptr);
     static bool isSupportedAudioFile(const std::string& filePath) noexcept;
     static WavAudioData readWavFile(const std::string& filePath);
     static WavAudioData readWavFileForAnalysis(const std::string& filePath, int64_t maxFrames = 65536);
