@@ -1,79 +1,40 @@
 # openFruit
 
-A 16-track step sequencer and sample player based on the classic FL Studio pad tracker layout. It supports variable track counts, per-row micro-timing, pitch detection in the sample browser, and live MIDI auditioning.
+A step sequencer and sample player for drum patterns. Create patterns one hit at a time, then arrange four pages into a song.
 
-![openFruit sequencer with graphite surfaces, mint steps, and amber accents (v1.6.1)](assets/openFruit-screenshot.png)
+![openFruit step sequencer](assets/openFruit-screenshot.png)
 
-![openFruit Song Mode with chained A–D sections, bar counts, fills, and swing](assets/openFruit-song-mode-screenshot.png)
+![openFruit Song Mode](assets/openFruit-song-mode-screenshot.png)
 
-![openFruit media browser with sample pitch estimates](assets/openFruit-browser-screenshot.png)
+![openFruit sample browser with estimated pitch](assets/openFruit-browser-screenshot.png)
 
-![openFruit per-track filter, ADSR, nudge, and groove controls](assets/openFruit-track-settings-screenshot.png)
+![openFruit track settings](assets/openFruit-track-settings-screenshot.png)
 
-## Features
+[Download the latest release](https://github.com/alanmarcero/openFruit/releases/latest) · [Install with OpenVST Manager](https://github.com/alanmarcero/alan-m-OpenVSTManager/releases/latest)
 
-- Track counts: defaults to 8 active tracks on startup (switchable between 4, 8, 12, or 16 tracks).
-- Transport Play / Pause & Host Sync: pattern playback only runs or auto-plays when the Play button is enabled. Syncs to the host transport when the host starts, plays immediately when Play is pressed, and pauses automatically when the host stops or when Pause is clicked.
-- Always-on MIDI triggering & per-row MIDI routing: incoming MIDI notes always trigger matching rows without needing a mode switch. Each row displays and lets you configure its MIDI channel (`CH 1` through `CH 16`, defaulting to 1–16).
-- Step sequencer: 16 pads per row with 4-beat color groupings. Right-click a pad for probability, 1–8 ratchets, timing offset, sample start/end, reverse, and choke-group controls; right-drag still changes pitch and left-drag changes velocity.
-- Row timing: 1/16, 1/32, or 1/64 timing selectable per row.
-- Swing and timing: global swing delays alternating steps, while each step can move earlier or later within its step.
-- Track timing and groove: each lane can be nudged by up to half a step and has its own alternating-step groove amount. A repeating accentuator boosts every 2nd–16th hit without rewriting stored step velocities; all controls are host-automatable.
-- Sample shaping: trim the playback region and reverse individual hits. Probability and ratchets are evaluated per step, and choke groups cut off earlier matching voices.
-- Track voice shaping: use each row's ENV control for a per-track low-pass filter and amplitude attack, decay, sustain, and release.
-- Tuning: +/- 24 semitones per step pad and +/- 24 semitones base tuning per track.
-- Velocity: adjustable per step pad.
-- Output gain: automatable -24 dB to +12 dB output trim after the master volume and saturation stage.
-- Pattern pages: pages A, B, C, and D switchable by parameter automation or UI buttons.
-- Song Mode: chain pages A–D with independent section page, length (1–32 bars), and fill settings; fill sections route their last bar through Page D.
-- Common audio format support: recursive sample folder browsing and decoding for WAV, BWF, AIFF/AIFC, MP3, FLAC, Ogg Vorbis, M4A/AAC/MP4, CAF, ALAC, WMA, and Opus.
-- Pitch analysis: the sample browser runs a pitch detector over files in the selected folder, estimating fundamental frequency and musical note.
-- File sorting: sort samples by duration, name, or detected pitch.
-- Tone cache: stores pitch calculations on disk at `~/.openfruit/tone_cache.tsv` to prevent repeated analysis.
-- Live auditioning: selecting a sample plays it immediately, and incoming MIDI on that track's channel triggers the previewed sample in the host mix.
-- Themes: Cyberpunk Neon, Fruity Classic, Synthwave Outrun, and Acid Matrix.
-- Tactile hardware UI: backlit silicone step pads with velocity meters, per-row MIDI channel selectors, illuminated LED push-switches for Mute/Solo, and brushed cyberpunk chassis faceplate.
+## Make patterns
 
-## Architecture
+- Choose 4, 8, 12, or 16 tracks. Each has a sample, MIDI channel (1–16), level, pan, tuning (±24 semitones), mute, and solo.
+- Shape each track with a low-pass filter and attack, decay, sustain, and release controls. Add timing nudge and groove.
+- Each page has 16 steps per track. Set velocity and pitch for each step, up to two octaves in either direction.
+- Right-click a step to set its probability, 1–8 repeats, timing offset, sample start and end, reverse playback, or choke group.
+- Choose each track's step rate: 1/16, 1/32, or 1/64. Add global swing and set the accent amount and interval, from every 2–16 steps.
+- Switch between pages A–D with the editor or host automation. Song Mode chains four sections with a page, 1–32 bars, and an optional final-bar fill from Page D.
+- Play or pause in the editor, or sync to your host transport. Incoming MIDI triggers tracks on their selected channels.
+- Adjust master volume. Output trim ranges from −24 to +12 dB. The plugin saves patterns and settings with your DAW session.
 
-- `Source/Core/SonicAnalyzer.cpp`: monophonic fundamental frequency and note detection.
-- `Source/Core/ToneCache.cpp`: disk cache for analyzed sample metadata.
-- `Source/Core/AnalysisQueue.cpp`: worker thread analyzing up to 5 files at a time per folder.
-- `Source/Core/SampleVoice.cpp`: cubic interpolation resampling playback with panning.
-- `Source/Core/FruitEngine.cpp`: 16-track audio engine, clock advance, voice allocation, and MIDI handling.
-- `Source/Plugin/`: JUCE audio processor, APVTS parameters, custom step pads, sample browser modal, and layout panels.
+## Browse samples
 
-## Pitch detection algorithm
+Browse folders and subfolders. Auto Play previews the selected sample; Preview replays it, and Load assigns it to the track. Clear cached pitch results when needed. A track pad also auditions its sample. Incoming MIDI on that track's channel can play the selected browser sample.
 
-The sonic analyzer estimates sample pitch through `SonicAnalyzer::analyze` using a multi-frame hybrid time- and frequency-domain pipeline:
+The browser estimates each sample's pitch and note, then sorts files by length, name, or pitch. Supported files include WAV/BWF, AIFF/AIFC, MP3, FLAC, Ogg Vorbis, M4A/AAC/MP4/M4R, CAF, ALAC, WMA, Opus, AU, SND, and WV. Support can vary by system.
 
-1. Multi-frame envelope & body selection: audio is downmixed with stereo phase-cancellation protection, DC offset is removed, and slow exponential decay is leveled. Up to four analysis frames are placed across the onset and settled sustain body so pitch-swept drums (such as 808 kicks, toms, and plucks) lock onto the sustained root note rather than the initial attack transient.
-2. Fast $O(N \log N)$ FFT autocorrelation & prefix-sum normalization: computes the exact linear autocorrelation $r(\tau)$ via a zero-padded Radix-2 FFT/IFFT (Wiener-Khinchin theorem) and normalizes each lag in $O(1)$ using cumulative prefix sums of squares to produce both the McLeod Normalized Square Difference Function (NSDF) and the YIN Cumulative Mean Normalized Difference Function (CMNDF) across 24 Hz through 4200 Hz:
-   `NSDF(tau) = (2 * r(tau)) / (sum(x[j]^2) + sum(x[j + tau]^2))`
-3. Zero-crossing lobe-maxima & sub-harmonic verification: extracts the peak of each positive NSDF lobe and applies McLeod's dynamic threshold (`max(0.35, 0.85 * max_lobe_peak)`) cross-checked with YIN CMNDF to prevent both overtone ($2 f_0$) and sub-harmonic ($f_0 / 2$) octave errors, including signals with a missing fundamental.
-4. Parabolic peak refinement: fits a parabola across the discrete peak lag and its neighbors in both lag and amplitude, resolving fractional period length to sub-sample precision:
-   `delta = (r[tau + 1] - r[tau - 1]) / (2 * (2 * r[tau] - r[tau - 1] - r[tau + 1]))`
-   `f0 = sample_rate / (tau + delta)`
-5. Harmonic Product Spectrum (HPS) & perceptual spectral fallback: for metallic, two-tone, or noisy percussive sounds without a single periodic time-domain peak, the analyzer evaluates the FFT Harmonic Product Spectrum and band-limited log-spectral centroid (50 Hz to 5500 Hz) so every sample resolves to a stable, musically meaningful estimated pitch (`C3`, `G1`, `~B7`) with detune cents (`+/- 50c`).
+Choose a Cyberpunk Neon, Fruity Classic, Synthwave Outrun, or Acid Matrix editor theme. The plug-in starts with eight active tracks and a built-in sample kit.
 
-## Build instructions
+## Formats
 
-Requires CMake 3.22 or newer and a C++20 compiler.
-
-```bash
-git clone https://github.com/alanmarcero/openFruit.git
-cd openFruit
-cmake -B build -DCMAKE_BUILD_TYPE=Release
-cmake --build build --config Release --parallel
-ctest --test-dir build --output-on-failure
-```
-
-Output paths:
-- VST3: `build/OpenFruit_artefacts/VST3/openFruit.vst3`
-- AU: `build/OpenFruit_artefacts/AU/openFruit.component`
-- Standalone: `build/OpenFruit_artefacts/Standalone/openFruit.app`
-- LV2: `build/OpenFruit_artefacts/LV2/openFruit.lv2`
+VST3 and LV2 for macOS, Windows, and Linux; AU for macOS; standalone apps for all three platforms.
 
 ## License
 
-MIT License. See [LICENSE](LICENSE) for details.
+MIT. See [LICENSE](LICENSE).
