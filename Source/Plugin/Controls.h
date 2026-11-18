@@ -63,9 +63,9 @@ private:
     std::array<juce::Label, 2> routingLabels_;
     std::unique_ptr<juce::AudioProcessorValueTreeState::ComboBoxAttachment> timingAttachment_;
     std::unique_ptr<juce::ParameterAttachment> midiAttachment_;
-    std::array<juce::Slider, 10> sliders_;
-    std::array<juce::Label, 10> labels_;
-    std::array<std::unique_ptr<juce::AudioProcessorValueTreeState::SliderAttachment>, 10> attachments_;
+    std::array<juce::Slider, 12> sliders_;
+    std::array<juce::Label, 12> labels_;
+    std::array<std::unique_ptr<juce::AudioProcessorValueTreeState::SliderAttachment>, 12> attachments_;
 public:
     std::function<void()> onClose;
 };

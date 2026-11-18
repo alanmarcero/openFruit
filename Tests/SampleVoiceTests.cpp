@@ -122,6 +122,38 @@ TEST_CASE("SampleVoice applies track amplitude ADSR and low-pass settings", "[Sa
     REQUIRE(release[15] < left[7]);
 }
 
+TEST_CASE("SampleVoice applies per-track high-pass filter and drive saturation", "[SampleVoice][filter][drive]") {
+    auto sample = std::make_shared<AudioSampleBuffer>();
+    sample->sampleRate = 48000.0;
+    sample->numChannels = 1;
+    sample->numSamples = 256;
+    sample->channels = {std::vector<float>(256, 0.5f)};
+    sample->isLoaded = true;
+
+    VoiceSettings hpfSettings;
+    hpfSettings.highPassCutoffHz = 1200.0f;
+    SampleVoice hpfVoice;
+    hpfVoice.start(sample, 1.0f, 0, 0, 48000.0, 1.0f, 0.0f, hpfSettings);
+    std::vector<float> hpfLeft(128, 0.0f), hpfRight(128, 0.0f);
+    hpfVoice.renderNextBlock(hpfLeft.data(), hpfRight.data(), 128);
+    // High-pass filter attenuates DC steady state over time
+    REQUIRE(std::abs(hpfLeft[127]) < std::abs(hpfLeft[0]) * 0.1f);
+
+    VoiceSettings cleanSettings;
+    SampleVoice cleanVoice;
+    cleanVoice.start(sample, 1.0f, 0, 0, 48000.0, 1.0f, 0.0f, cleanSettings);
+    std::vector<float> cleanLeft(16, 0.0f), cleanRight(16, 0.0f);
+    cleanVoice.renderNextBlock(cleanLeft.data(), cleanRight.data(), 16);
+
+    VoiceSettings driveSettings;
+    driveSettings.drive = 1.0f;
+    SampleVoice driveVoice;
+    driveVoice.start(sample, 1.0f, 0, 0, 48000.0, 1.0f, 0.0f, driveSettings);
+    std::vector<float> driveLeft(16, 0.0f), driveRight(16, 0.0f);
+    driveVoice.renderNextBlock(driveLeft.data(), driveRight.data(), 16);
+    REQUIRE(driveLeft[4] > cleanLeft[4]);
+}
+
 TEST_CASE("Fast forward and reverse sampling reject folded source harmonics", "[SampleVoice][resampling]") {
     for (double rate : {32000.0, 44100.0, 48000.0, 96000.0}) {
         for (const bool reverse : {false, true}) {

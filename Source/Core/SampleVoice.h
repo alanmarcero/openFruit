@@ -29,6 +29,8 @@ struct VoiceSettings {
     float sustainLevel = 1.0f;
     float releaseSeconds = 0.0f;
     float filterCutoffHz = 20000.0f;
+    float highPassCutoffHz = 20.0f;
+    float drive = 0.0f;
     int chokeGroup = 0;
     int midiNote = -1;
 };
@@ -64,6 +66,7 @@ private:
     double speedRatio_ = 1.0;
     double hostSampleRate_ = 44100.0;
     double lowPassCoefficient_ = 1.0;
+    double highPassCoefficient_ = 0.0;
     double envelopeElapsedSamples_ = 0.0;
     double releaseElapsedSamples_ = 0.0;
     double releaseStartLevel_ = 1.0;
@@ -74,6 +77,9 @@ private:
     float gainRight_ = 1.0f;
     float filterLeft_ = 0.0f;
     float filterRight_ = 0.0f;
+    float hpfLeft_ = 0.0f;
+    float hpfRight_ = 0.0f;
+    float drive_ = 0.0f;
     float attackSeconds_ = 0.0f;
     float decaySeconds_ = 0.0f;
     float sustainLevel_ = 1.0f;

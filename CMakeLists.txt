@@ -1,6 +1,6 @@
 cmake_minimum_required(VERSION 3.22)
 
-project(OpenFruit VERSION 1.7.0 LANGUAGES C CXX)
+project(OpenFruit VERSION 1.8.0 LANGUAGES C CXX)
 
 set(CMAKE_CXX_STANDARD 20)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
@@ -121,6 +121,9 @@ if(OF_BUILD_PLUGIN)
         target_include_directories(render_ui_snapshot PRIVATE
             Source/Core
             Source/Plugin)
+
+        target_compile_definitions(render_ui_snapshot PRIVATE
+            $<TARGET_PROPERTY:OpenFruit,COMPILE_DEFINITIONS>)
 
         target_link_libraries(render_ui_snapshot
             PRIVATE

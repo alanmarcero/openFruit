@@ -102,11 +102,13 @@ HeaderPanel::HeaderPanel(openfruit::core::FruitEngine& engine,
     };
     addAndMakeVisible(masterVolSlider_);
 
-    outputDbLabel_.setFont(juce::FontOptions(12.0f, juce::Font::bold));
-    outputDbLabel_.setJustificationType(juce::Justification::centred);
+    outputDbLabel_.setText("Output", juce::dontSendNotification);
+    outputDbLabel_.setFont(juce::FontOptions(14.0f, juce::Font::bold));
+    outputDbLabel_.setJustificationType(juce::Justification::centredLeft);
     addAndMakeVisible(outputDbLabel_);
     outputDbSlider_.setSliderStyle(juce::Slider::LinearHorizontal);
-    outputDbSlider_.setTextBoxStyle(juce::Slider::NoTextBox, false, 0, 0);
+    outputDbSlider_.setTextBoxStyle(juce::Slider::TextBoxRight, false, 62, 26);
+    outputDbSlider_.setTextValueSuffix(" dB");
     outputDbSlider_.setRange(-24.0, 12.0, 0.1);
     outputDbSlider_.setDoubleClickReturnValue(true, 0.0);
     outputDbSlider_.setTooltip("Output gain in decibels");
@@ -150,6 +152,18 @@ HeaderPanel::HeaderPanel(openfruit::core::FruitEngine& engine,
     accentEveryAttachment_ = std::make_unique<juce::AudioProcessorValueTreeState::SliderAttachment>(
         apvts_, openfruit::params::kAccentEvery, accentEverySlider_);
     addAndMakeVisible(accentEverySlider_);
+
+    humanizeLabel_.setText("Human", juce::dontSendNotification);
+    humanizeLabel_.setFont(juce::FontOptions(14.0f, juce::Font::bold));
+    humanizeLabel_.setTooltip("Subtle deterministic per-step velocity humanization");
+    addAndMakeVisible(humanizeLabel_);
+    humanizeSlider_.setSliderStyle(juce::Slider::LinearHorizontal);
+    humanizeSlider_.setTextBoxStyle(juce::Slider::NoTextBox, false, 0, 0);
+    humanizeSlider_.setRange(0.0, 100.0, 0.1);
+    humanizeSlider_.setTooltip("Deterministic step velocity humanization amount");
+    humanizeAttachment_ = std::make_unique<juce::AudioProcessorValueTreeState::SliderAttachment>(
+        apvts_, openfruit::params::kHumanize, humanizeSlider_);
+    addAndMakeVisible(humanizeSlider_);
 
     for (int i = 0; i < openfruit::core::kNumPages; ++i) {
         const auto index = static_cast<size_t>(i);
@@ -220,7 +234,6 @@ void HeaderPanel::updateFromParameters() {
         if (onThemeChanged) onThemeChanged();
     }
     masterVolSlider_.setValue(*apvts_.getRawParameterValue(params::kMasterVol), juce::dontSendNotification);
-    outputDbLabel_.setText("Output  " + juce::String(*apvts_.getRawParameterValue(params::kOutputDb), 1) + " dB", juce::dontSendNotification);
     const bool playing = engine_.isPlaying();
     playBtn_.setButtonText(playing ? "Pause" : "Play");
     playBtn_.setToggleState(playing, juce::dontSendNotification);
@@ -232,6 +245,10 @@ void HeaderPanel::paint(juce::Graphics& g) {
     g.fillAll(palette_.background);
     g.setColour(palette_.panel);
     g.fillRoundedRectangle(10, 8, static_cast<float>(getWidth()-20), 70, 10);
+    g.fillRoundedRectangle(10, 84, static_cast<float>(getWidth()-20), 52, 8);
+    g.setColour(palette_.panelEdge);
+    g.drawRoundedRectangle(10.5f, 8.5f, static_cast<float>(getWidth()-21), 69.0f, 10.0f, 1.0f);
+    g.drawRoundedRectangle(10.5f, 84.5f, static_cast<float>(getWidth()-21), 51.0f, 8.0f, 1.0f);
     if (fruitLogo_) {
         juce::Graphics::ScopedSaveState state(g);
         g.addTransform(juce::AffineTransform::rotation(engine_.displayBarPhase() * juce::MathConstants<float>::twoPi, 48.0f, 43.0f));
@@ -239,21 +256,26 @@ void HeaderPanel::paint(juce::Graphics& g) {
     }
     g.setColour(palette_.text);
     g.setFont(juce::FontOptions(32.0f, juce::Font::bold));
-    g.drawText("openFruit", 86, 12, 230, 40, juce::Justification::centredLeft);
+    g.drawText("openFruit", 86, 12, 160, 40, juce::Justification::centredLeft);
     g.setColour(palette_.textDim);
+    g.setFont(juce::FontOptions(13.0f, juce::Font::bold));
+    g.drawText("v" JucePlugin_VersionString, 246, 20, 48, 24, juce::Justification::centredLeft);
     g.setFont(juce::FontOptions(14.0f));
     g.drawText("Drum sampler  /  Step sequencer", 88, 47, 252, 23, juce::Justification::centredLeft);
     if (arrangementVisible_) {
         g.setColour(palette_.panel);
-        g.fillRoundedRectangle(12, 141, static_cast<float>(getWidth()-24), 56, 7);
+        g.fillRoundedRectangle(10, 142, static_cast<float>(getWidth()-20), 54, 8);
+        g.setColour(palette_.panelEdge);
+        g.drawRoundedRectangle(10.5f, 142.5f, static_cast<float>(getWidth()-21), 53.0f, 8.0f, 1.0f);
     }
 }
 
 void HeaderPanel::resized() {
     auto top = juce::Rectangle<int>(24, 19, getWidth()-48, 48);
-    auto output = top.removeFromRight(120);
+    auto output = top.removeFromRight(156);
     outputDbLabel_.setBounds(output.removeFromTop(18));
-    outputDbSlider_.setBounds(output.reduced(4,0));
+    outputDbSlider_.setBounds(output.reduced(3,0));
+    top.removeFromRight(10);
     auto master = top.removeFromRight(156);
     masterVolLabel_.setBounds(master.removeFromTop(18));
     masterVolSlider_.setBounds(master.reduced(3,0));
@@ -263,20 +285,24 @@ void HeaderPanel::resized() {
     playBtn_.setBounds(top.removeFromRight(92).withSizeKeepingCentre(92,36));
 
     auto row = juce::Rectangle<int>(20, 88, getWidth()-40, 44);
-    pageLabel_.setBounds(row.removeFromLeft(57));
-    for (auto& button : pageBtns_) button.setBounds(row.removeFromLeft(40).reduced(2,4));
-    row.removeFromLeft(16);
-    trackCountLabel_.setBounds(row.removeFromLeft(54));
-    for (auto& button : trackCountBtns_) button.setBounds(row.removeFromLeft(40).reduced(2,4));
-    row.removeFromLeft(16);
-    songModeToggle_.setBounds(row.removeFromLeft(123).reduced(1,4));
-    row.removeFromLeft(12);
-    swingLabel_.setBounds(row.removeFromLeft(49));
-    swingSlider_.setBounds(row.removeFromLeft(87));
-    accentLabel_.setBounds(row.removeFromLeft(56));
-    accentAmountSlider_.setBounds(row.removeFromLeft(77));
-    intervalLabel_.setBounds(row.removeFromLeft(48));
-    accentEverySlider_.setBounds(row.removeFromLeft(85));
+    pageLabel_.setBounds(row.removeFromLeft(54));
+    for (auto& button : pageBtns_) button.setBounds(row.removeFromLeft(38).reduced(1,4));
+    row.removeFromLeft(10);
+    trackCountLabel_.setBounds(row.removeFromLeft(50));
+    for (auto& button : trackCountBtns_) button.setBounds(row.removeFromLeft(38).reduced(1,4));
+    row.removeFromLeft(10);
+    songModeToggle_.setBounds(row.removeFromLeft(112).reduced(1,4));
+    row.removeFromLeft(8);
+    swingLabel_.setBounds(row.removeFromLeft(44));
+    swingSlider_.setBounds(row.removeFromLeft(66));
+    row.removeFromLeft(6);
+    accentLabel_.setBounds(row.removeFromLeft(48));
+    accentAmountSlider_.setBounds(row.removeFromLeft(64));
+    intervalLabel_.setBounds(row.removeFromLeft(42));
+    accentEverySlider_.setBounds(row.removeFromLeft(74));
+    row.removeFromLeft(6);
+    humanizeLabel_.setBounds(row.removeFromLeft(48));
+    humanizeSlider_.setBounds(row.removeFromLeft(66));
 
     auto sections = juce::Rectangle<int>(22, 151, getWidth()-44, 36);
     const int width = sections.getWidth()/4;
