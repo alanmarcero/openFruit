@@ -97,6 +97,8 @@ void SampleVoice::start(std::shared_ptr<const AudioSampleBuffer> sample,
     const float totalAmp = std::clamp(velocity, 0.0f, 1.0f) * std::max(0.0f, volumeGain);
     gainLeft_ = totalAmp * leftPanGain;
     gainRight_ = totalAmp * rightPanGain;
+    driveGain_ = 1.0f + drive_ * 4.0f;
+    driveNorm_ = drive_ > 0.0001f ? (1.0f / std::tanh(driveGain_)) : 1.0f;
 }
 
 void SampleVoice::stop() {
@@ -179,10 +181,8 @@ void SampleVoice::renderNextBlock(float* leftOut, float* rightOut, int numFrames
         sampL = filterLeft_;
         sampR = filterRight_;
         if (drive_ > 0.0001f) {
-            const float driveGain = 1.0f + drive_ * 4.0f;
-            const float norm = 1.0f / std::tanh(driveGain);
-            sampL = std::tanh(sampL * driveGain) * norm;
-            sampR = std::tanh(sampR * driveGain) * norm;
+            sampL = std::tanh(sampL * driveGain_) * driveNorm_;
+            sampR = std::tanh(sampR * driveGain_) * driveNorm_;
         }
         const float ampEnvelope = envelopeLevel();
 
