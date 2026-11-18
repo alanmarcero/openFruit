@@ -80,6 +80,8 @@ private:
     float hpfLeft_ = 0.0f;
     float hpfRight_ = 0.0f;
     float drive_ = 0.0f;
+    float driveGain_ = 1.0f;
+    float driveNorm_ = 1.0f;
     float attackSeconds_ = 0.0f;
     float decaySeconds_ = 0.0f;
     float sustainLevel_ = 1.0f;
