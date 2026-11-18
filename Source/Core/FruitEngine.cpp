@@ -25,6 +25,8 @@ void TrackState::triggerVoice(std::shared_ptr<const AudioSampleBuffer> sampleToP
     }
 
     settings.filterCutoffHz = filterCutoffHz;
+    settings.highPassCutoffHz = highPassCutoffHz;
+    settings.drive = drive;
     settings.attackSeconds = amplitudeAttackSeconds;
     settings.decaySeconds = amplitudeDecaySeconds;
     settings.sustainLevel = amplitudeSustain;
@@ -377,6 +379,14 @@ void FruitEngine::scheduleSequencer(double ppqStart, double ppqEnd, int numSampl
             StepData scheduledStep = step;
             if (accentAmount_ > 0.0f && patternStep % accentEvery_ == 0)
                 scheduledStep.velocity = std::clamp(step.velocity * (1.0f + accentAmount_), 0.0f, 1.0f);
+            if (humanize_ > 0.0f) {
+                uint32_t humState = randomState ^ 0x85ebca6bu;
+                humState ^= humState >> 13;
+                humState *= 0xc2b2ae35u;
+                humState ^= humState >> 16;
+                const float bipolar = (static_cast<float>(humState >> 8) / 8388608.0f) - 1.0f;
+                scheduledStep.velocity = std::clamp(scheduledStep.velocity + bipolar * 0.25f * humanize_, 0.05f, 1.0f);
+            }
             for (int ratchet = 0; ratchet < step.ratchets; ++ratchet) {
                 const double eventPpq = stepStartPpq + (stepOffset + static_cast<double>(ratchet) / step.ratchets) * stepDuration;
                 if (eventPpq < ppqStart || eventPpq >= ppqEnd) continue;

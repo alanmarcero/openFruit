@@ -246,12 +246,13 @@ TrackVoiceSettingsPanel::TrackVoiceSettingsPanel(int trackIdx,
     routingLabels_[0].setText("MIDI input", juce::dontSendNotification);
     routingLabels_[1].setText("Step rate", juce::dontSendNotification);
     for (auto& label : routingLabels_) addAndMakeVisible(label);
-    const std::array<std::string, 10> ids = {
+    const std::array<std::string, 12> ids = {
         params::trackTuneId(trackIdx), params::trackVolId(trackIdx), params::trackPanId(trackIdx),
         params::trackFilterId(trackIdx), params::trackNudgeId(trackIdx), params::trackGrooveId(trackIdx),
+        params::trackHpfId(trackIdx), params::trackDriveId(trackIdx),
         params::trackAttackId(trackIdx), params::trackDecayId(trackIdx), params::trackSustainId(trackIdx), params::trackReleaseId(trackIdx)};
-    const std::array<const char*, 10> names = {"Pitch", "Level", "Pan", "Low-pass", "Nudge", "Groove", "Attack", "Decay", "Sustain", "Release"};
-    const std::array<const char*, 10> units = {" st", "", "", " Hz", " stp", " stp", " s", " s", "%", " s"};
+    const std::array<const char*, 12> names = {"Pitch", "Level", "Pan", "Low-pass", "Nudge", "Groove", "High-pass", "Drive", "Attack", "Decay", "Sustain", "Release"};
+    const std::array<const char*, 12> units = {" st", "", "", " Hz", " stp", " stp", " Hz", "%", " s", " s", "%", " s"};
     for (size_t i = 0; i < sliders_.size(); ++i) {
         labels_[i].setText(names[i], juce::dontSendNotification);
         labels_[i].setJustificationType(juce::Justification::centredLeft);
@@ -265,7 +266,7 @@ TrackVoiceSettingsPanel::TrackVoiceSettingsPanel(int trackIdx,
         attachments_[i] = std::make_unique<juce::AudioProcessorValueTreeState::SliderAttachment>(
             apvts, ids[i], slider);
         slider.setTextValueSuffix(units[i]);
-        slider.setNumDecimalPlacesToDisplay(i == 0 || i == 3 || i == 8 ? 0 : 2);
+        slider.setNumDecimalPlacesToDisplay(i == 0 || i == 3 || i == 6 || i == 7 || i == 10 ? 0 : 2);
     }
 }
 
@@ -281,7 +282,7 @@ void TrackVoiceSettingsPanel::paint(juce::Graphics& g) {
     g.setFont(juce::FontOptions(16.0f, juce::Font::bold));
     g.setColour(findColour(juce::Slider::thumbColourId, true));
     g.drawText("Mix and timing", area.getX(), area.getY(), column, 26, juce::Justification::centredLeft);
-    g.drawText("Amplitude envelope", area.getX()+column, area.getY(), column, 26, juce::Justification::centredLeft);
+    g.drawText("Tone and envelope", area.getX()+column, area.getY(), column, 26, juce::Justification::centredLeft);
 }
 
 void TrackVoiceSettingsPanel::resized() {

@@ -96,6 +96,7 @@ void OpenFruitAudioProcessor::syncParametersToEngine() {
     const float accentAmount = apvts_.getRawParameterValue(openfruit::params::kAccentAmount)->load();
     const int accentEvery = static_cast<int>(apvts_.getRawParameterValue(openfruit::params::kAccentEvery)->load());
     engine_.setAccentuator(accentAmount, accentEvery);
+    if (const auto* p = apvts_.getRawParameterValue(openfruit::params::kHumanize)) engine_.setHumanize(*p * 0.01f);
     if (const auto* p = apvts_.getRawParameterValue(openfruit::params::kSongMode)) engine_.setSongMode(*p > 0.5f);
     for (int section = 0; section < openfruit::core::kNumPages; ++section) {
         const auto pageId = openfruit::params::songSectionPageId(section);
@@ -139,6 +140,12 @@ void OpenFruitAudioProcessor::syncParametersToEngine() {
         }
         if (const auto* filter = apvts_.getRawParameterValue(openfruit::params::trackFilterId(i))) {
             trk.filterCutoffHz = *filter;
+        }
+        if (const auto* hpf = apvts_.getRawParameterValue(openfruit::params::trackHpfId(i))) {
+            trk.highPassCutoffHz = *hpf;
+        }
+        if (const auto* drive = apvts_.getRawParameterValue(openfruit::params::trackDriveId(i))) {
+            trk.drive = *drive * 0.01f;
         }
         if (const auto* attack = apvts_.getRawParameterValue(openfruit::params::trackAttackId(i))) {
             trk.amplitudeAttackSeconds = *attack;

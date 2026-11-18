@@ -30,6 +30,8 @@ struct TrackState {
     bool mute = false;
     bool solo = false;
     float filterCutoffHz = 20000.0f;
+    float highPassCutoffHz = 20.0f;
+    float drive = 0.0f;
     float amplitudeAttackSeconds = 0.0f;
     float amplitudeDecaySeconds = 0.0f;
     float amplitudeSustain = 1.0f;
@@ -114,6 +116,8 @@ public:
     [[nodiscard]] StepData getStep(int trackIndex, PageIndex page, int stepIndex) const;
     void setSwing(float amount) noexcept { swing_ = std::clamp(amount, 0.0f, 0.5f); }
     [[nodiscard]] float getSwing() const noexcept { return swing_; }
+    void setHumanize(float amount) noexcept { humanize_ = std::clamp(std::isfinite(amount) ? amount : 0.0f, 0.0f, 1.0f); }
+    [[nodiscard]] float getHumanize() const noexcept { return humanize_; }
     void setTrackNudge(int trackIndex, float amount) noexcept;
     void setTrackGroove(int trackIndex, float amount) noexcept;
     void setAccentuator(float amount, int everySteps) noexcept;
@@ -149,6 +153,7 @@ private:
     bool wasHostPlaying_ = false;
     PageIndex activePage_ = PageIndex::PageA;
     float swing_ = 0.0f;
+    float humanize_ = 0.0f;
     float accentAmount_ = 0.0f;
     int accentEvery_ = 4;
     bool songMode_ = false;

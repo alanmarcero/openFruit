@@ -64,6 +64,9 @@ private:
     juce::Slider accentEverySlider_;
     std::unique_ptr<juce::AudioProcessorValueTreeState::SliderAttachment> accentAmountAttachment_;
     std::unique_ptr<juce::AudioProcessorValueTreeState::SliderAttachment> accentEveryAttachment_;
+    juce::Label humanizeLabel_ { "Humanize", "Human" };
+    juce::Slider humanizeSlider_;
+    std::unique_ptr<juce::AudioProcessorValueTreeState::SliderAttachment> humanizeAttachment_;
     std::array<juce::Label, openfruit::core::kNumPages> sectionLabels_;
     std::array<juce::ComboBox, openfruit::core::kNumPages> sectionPageBoxes_;
     std::array<juce::Slider, openfruit::core::kNumPages> sectionBarsSliders_;

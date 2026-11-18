@@ -58,6 +58,10 @@ juce::AudioProcessorValueTreeState::ParameterLayout createParameterLayout() {
         juce::NormalisableRange<float>(0.0f, 1.0f, 0.01f), 0.0f));
     params.push_back(std::make_unique<juce::AudioParameterInt>(
         juce::ParameterID(kAccentEvery, 1), "Accent Every", 2, 16, 4));
+    params.push_back(std::make_unique<juce::AudioParameterFloat>(
+        juce::ParameterID(kHumanize, 1), "Humanize",
+        juce::NormalisableRange<float>(0.0f, 100.0f, 0.1f), 0.0f,
+        juce::AudioParameterFloatAttributes().withLabel("%")));
 
     for (int section = 0; section < openfruit::core::kNumPages; ++section) {
         params.push_back(std::make_unique<juce::AudioParameterChoice>(
@@ -145,6 +149,14 @@ juce::AudioProcessorValueTreeState::ParameterLayout createParameterLayout() {
             juce::ParameterID(trackFilterId(i), 1), prefix + "Filter",
             juce::NormalisableRange<float>(20.0f, 20000.0f, 1.0f, 0.35f), 20000.0f,
             juce::AudioParameterFloatAttributes().withLabel("Hz")));
+        params.push_back(std::make_unique<juce::AudioParameterFloat>(
+            juce::ParameterID(trackHpfId(i), 1), prefix + "High-Pass",
+            juce::NormalisableRange<float>(20.0f, 2000.0f, 1.0f, 0.35f), 20.0f,
+            juce::AudioParameterFloatAttributes().withLabel("Hz")));
+        params.push_back(std::make_unique<juce::AudioParameterFloat>(
+            juce::ParameterID(trackDriveId(i), 1), prefix + "Drive",
+            juce::NormalisableRange<float>(0.0f, 100.0f, 0.1f), 0.0f,
+            juce::AudioParameterFloatAttributes().withLabel("%")));
         params.push_back(std::make_unique<juce::AudioParameterFloat>(
             juce::ParameterID(trackAttackId(i), 1), prefix + "Attack",
             juce::NormalisableRange<float>(0.0f, 10.0f, 0.001f), 0.0f,

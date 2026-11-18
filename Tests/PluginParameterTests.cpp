@@ -120,3 +120,21 @@ TEST_CASE("OpenFruit exposes automatable track groove and accent controls", "[pl
     CHECK(std::abs(restored.getRawParameterValue(openfruit::params::kAccentAmount)->load() - 0.6f) < 0.01f);
     CHECK(restored.getRawParameterValue(openfruit::params::kAccentEvery)->load() == 3.0f);
 }
+
+TEST_CASE("OpenFruit exposes per-track high-pass, drive, and global humanize controls", "[plugin][parameters]") {
+    ParameterTestProcessor processor;
+    juce::AudioProcessorValueTreeState state(processor, nullptr, "Parameters", openfruit::params::createParameterLayout());
+
+    auto* hpf = state.getParameter(openfruit::params::trackHpfId(0));
+    auto* drive = state.getParameter(openfruit::params::trackDriveId(0));
+    auto* humanize = state.getParameter(openfruit::params::kHumanize);
+    REQUIRE(hpf != nullptr);
+    REQUIRE(drive != nullptr);
+    REQUIRE(humanize != nullptr);
+    CHECK(hpf->isAutomatable());
+    CHECK(drive->isAutomatable());
+    CHECK(humanize->isAutomatable());
+    CHECK(std::abs(state.getRawParameterValue(openfruit::params::trackHpfId(0))->load() - 20.0f) < 0.01f);
+    CHECK(std::abs(state.getRawParameterValue(openfruit::params::trackDriveId(0))->load()) < 0.01f);
+    CHECK(std::abs(state.getRawParameterValue(openfruit::params::kHumanize)->load()) < 0.01f);
+}

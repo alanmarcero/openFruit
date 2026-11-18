@@ -14,6 +14,7 @@ inline constexpr const char* kSongMode = "song_mode";
 inline constexpr const char* kSwing = "swing";
 inline constexpr const char* kAccentAmount = "accent_amount";
 inline constexpr const char* kAccentEvery = "accent_every";
+inline constexpr const char* kHumanize = "humanize";
 
 // Helpers for per-track parameter IDs
 inline std::string trackMidiChId(int trackIdx) { return "track_midi_ch_" + std::to_string(trackIdx); }
@@ -26,6 +27,8 @@ inline std::string trackGrooveId(int trackIdx) { return "track_groove_" + std::t
 inline std::string trackMuteId(int trackIdx) { return "track_mute_" + std::to_string(trackIdx); }
 inline std::string trackSoloId(int trackIdx) { return "track_solo_" + std::to_string(trackIdx); }
 inline std::string trackFilterId(int trackIdx) { return "track_filter_" + std::to_string(trackIdx); }
+inline std::string trackHpfId(int trackIdx) { return "track_hpf_" + std::to_string(trackIdx); }
+inline std::string trackDriveId(int trackIdx) { return "track_drive_" + std::to_string(trackIdx); }
 inline std::string trackAttackId(int trackIdx) { return "track_attack_" + std::to_string(trackIdx); }
 inline std::string trackDecayId(int trackIdx) { return "track_decay_" + std::to_string(trackIdx); }
 inline std::string trackSustainId(int trackIdx) { return "track_sustain_" + std::to_string(trackIdx); }

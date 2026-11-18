@@ -63,6 +63,8 @@ void SampleVoice::start(std::shared_ptr<const AudioSampleBuffer> sample,
     releaseStartLevel_ = 1.0;
     released_ = false;
     filterLeft_ = filterRight_ = 0.0f;
+    hpfLeft_ = hpfRight_ = 0.0f;
+    drive_ = std::clamp(std::isfinite(settings.drive) ? settings.drive : 0.0f, 0.0f, 1.0f);
     attackSeconds_ = std::clamp(settings.attackSeconds, 0.0f, 10.0f);
     decaySeconds_ = std::clamp(settings.decaySeconds, 0.0f, 10.0f);
     sustainLevel_ = std::clamp(settings.sustainLevel, 0.0f, 1.0f);
@@ -73,6 +75,10 @@ void SampleVoice::start(std::shared_ptr<const AudioSampleBuffer> sample,
     lowPassCoefficient_ = cutoff >= hostSampleRate * 0.45
         ? 1.0
         : 1.0 - std::exp(-2.0 * static_cast<double>(kPi) * std::clamp(static_cast<double>(cutoff), 20.0, hostSampleRate * 0.45) / hostSampleRate);
+    const float hpfCutoff = std::isfinite(settings.highPassCutoffHz) ? settings.highPassCutoffHz : 20.0f;
+    highPassCoefficient_ = hpfCutoff <= 20.5f
+        ? 0.0
+        : 1.0 - std::exp(-2.0 * static_cast<double>(kPi) * std::clamp(static_cast<double>(hpfCutoff), 20.0, hostSampleRate * 0.45) / hostSampleRate);
 
     // Total semitones: clamped to -48 .. +48 safe musical bounds
     const int totalSemitones = std::clamp(semitoneOffset + trackBaseTune, -48, 48);
@@ -162,10 +168,22 @@ void SampleVoice::renderNextBlock(float* leftOut, float* rightOut, int numFrames
         };
         float sampL = readChannel(leftBuf);
         float sampR = rightBuf == leftBuf ? sampL : readChannel(rightBuf);
+        if (highPassCoefficient_ > 0.0) {
+            hpfLeft_ += static_cast<float>(highPassCoefficient_) * (sampL - hpfLeft_);
+            hpfRight_ += static_cast<float>(highPassCoefficient_) * (sampR - hpfRight_);
+            sampL -= hpfLeft_;
+            sampR -= hpfRight_;
+        }
         filterLeft_ += static_cast<float>(lowPassCoefficient_) * (sampL - filterLeft_);
         filterRight_ += static_cast<float>(lowPassCoefficient_) * (sampR - filterRight_);
         sampL = filterLeft_;
         sampR = filterRight_;
+        if (drive_ > 0.0001f) {
+            const float driveGain = 1.0f + drive_ * 4.0f;
+            const float norm = 1.0f / std::tanh(driveGain);
+            sampL = std::tanh(sampL * driveGain) * norm;
+            sampR = std::tanh(sampR * driveGain) * norm;
+        }
         const float ampEnvelope = envelopeLevel();
 
         leftOut[frame] += sampL * gainLeft_ * ampEnvelope;
