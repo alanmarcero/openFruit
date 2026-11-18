@@ -2,7 +2,7 @@
 
 A step sequencer and sample player for drum patterns. Create patterns one hit at a time, then arrange four pages into a song.
 
-![openFruit step sequencer](assets/openFruit-screenshot.png)
+![openFruit step sequencer](docs/screenshots/preview.png)
 
 [Download the latest release](https://github.com/alanmarcero/openFruit/releases/latest) · [Install with OpenVST Manager](https://github.com/alanmarcero/alan-m-OpenVSTManager/releases/latest)
 

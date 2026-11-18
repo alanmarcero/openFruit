@@ -149,5 +149,5 @@ jobs:
           body: |
             Redesigned native sequencer, Citrus kit and reduced aliasing during pitched-up sample playback.
 
-            ![openFruit sequencer](https://raw.githubusercontent.com/alanmarcero/openFruit/${{ github.ref_name }}/assets/openFruit-screenshot.png)
+            ![openFruit sequencer](https://raw.githubusercontent.com/alanmarcero/openFruit/${{ github.ref_name }}/docs/screenshots/preview.png)
           generate_release_notes: true
