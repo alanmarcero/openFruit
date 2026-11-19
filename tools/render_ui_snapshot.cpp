@@ -157,7 +157,6 @@ int main() try {
     processor.setRateAndBufferSizeDetails(48000,480);
     processor.prepareToPlay(48000,480);
     std::unique_ptr<OpenFruitAudioProcessorEditor> editor(static_cast<OpenFruitAudioProcessorEditor*>(processor.createEditor()));
-    editor->setSize(1120,680);
     const auto base = juce::File::getCurrentWorkingDirectory();
     auto& engine = processor.getEngine();
     auto& state = processor.getAPVTS();

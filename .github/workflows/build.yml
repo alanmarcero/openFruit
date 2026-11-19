@@ -156,3 +156,41 @@ jobs:
           files: openFruit-*.zip
           body_path: release_notes.md
           generate_release_notes: true
+
+  # Renders the factory editor at its default size and commits docs/screenshots/preview.png.
+  # Independent of the macOS and Linux package jobs, which stay disabled.
+  update-preview:
+    if: ${{ github.event_name == 'push' && github.ref == 'refs/heads/main' }}
+    runs-on: ubuntu-24.04
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y libasound2-dev libjack-jackd2-dev libfreetype-dev libfontconfig1-dev \
+            libx11-dev libxcomposite-dev libxcursor-dev libxext-dev libxinerama-dev libxrandr-dev \
+            libxrender-dev libglu1-mesa-dev mesa-common-dev xvfb
+
+      - name: Build plugin and snapshot tool
+        run: |
+          cmake -B build -DCMAKE_BUILD_TYPE=Release -DOF_BUILD_TOOLS=ON -DOF_BUILD_TESTS=OFF
+          cmake --build build --config Release --parallel --target render_ui_snapshot
+
+      - name: Render factory default editor
+        run: xvfb-run -a ./build/render_ui_snapshot
+
+      - name: Commit refreshed preview if changed
+        run: |
+          cp assets/openFruit-screenshot.png docs/screenshots/preview.png
+          if git diff --quiet -- docs/screenshots/preview.png; then
+            echo "Preview unchanged."
+            exit 0
+          fi
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add docs/screenshots/preview.png
+          git commit -m "docs: refresh preview screenshot [skip ci]"
+          git push
