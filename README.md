@@ -6,6 +6,10 @@ A step sequencer and sample player for drum patterns. Create patterns one hit at
 
 [Download the latest release](https://github.com/alanmarcero/openFruit/releases/latest) · [Install with OpenVST Manager](https://github.com/alanmarcero/alan-m-OpenVSTManager/releases/latest)
 
+## Beta
+
+All of these plugins are in beta. The macOS and Linux builds are not up to date, so the Windows build is the one to use for now. A plugin can change dramatically from one release to the next, but the goal is for each one to keep getting better.
+
 ## Play a pattern
 
 Press **Play** to start the sequencer and arm host sync. The citrus wheel turns once per four quarter notes and follows tempo changes and seeks. In standalone it follows the sequencer’s internal clock. Select **A**, **B**, **C**, or **D** to edit a page. Their startup phrases cover a straight floor groove, syncopated hats, halftime and a tom fill.
