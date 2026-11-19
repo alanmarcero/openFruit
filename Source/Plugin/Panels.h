@@ -49,6 +49,7 @@ private:
     // Master Volume
     juce::Slider masterVolSlider_;
     juce::Label masterVolLabel_{ "Master", "Master volume" };
+    std::unique_ptr<juce::AudioProcessorValueTreeState::SliderAttachment> masterVolAttachment_;
     juce::Slider outputDbSlider_;
     juce::Label outputDbLabel_{ "Output", "Output level in decibels" };
     std::unique_ptr<juce::AudioProcessorValueTreeState::SliderAttachment> outputDbAttachment_;
@@ -92,6 +93,8 @@ public:
     void updateFromEngine();
     void updatePlayhead();
     void setVisibleTrackCount(int count);
+    std::function<void(int track, openfruit::core::PageIndex page, int step,
+                       openfruit::core::StepData before, openfruit::core::StepData after)> onStepEdited;
 
     void paint(juce::Graphics& g) override;
     void resized() override;

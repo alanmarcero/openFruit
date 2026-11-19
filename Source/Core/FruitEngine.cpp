@@ -56,6 +56,7 @@ FruitEngine::FruitEngine() {
     }
     for (int i = 0; i < kNumPages; ++i)
         songSections_[static_cast<size_t>(i)].page = static_cast<PageIndex>(i);
+    publishPattern();
 }
 
 void FruitEngine::prepare(double sampleRate, int /*maxBlockSize*/) {
@@ -79,7 +80,6 @@ void FruitEngine::setOutputDb(float decibels) noexcept {
 }
 
 void FruitEngine::reset() {
-    const std::lock_guard<std::mutex> lock(engineMutex_);
     for (auto& track : tracks_) {
         for (auto& voice : track.voices) {
             voice.stop();
@@ -92,36 +92,28 @@ void FruitEngine::reset() {
     displayBarPhase_.store(0.0f, std::memory_order_relaxed);
     internalPpq_ = 0.0;
     lastPpq_ = 0.0;
-    justManuallyStarted_ = false;
+    manualStart_.store(false, std::memory_order_relaxed);
+    transportReset_.store(false, std::memory_order_relaxed);
     wasHostPlaying_ = false;
 }
 
 void FruitEngine::setTrackCountMode(TrackCountMode mode) noexcept {
-    trackCountMode_ = mode;
+    trackCountMode_.store(static_cast<int>(mode), std::memory_order_relaxed);
 }
 
 void FruitEngine::setPlaying(bool playing) noexcept {
-    const std::lock_guard<std::mutex> lock(engineMutex_);
-    if (playing && !isPlaying_.load()) {
-        for (auto& track : tracks_) {
-            track.lastTriggeredStep = -1;
-        }
-    }
-    if (!playing) {
-        for (auto& track : tracks_) {
-            track.lastTriggeredStep = -1;
-        }
-    }
-    justManuallyStarted_ = playing;
-    isPlaying_.store(playing);
-    hostSyncArmed_.store(playing);
+    const bool wasPlaying = isPlaying_.load(std::memory_order_relaxed);
+    if ((playing && !wasPlaying) || !playing)
+        transportReset_.store(true, std::memory_order_release);
+    manualStart_.store(playing, std::memory_order_release);
+    isPlaying_.store(playing, std::memory_order_release);
+    hostSyncArmed_.store(playing, std::memory_order_release);
 }
 
 void FruitEngine::setTrackMidiChannel(int trackIndex, int channel1to16) noexcept {
     if (trackIndex < 0 || trackIndex >= kMaxTracks) {
         return;
     }
-    const std::lock_guard<std::mutex> lock(engineMutex_);
     tracks_[static_cast<size_t>(trackIndex)].midiChannel = std::clamp(channel1to16, 1, 16);
 }
 
@@ -144,12 +136,11 @@ int FruitEngine::getTrackMidiChannel(int trackIndex) const noexcept {
     if (trackIndex < 0 || trackIndex >= kMaxTracks) {
         return 1;
     }
-    const std::lock_guard<std::mutex> lock(engineMutex_);
     return tracks_[static_cast<size_t>(trackIndex)].midiChannel;
 }
 
 void FruitEngine::setActivePage(PageIndex page) noexcept {
-    activePage_ = page;
+    activePage_.store(static_cast<int>(page), std::memory_order_relaxed);
 }
 
 TrackState& FruitEngine::getTrack(int trackIndex) {
@@ -163,7 +154,6 @@ const TrackState& FruitEngine::getTrack(int trackIndex) const {
 }
 
 std::shared_ptr<const AudioSampleBuffer> FruitEngine::loadedSample(int trackIndex) const {
-    const std::lock_guard<std::mutex> lock(engineMutex_);
     return getTrack(trackIndex).sample;
 }
 
@@ -171,7 +161,7 @@ void FruitEngine::loadSampleForTrack(int trackIndex, std::shared_ptr<const Audio
     if (trackIndex < 0 || trackIndex >= kMaxTracks) {
         return;
     }
-    const std::lock_guard<std::mutex> lock(engineMutex_);
+    liveSample_[static_cast<size_t>(trackIndex)].store(sample, std::memory_order_release);
     tracks_[static_cast<size_t>(trackIndex)].sample = std::move(sample);
 }
 
@@ -179,7 +169,7 @@ void FruitEngine::setAuditionSampleForTrack(int trackIndex, std::shared_ptr<cons
     if (trackIndex < 0 || trackIndex >= kMaxTracks) {
         return;
     }
-    const std::lock_guard<std::mutex> lock(engineMutex_);
+    liveAudition_[static_cast<size_t>(trackIndex)].store(sample, std::memory_order_release);
     tracks_[static_cast<size_t>(trackIndex)].auditionSample = std::move(sample);
 }
 
@@ -187,7 +177,7 @@ void FruitEngine::clearAuditionSampleForTrack(int trackIndex) {
     if (trackIndex < 0 || trackIndex >= kMaxTracks) {
         return;
     }
-    const std::lock_guard<std::mutex> lock(engineMutex_);
+    liveAudition_[static_cast<size_t>(trackIndex)].store({}, std::memory_order_release);
     tracks_[static_cast<size_t>(trackIndex)].auditionSample.reset();
 }
 
@@ -195,37 +185,75 @@ void FruitEngine::commitAuditionSample(int trackIndex) {
     if (trackIndex < 0 || trackIndex >= kMaxTracks) {
         return;
     }
-    const std::lock_guard<std::mutex> lock(engineMutex_);
-    if (tracks_[static_cast<size_t>(trackIndex)].auditionSample) {
-        tracks_[static_cast<size_t>(trackIndex)].sample = tracks_[static_cast<size_t>(trackIndex)].auditionSample;
-        tracks_[static_cast<size_t>(trackIndex)].auditionSample.reset();
+    auto& track = tracks_[static_cast<size_t>(trackIndex)];
+    if (track.auditionSample) {
+        liveSample_[static_cast<size_t>(trackIndex)].store(track.auditionSample, std::memory_order_release);
+        track.sample = track.auditionSample;
+        liveAudition_[static_cast<size_t>(trackIndex)].store({}, std::memory_order_release);
+        track.auditionSample.reset();
     }
+}
+
+void FruitEngine::publishPattern() {
+    if (patternBatch_ > 0) return;
+    auto snapshot = std::make_shared<PatternSnapshot>();
+    for (int track = 0; track < kMaxTracks; ++track)
+        snapshot->tracks[static_cast<size_t>(track)] = tracks_[static_cast<size_t>(track)].patternPages;
+    pattern_.store(std::move(snapshot), std::memory_order_release);
+}
+
+void FruitEngine::beginPatternBatch() noexcept { ++patternBatch_; }
+
+void FruitEngine::endPatternBatch() {
+    if (patternBatch_ > 0) --patternBatch_;
+    if (patternBatch_ == 0) publishPattern();
+}
+
+std::shared_ptr<const AudioSampleBuffer> FruitEngine::audioSampleForTrack(int trackIndex) const {
+    if (auto audition = liveAudition_[static_cast<size_t>(trackIndex)].load(std::memory_order_acquire))
+        return audition;
+    return liveSample_[static_cast<size_t>(trackIndex)].load(std::memory_order_acquire);
+}
+
+void FruitEngine::drainManualHits() {
+    int read = manualRead_.load(std::memory_order_relaxed);
+    const int write = manualWrite_.load(std::memory_order_acquire);
+    while (read != write) {
+        const auto hit = manualQueue_[static_cast<size_t>(read)];
+        read = (read + 1) % kManualQueue;
+        if (hit.track >= 0 && hit.track < kMaxTracks) {
+            auto& track = tracks_[static_cast<size_t>(hit.track)];
+            if (auto sample = audioSampleForTrack(hit.track))
+                track.triggerVoice(sample, hit.velocity, hit.semitone, sampleRate_);
+        }
+    }
+    manualRead_.store(read, std::memory_order_release);
 }
 
 void FruitEngine::setStepActive(int trackIndex, PageIndex page, int stepIndex, bool active) {
     if (trackIndex < 0 || trackIndex >= kMaxTracks || stepIndex < 0 || stepIndex >= kStepsPerPage) {
         return;
     }
-    const std::lock_guard<std::mutex> lock(engineMutex_);
     tracks_[static_cast<size_t>(trackIndex)].patternPages.pages[static_cast<size_t>(page)][static_cast<size_t>(stepIndex)].active = active;
+    publishPattern();
 }
 
 void FruitEngine::setStepVelocity(int trackIndex, PageIndex page, int stepIndex, float velocity) {
     if (trackIndex < 0 || trackIndex >= kMaxTracks || stepIndex < 0 || stepIndex >= kStepsPerPage) {
         return;
     }
-    const std::lock_guard<std::mutex> lock(engineMutex_);
     tracks_[static_cast<size_t>(trackIndex)].patternPages.pages[static_cast<size_t>(page)][static_cast<size_t>(stepIndex)].velocity =
         std::clamp(velocity, 0.0f, 1.0f);
+    publishPattern();
 }
 
 void FruitEngine::setStepTune(int trackIndex, PageIndex page, int stepIndex, int semitoneOffset) {
     if (trackIndex < 0 || trackIndex >= kMaxTracks || stepIndex < 0 || stepIndex >= kStepsPerPage) {
         return;
     }
-    const std::lock_guard<std::mutex> lock(engineMutex_);
     tracks_[static_cast<size_t>(trackIndex)].patternPages.pages[static_cast<size_t>(page)][static_cast<size_t>(stepIndex)].semitoneOffset =
         std::clamp(semitoneOffset, kMinSemitoneTune, kMaxSemitoneTune);
+    publishPattern();
 }
 
 void FruitEngine::setStepData(int trackIndex, PageIndex page, int stepIndex, StepData data) {
@@ -239,20 +267,19 @@ void FruitEngine::setStepData(int trackIndex, PageIndex page, int stepIndex, Ste
     data.sampleStart = std::clamp(std::isfinite(data.sampleStart) ? data.sampleStart : 0.0f, 0.0f, 0.999f);
     data.sampleEnd = std::clamp(std::isfinite(data.sampleEnd) ? data.sampleEnd : 1.0f, data.sampleStart + 0.001f, 1.0f);
     data.chokeGroup = std::clamp(data.chokeGroup, 0, 4);
-    const std::lock_guard<std::mutex> lock(engineMutex_);
     tracks_[static_cast<size_t>(trackIndex)].patternPages.pages[static_cast<size_t>(pageIndex)][static_cast<size_t>(stepIndex)] = data;
+    publishPattern();
 }
 
 void FruitEngine::clearStepPatterns() {
-    const std::lock_guard<std::mutex> lock(engineMutex_);
     for (auto& track : tracks_) track.patternPages = TrackPatternPages{};
+    publishPattern();
 }
 
 StepData FruitEngine::getStep(int trackIndex, PageIndex page, int stepIndex) const {
     if (trackIndex < 0 || trackIndex >= kMaxTracks || stepIndex < 0 || stepIndex >= kStepsPerPage) {
         return {};
     }
-    const std::lock_guard<std::mutex> lock(engineMutex_);
     const int pageIndex = std::clamp(static_cast<int>(page), 0, kNumPages - 1);
     return tracks_[static_cast<size_t>(trackIndex)].patternPages.pages[static_cast<size_t>(pageIndex)][static_cast<size_t>(stepIndex)];
 }
@@ -270,7 +297,7 @@ SongSection FruitEngine::getSongSection(int index) const noexcept {
 }
 
 PageIndex FruitEngine::getSongPageAtPpq(double ppq) const noexcept {
-    if (!songMode_ || !std::isfinite(ppq) || ppq < 0.0) return activePage_;
+    if (!songMode_ || !std::isfinite(ppq) || ppq < 0.0) return getActivePage();
     int totalBars = 0;
     for (const auto& section : songSections_) totalBars += std::clamp(section.bars, 1, 32);
     const int barInSong = static_cast<int>(std::floor(ppq / 4.0)) % totalBars;
@@ -297,14 +324,11 @@ void FruitEngine::triggerTrackManual(int trackIndex, float velocity, int semiton
     if (trackIndex < 0 || trackIndex >= kMaxTracks) {
         return;
     }
-    const std::lock_guard<std::mutex> lock(engineMutex_);
-    auto& track = tracks_[static_cast<size_t>(trackIndex)];
-
-    // If live auditioning in browser, trigger the audition sample; else regular track sample
-    auto sampleToPlay = track.auditionSample ? track.auditionSample : track.sample;
-    if (sampleToPlay) {
-        track.triggerVoice(sampleToPlay, velocity, semitoneOffset, sampleRate_);
-    }
+    const int write = manualWrite_.load(std::memory_order_relaxed);
+    const int next = (write + 1) % kManualQueue;
+    if (next == manualRead_.load(std::memory_order_acquire)) return;
+    manualQueue_[static_cast<size_t>(write)] = { trackIndex, velocity, semitoneOffset };
+    manualWrite_.store(next, std::memory_order_release);
 }
 
 void FruitEngine::handleMidiNoteOn(int channel1to16, int midiNote, float velocity) {
@@ -312,7 +336,6 @@ void FruitEngine::handleMidiNoteOn(int channel1to16, int midiNote, float velocit
         return;
     }
 
-    const std::lock_guard<std::mutex> lock(engineMutex_);
     const int activeTracks = getActiveTrackCount();
     const int semitoneOffset = std::clamp(midiNote - 60, kMinSemitoneTune, kMaxSemitoneTune);
 
@@ -321,17 +344,13 @@ void FruitEngine::handleMidiNoteOn(int channel1to16, int midiNote, float velocit
         if (track.midiChannel != channel1to16) {
             continue;
         }
-        auto sampleToPlay = track.auditionSample ? track.auditionSample : track.sample;
-        if (!sampleToPlay) {
-            continue;
-        }
-        track.triggerVoice(sampleToPlay, velocity, semitoneOffset, sampleRate_, {}, midiNote);
+        if (auto sampleToPlay = audioSampleForTrack(t))
+            track.triggerVoice(sampleToPlay, velocity, semitoneOffset, sampleRate_, {}, midiNote);
     }
 }
 
 void FruitEngine::handleMidiNoteOff(int channel1to16, int midiNote) {
     if (channel1to16 < 1 || channel1to16 > 16 || midiNote < 0 || midiNote > 127) return;
-    const std::lock_guard<std::mutex> lock(engineMutex_);
     for (auto& track : tracks_) {
         if (track.midiChannel != channel1to16) continue;
         for (auto& voice : track.voices)
@@ -341,6 +360,8 @@ void FruitEngine::handleMidiNoteOff(int channel1to16, int midiNote) {
 
 void FruitEngine::scheduleSequencer(double ppqStart, double ppqEnd, int numSamples, double bpm) {
     scheduledHitCount_ = 0;
+    const auto pattern = pattern_.load(std::memory_order_acquire);
+    if (pattern == nullptr) return;
     const int activeTracks = getActiveTrackCount();
     const double samplesPerQuarter = sampleRate_ * 60.0 / bpm;
     bool full = false;
@@ -361,7 +382,7 @@ void FruitEngine::scheduleSequencer(double ppqStart, double ppqEnd, int numSampl
             const int patternStep = static_cast<int>((absoluteStep % kStepsPerPage + kStepsPerPage) % kStepsPerPage);
             const double stepStartPpq = static_cast<double>(absoluteStep) / stepsPerBeat;
             const auto page = getSongPageAtPpq(stepStartPpq);
-            const auto& step = track.patternPages.pages[static_cast<size_t>(page)][static_cast<size_t>(patternStep)];
+            const auto& step = pattern->tracks[static_cast<size_t>(trackIndex)].pages[static_cast<size_t>(page)][static_cast<size_t>(patternStep)];
             if (!step.active || step.probability <= 0.0f) continue;
 
             uint32_t randomState = static_cast<uint32_t>(absoluteStep) ^ (static_cast<uint32_t>(trackIndex + 1) * 0x9e3779b9u);
@@ -411,7 +432,7 @@ void FruitEngine::scheduleSequencer(double ppqStart, double ppqEnd, int numSampl
 
 void FruitEngine::triggerScheduledHit(const ScheduledHit& hit) {
     auto& target = tracks_[static_cast<size_t>(hit.trackIndex)];
-    auto sampleToPlay = target.auditionSample ? target.auditionSample : target.sample;
+    auto sampleToPlay = audioSampleForTrack(hit.trackIndex);
     if (!sampleToPlay) return;
 
     if (hit.step.chokeGroup > 0) {
@@ -438,13 +459,15 @@ void FruitEngine::process(float* leftChannel,
         return;
     }
 
-    const std::lock_guard<std::mutex> lock(engineMutex_);
     scheduledHitCount_ = 0;
+    drainManualHits();
 
     // 1. Handle host transport start/stop transitions
-    if (justManuallyStarted_) {
-        justManuallyStarted_ = false;
+    if (manualStart_.exchange(false, std::memory_order_acq_rel))
         wasHostPlaying_ = isHostPlaying;
+    if (transportReset_.exchange(false, std::memory_order_acq_rel)) {
+        for (auto& track : tracks_)
+            track.lastTriggeredStep = -1;
     }
 
     const bool hostJustStarted = (!wasHostPlaying_ && isHostPlaying);
@@ -523,7 +546,7 @@ void FruitEngine::process(float* leftChannel,
     renderVoices(renderPosition, numSamples);
 
     // 4. Apply Master Volume and Soft Saturation
-    const float mVol = masterVolume_;
+    const float mVol = getMasterVolume();
     for (int i = 0; i < numSamples; ++i) {
         if (outputGainRampRemaining_ > 0) {
             outputGainCurrent_ += outputGainStep_;

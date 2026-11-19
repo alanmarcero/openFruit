@@ -24,6 +24,8 @@ public:
     std::function<void(int newTune)> onTuneChange;
     std::function<void(float newVelocity)> onVelocityChange;
     std::function<void(openfruit::core::StepData)> onStepDataChange;
+    std::function<void()> onEditBegan;
+    std::function<void()> onEditEnded;
 
     void paint(juce::Graphics& g) override;
     void mouseDown(const juce::MouseEvent& e) override;
@@ -83,6 +85,8 @@ public:
 
     std::function<void(int trackIdx)> onOpenBrowser, onOpenSettings;
     std::function<void(int trackIdx)> onSampleAudition;
+    std::function<void(openfruit::core::PageIndex page, int step,
+                       openfruit::core::StepData before, openfruit::core::StepData after)> onStepEdited;
 
     void paint(juce::Graphics& g) override;
     void resized() override;
@@ -101,6 +105,10 @@ private:
     juce::ToggleButton soloBtn_{ "Solo" };
 
     std::array<std::unique_ptr<CyberStepPad>, openfruit::core::kStepsPerPage> stepPads_;
+    bool editOpen_ = false;
+    int editStep_ = -1;
+    openfruit::core::PageIndex editPage_ = openfruit::core::PageIndex::PageA;
+    openfruit::core::StepData editBefore_ {};
 };
 
 } // namespace openfruit::ui

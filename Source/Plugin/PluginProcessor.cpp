@@ -1,9 +1,8 @@
 #include "PluginProcessor.h"
-#include "PluginEditor.h"
 #include "DefaultKit.h"
-#include "WavReader.h"
 #include "MidiEventProcessor.h"
 #include "PatternState.h"
+#include "SampleState.h"
 
 OpenFruitAudioProcessor::OpenFruitAudioProcessor()
     : AudioProcessor(BusesProperties().withOutput("Output", juce::AudioChannelSet::stereo(), true)),
@@ -20,6 +19,7 @@ OpenFruitAudioProcessor::OpenFruitAudioProcessor()
         {0x0401, 0x0100, 0x0100, 0x5151, 0x0040, 0x2008, 0x0020, 0x8000},
         {0x1111, 0x9010, 0x1000, 0x1555, 0x0444, 0x0080, 0x5000, 0xa000}
     };
+    engine_.beginPatternBatch();
     for (int page = 0; page < 4; ++page)
         for (int track = 0; track < 8; ++track)
             for (int index = 0; index < 16; ++index) {
@@ -31,8 +31,12 @@ OpenFruitAudioProcessor::OpenFruitAudioProcessor()
                 if (page == 3 && track == 1 && index == 15) step.ratchets = 2;
                 engine_.setStepData(track, static_cast<openfruit::core::PageIndex>(page), index, step);
             }
+    engine_.endPatternBatch();
 
     syncParametersToEngine();
+    buildFactoryPresets();
+    ab_.seed(treeToBlock(makeStateTree()));
+    undo_.attach(*this);
 }
 
 void OpenFruitAudioProcessor::loadFactoryKit(bool legacy) {
@@ -196,49 +200,143 @@ void OpenFruitAudioProcessor::processBlock(juce::AudioBuffer<float>& buffer, juc
                                         bpm, ppqPos, isPlaying, getSampleRate());
 }
 
-juce::AudioProcessorEditor* OpenFruitAudioProcessor::createEditor() {
-    return new OpenFruitAudioProcessorEditor(*this);
+juce::ValueTree OpenFruitAudioProcessor::makeStateTree() {
+    auto state = apvts_.copyState();
+    for (const char* childName : { "StepPatterns", "SampleFiles", "AbSlots" }) {
+        auto child = state.getChildWithName(childName);
+        if (child.isValid())
+            state.removeChild(child, nullptr);
+    }
+    state.setProperty("factoryKit", legacyKit_ ? 1 : 2, nullptr);
+    state.addChild(openfruit::plugin::makeSampleFiles(engine_), -1, nullptr);
+    state.addChild(openfruit::plugin::makePatternState(engine_), -1, nullptr);
+    return state;
+}
+
+juce::MemoryBlock OpenFruitAudioProcessor::treeToBlock(const juce::ValueTree& tree) {
+    juce::MemoryBlock block;
+    if (auto xml = tree.createXml())
+        copyXmlToBinary(*xml, block);
+    return block;
+}
+
+juce::MemoryBlock OpenFruitAudioProcessor::captureInnerState() {
+    return treeToBlock(makeStateTree());
+}
+
+void OpenFruitAudioProcessor::restoreBlock(const juce::MemoryBlock& block) {
+    setStateInformation(block.getData(), static_cast<int>(block.getSize()));
+}
+
+void OpenFruitAudioProcessor::buildFactoryPresets() {
+    const auto citrus = treeToBlock(makeStateTree());
+    const auto patterns = openfruit::plugin::makePatternState(engine_);
+    engine_.clearStepPatterns();
+    const auto blank = treeToBlock(makeStateTree());
+    openfruit::plugin::restorePatternState(patterns, engine_);
+
+    auto withPage = [this](int page) {
+        if (auto* parameter = apvts_.getParameter(openfruit::params::kPage))
+            parameter->setValueNotifyingHost(parameter->convertTo0to1(static_cast<float>(page)));
+        auto block = treeToBlock(makeStateTree());
+        if (auto* parameter = apvts_.getParameter(openfruit::params::kPage))
+            parameter->setValueNotifyingHost(parameter->convertTo0to1(0.0f));
+        return block;
+    };
+
+    presets_.setFactory({
+        { "Citrus", citrus },
+        { "Blank", blank },
+        { "Syncopated Hats", withPage(1) },
+        { "Halftime", withPage(2) },
+        { "Tom Fill", withPage(3) }
+    });
+}
+
+void OpenFruitAudioProcessor::selectAbSlot(int index) {
+    if (index == ab_.active())
+        return;
+    ab_.rememberActive(captureInnerState());
+    ab_.setActive(index);
+    loadingSlot_ = true;
+    restoreBlock(ab_.slot(index));
+    loadingSlot_ = false;
+    undo_.clearUndoHistory();
+}
+
+void OpenFruitAudioProcessor::copyAbSlot(int from, int to) {
+    if (from == to)
+        return;
+    ab_.rememberActive(captureInnerState());
+    ab_.copy(from, to);
+    if (ab_.active() == to) {
+        loadingSlot_ = true;
+        restoreBlock(ab_.slot(to));
+        loadingSlot_ = false;
+        undo_.clearUndoHistory();
+    }
+}
+
+void OpenFruitAudioProcessor::loadPresetBlock(const juce::MemoryBlock& block) {
+    loadingSlot_ = true;
+    restoreBlock(block);
+    loadingSlot_ = false;
+    ab_.rememberActive(captureInnerState());
+    undo_.clearUndoHistory();
 }
 
 void OpenFruitAudioProcessor::getStateInformation(juce::MemoryBlock& destData) {
-    auto state = apvts_.copyState();
-    state.setProperty("factoryKit", legacyKit_ ? 1 : 2, nullptr);
-    juce::ValueTree files {"SampleFiles"};
-    for (int i = 0; i < openfruit::core::kMaxTracks; ++i) {
-        if (const auto sample = engine_.loadedSample(i); sample && juce::File::isAbsolutePath(sample->filePath))
-            files.setProperty("track" + juce::String(i), juce::String(sample->filePath), nullptr);
-    }
-    state.addChild(files, -1, nullptr);
-    state.addChild(openfruit::plugin::makePatternState(engine_), -1, nullptr);
-    std::unique_ptr<juce::XmlElement> xml(state.createXml());
-    copyXmlToBinary(*xml, destData);
+    auto tree = makeStateTree();
+    if (stateRestoreDepth_ == 0)
+        ab_.rememberActive(treeToBlock(tree));
+    tree.addChild(ab_.toTree(), -1, nullptr);
+    if (auto xml = tree.createXml())
+        copyXmlToBinary(*xml, destData);
 }
 
 void OpenFruitAudioProcessor::setStateInformation(const void* data, int sizeInBytes) {
     std::unique_ptr<juce::XmlElement> xmlState(getXmlFromBinary(data, sizeInBytes));
-    if (xmlState != nullptr && xmlState->hasTagName(apvts_.state.getType())) {
-        auto state = juce::ValueTree::fromXml(*xmlState);
-        auto patterns = state.getChildWithName("StepPatterns");
-        if (patterns.isValid()) state.removeChild(patterns, nullptr);
-        loadFactoryKit(static_cast<int>(state.getProperty("factoryKit", 1)) < 2);
-        auto files = state.getChildWithName("SampleFiles");
-        if (files.isValid()) {
-            state.removeChild(files, nullptr);
-            for (int i = 0; i < openfruit::core::kMaxTracks; ++i) {
-                const auto path = files.getProperty("track" + juce::String(i)).toString();
-                if (!juce::File::isAbsolutePath(path)) continue;
-                auto sample = openfruit::core::WavReader::loadSample(path.toStdString());
-                if (!sample) {
-                    sample = std::make_shared<openfruit::core::AudioSampleBuffer>();
-                    sample->filePath = path.toStdString();
-                    sample->sampleName = "Missing: " + juce::File(path).getFileNameWithoutExtension().toStdString();
-                }
-                engine_.loadSampleForTrack(i, std::move(sample));
+    if (xmlState == nullptr || !xmlState->hasTagName(apvts_.state.getType()))
+        return;
+
+    auto state = juce::ValueTree::fromXml(*xmlState);
+    auto patterns = state.getChildWithName("StepPatterns");
+    if (patterns.isValid())
+        state.removeChild(patterns, nullptr);
+    auto abTree = state.getChildWithName("AbSlots");
+    if (abTree.isValid())
+        state.removeChild(abTree, nullptr);
+
+    loadFactoryKit(static_cast<int>(state.getProperty("factoryKit", 1)) < 2);
+    auto files = state.getChildWithName("SampleFiles");
+    if (files.isValid())
+        state.removeChild(files, nullptr);
+
+    ++stateRestoreDepth_;
+    undo_.suspend(true);
+    apvts_.replaceState(state);
+    syncParametersToEngine();
+    if (files.isValid())
+        openfruit::plugin::restoreSampleFiles(files, engine_);
+    openfruit::plugin::restorePatternStateIfPresent(patterns, engine_);
+    undo_.clearUndoHistory();
+    undo_.suspend(false);
+    --stateRestoreDepth_;
+
+    if (!loadingSlot_) {
+        const auto current = treeToBlock(makeStateTree());
+        if (abTree.isValid()) {
+            juce::MemoryBlock other;
+            const auto text = abTree.getProperty("other").toString();
+            if (text.isNotEmpty()) {
+                juce::MemoryOutputStream stream(other, false);
+                juce::Base64::convertFromBase64(stream, text);
             }
+            const int active = static_cast<int>(abTree.getProperty("active", 0)) == 1 ? 1 : 0;
+            ab_.install(active, current, other);
+        } else {
+            ab_.seed(current);
         }
-        apvts_.replaceState(state);
-        syncParametersToEngine();
-        openfruit::plugin::restorePatternStateIfPresent(patterns, engine_);
     }
 }
 

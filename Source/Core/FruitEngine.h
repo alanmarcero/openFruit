@@ -9,9 +9,42 @@
 #include <memory>
 #include <atomic>
 #include <string>
-#include <mutex>
 
 namespace openfruit::core {
+
+// Cross-thread flags and counters. The audio callback only loads or stores these;
+// it does not take a mutex.
+struct RelaxedFlag {
+    std::atomic<bool> value { false };
+    RelaxedFlag() = default;
+    explicit RelaxedFlag(bool initial) noexcept : value(initial) {}
+    RelaxedFlag(const RelaxedFlag& other) noexcept : value(other.value.load(std::memory_order_relaxed)) {}
+    RelaxedFlag& operator=(const RelaxedFlag& other) noexcept {
+        value.store(other.value.load(std::memory_order_relaxed), std::memory_order_relaxed);
+        return *this;
+    }
+    RelaxedFlag& operator=(bool next) noexcept {
+        value.store(next, std::memory_order_relaxed);
+        return *this;
+    }
+    operator bool() const noexcept { return value.load(std::memory_order_relaxed); }
+};
+
+struct RelaxedInt {
+    std::atomic<int> value { 0 };
+    RelaxedInt() = default;
+    explicit RelaxedInt(int initial) noexcept : value(initial) {}
+    RelaxedInt(const RelaxedInt& other) noexcept : value(other.value.load(std::memory_order_relaxed)) {}
+    RelaxedInt& operator=(const RelaxedInt& other) noexcept {
+        value.store(other.value.load(std::memory_order_relaxed), std::memory_order_relaxed);
+        return *this;
+    }
+    RelaxedInt& operator=(int next) noexcept {
+        value.store(next, std::memory_order_relaxed);
+        return *this;
+    }
+    operator int() const noexcept { return value.load(std::memory_order_relaxed); }
+};
 
 struct TrackState {
     int trackIndex = 0; // 0..15
@@ -27,8 +60,8 @@ struct TrackState {
     int baseTune = 0; // -24 .. +24 semitones
     float volume = 1.0f; // 0.0 .. 1.5
     float pan = 0.0f; // -1.0 .. +1.0
-    bool mute = false;
-    bool solo = false;
+    RelaxedFlag mute;
+    RelaxedFlag solo;
     float filterCutoffHz = 20000.0f;
     float highPassCutoffHz = 20.0f;
     float drive = 0.0f;
@@ -44,7 +77,7 @@ struct TrackState {
     std::array<SampleVoice, kMaxVoicesPerTrack> voices;
     int nextVoiceIndex = 0;
 
-    int currentStep = 0;
+    RelaxedInt currentStep;
     int lastTriggeredStep = -1;
 
     void triggerVoice(std::shared_ptr<const AudioSampleBuffer> sampleToPlay,
@@ -78,8 +111,10 @@ public:
 
     // Track Configuration
     void setTrackCountMode(TrackCountMode mode) noexcept;
-    [[nodiscard]] TrackCountMode getTrackCountMode() const noexcept { return trackCountMode_; }
-    [[nodiscard]] int getActiveTrackCount() const noexcept { return static_cast<int>(trackCountMode_); }
+    [[nodiscard]] TrackCountMode getTrackCountMode() const noexcept {
+        return static_cast<TrackCountMode>(trackCountMode_.load(std::memory_order_relaxed));
+    }
+    [[nodiscard]] int getActiveTrackCount() const noexcept { return static_cast<int>(getTrackCountMode()); }
 
     // Sequencer Transport Control (Play / Pause with host sync)
     void setPlaying(bool playing) noexcept;
@@ -92,7 +127,9 @@ public:
     [[nodiscard]] int getTrackMidiChannel(int trackIndex) const noexcept;
 
     void setActivePage(PageIndex page) noexcept;
-    [[nodiscard]] PageIndex getActivePage() const noexcept { return activePage_; }
+    [[nodiscard]] PageIndex getActivePage() const noexcept {
+        return static_cast<PageIndex>(activePage_.load(std::memory_order_relaxed));
+    }
 
     // Track Access
     [[nodiscard]] TrackState& getTrack(int trackIndex);
@@ -113,6 +150,8 @@ public:
     void setStepTune(int trackIndex, PageIndex page, int stepIndex, int semitoneOffset);
     void setStepData(int trackIndex, PageIndex page, int stepIndex, StepData data);
     void clearStepPatterns();
+    void beginPatternBatch() noexcept;
+    void endPatternBatch();
     [[nodiscard]] StepData getStep(int trackIndex, PageIndex page, int stepIndex) const;
     void setSwing(float amount) noexcept { swing_ = std::clamp(amount, 0.0f, 0.5f); }
     [[nodiscard]] float getSwing() const noexcept { return swing_; }
@@ -128,8 +167,8 @@ public:
     [[nodiscard]] PageIndex getSongPageAtPpq(double ppq) const noexcept;
 
     // Global volume
-    void setMasterVolume(float vol) noexcept { masterVolume_ = vol; }
-    [[nodiscard]] float getMasterVolume() const noexcept { return masterVolume_; }
+    void setMasterVolume(float vol) noexcept { masterVolume_.store(vol, std::memory_order_relaxed); }
+    [[nodiscard]] float getMasterVolume() const noexcept { return masterVolume_.load(std::memory_order_relaxed); }
     void setOutputDb(float decibels) noexcept;
 
     // Color theme
@@ -140,18 +179,28 @@ public:
     [[nodiscard]] int getCurrentStep(int trackIndex) const;
 
 private:
+    struct PatternSnapshot {
+        std::array<TrackPatternPages, kMaxTracks> tracks;
+    };
+    struct ManualHit {
+        int track = 0;
+        float velocity = 0.85f;
+        int semitone = 0;
+    };
+
     double sampleRate_ = 44100.0;
-    float masterVolume_ = 1.0f;
+    std::atomic<float> masterVolume_ { 1.0f };
     float outputGainCurrent_ = 1.0f;
     float outputGainTarget_ = 1.0f;
     float outputGainStep_ = 0.0f;
     int outputGainRampRemaining_ = 0;
-    TrackCountMode trackCountMode_ = TrackCountMode::Tracks8;
+    std::atomic<int> trackCountMode_ { static_cast<int>(TrackCountMode::Tracks8) };
     std::atomic<bool> isPlaying_{ false };
     std::atomic<bool> hostSyncArmed_{ false };
-    bool justManuallyStarted_ = false;
+    std::atomic<bool> manualStart_ { false };
+    std::atomic<bool> transportReset_ { false };
     bool wasHostPlaying_ = false;
-    PageIndex activePage_ = PageIndex::PageA;
+    std::atomic<int> activePage_ { 0 };
     float swing_ = 0.0f;
     float humanize_ = 0.0f;
     float accentAmount_ = 0.0f;
@@ -160,8 +209,20 @@ private:
     std::array<SongSection, kNumPages> songSections_ {};
     ColorTheme colorTheme_ = ColorTheme::CyberpunkNeon;
 
-    mutable std::mutex engineMutex_;
     std::array<TrackState, kMaxTracks> tracks_;
+    std::array<std::atomic<std::shared_ptr<const AudioSampleBuffer>>, kMaxTracks> liveSample_;
+    std::array<std::atomic<std::shared_ptr<const AudioSampleBuffer>>, kMaxTracks> liveAudition_;
+    std::atomic<std::shared_ptr<const PatternSnapshot>> pattern_;
+    int patternBatch_ = 0;
+
+    static constexpr int kManualQueue = 64;
+    std::array<ManualHit, kManualQueue> manualQueue_ {};
+    std::atomic<int> manualWrite_ { 0 };
+    std::atomic<int> manualRead_ { 0 };
+
+    void publishPattern();
+    void drainManualHits();
+    [[nodiscard]] std::shared_ptr<const AudioSampleBuffer> audioSampleForTrack(int trackIndex) const;
 
     struct ScheduledHit {
         int sampleOffset = 0;

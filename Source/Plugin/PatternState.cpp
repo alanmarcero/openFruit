@@ -32,6 +32,7 @@ juce::ValueTree makePatternState(const core::FruitEngine& engine) {
 
 void restorePatternState(const juce::ValueTree& patterns, core::FruitEngine& engine) {
     if (!patterns.hasType("StepPatterns")) return;
+    engine.beginPatternBatch();
     engine.clearStepPatterns();
     for (int i = 0; i < patterns.getNumChildren(); ++i) {
         const auto child = patterns.getChild(i);
@@ -51,6 +52,7 @@ void restorePatternState(const juce::ValueTree& patterns, core::FruitEngine& eng
             static_cast<core::PageIndex>(static_cast<int>(child.getProperty("page", 0))),
             child.getProperty("index", -1), step);
     }
+    engine.endPatternBatch();
 }
 
 void restorePatternStateIfPresent(const juce::ValueTree& patterns, core::FruitEngine& engine) {

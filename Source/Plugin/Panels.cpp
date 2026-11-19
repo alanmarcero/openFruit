@@ -27,7 +27,9 @@ HeaderPanel::HeaderPanel(openfruit::core::FruitEngine& engine,
         trackCountBtns_[i].setClickingTogglesState(false);
         trackCountBtns_[i].onClick = [this, count = counts[i], idx = static_cast<int>(i)] {
             if (auto* param = apvts_.getParameter(openfruit::params::kTrackCount)) {
+                param->beginChangeGesture();
                 param->setValueNotifyingHost(param->convertTo0to1(static_cast<float>(idx)));
+                param->endChangeGesture();
             }
             if (count == 4) engine_.setTrackCountMode(openfruit::core::TrackCountMode::Tracks4);
             if (count == 8) engine_.setTrackCountMode(openfruit::core::TrackCountMode::Tracks8);
@@ -51,7 +53,9 @@ HeaderPanel::HeaderPanel(openfruit::core::FruitEngine& engine,
         pageBtns_[i].setClickingTogglesState(false);
         pageBtns_[i].onClick = [this, pageIdx = static_cast<openfruit::core::PageIndex>(i)] {
             if (auto* param = apvts_.getParameter(openfruit::params::kPage)) {
+                param->beginChangeGesture();
                 param->setValueNotifyingHost(param->convertTo0to1(static_cast<float>(pageIdx)));
+                param->endChangeGesture();
             }
             engine_.setActivePage(pageIdx);
             updateFromParameters();
@@ -77,7 +81,9 @@ HeaderPanel::HeaderPanel(openfruit::core::FruitEngine& engine,
         const int id = themeBox_.getSelectedId();
         const auto th = static_cast<openfruit::core::ColorTheme>(id - 1);
         if (auto* param = apvts_.getParameter(openfruit::params::kTheme)) {
+            param->beginChangeGesture();
             param->setValueNotifyingHost(param->convertTo0to1(static_cast<float>(th)));
+            param->endChangeGesture();
         }
         engine_.setColorTheme(th);
         setTheme(openfruit::theme::getPalette(th));
@@ -93,13 +99,8 @@ HeaderPanel::HeaderPanel(openfruit::core::FruitEngine& engine,
     masterVolSlider_.setTextBoxStyle(juce::Slider::TextBoxRight, false, 49, 26);
     masterVolSlider_.setRange(0.0, 1.5, 0.01);
     masterVolSlider_.setValue(1.0, juce::dontSendNotification);
-    masterVolSlider_.onValueChange = [this] {
-        const float v = static_cast<float>(masterVolSlider_.getValue());
-        if (auto* param = apvts_.getParameter(openfruit::params::kMasterVol)) {
-            param->setValueNotifyingHost(param->convertTo0to1(v));
-        }
-        engine_.setMasterVolume(v);
-    };
+    masterVolAttachment_ = std::make_unique<juce::AudioProcessorValueTreeState::SliderAttachment>(
+        apvts_, openfruit::params::kMasterVol, masterVolSlider_);
     addAndMakeVisible(masterVolSlider_);
 
     outputDbLabel_.setText("Output", juce::dontSendNotification);
@@ -212,6 +213,14 @@ void HeaderPanel::setTheme(const openfruit::theme::Palette& palette) {
 void HeaderPanel::updateFromParameters() {
     const int page = static_cast<int>(*apvts_.getRawParameterValue(params::kPage));
     const int count = static_cast<int>(*apvts_.getRawParameterValue(params::kTrackCount));
+    engine_.setActivePage(static_cast<core::PageIndex>(page));
+    constexpr core::TrackCountMode counts[] = {
+        core::TrackCountMode::Tracks4, core::TrackCountMode::Tracks8,
+        core::TrackCountMode::Tracks12, core::TrackCountMode::Tracks16
+    };
+    if (count >= 0 && count < 4)
+        engine_.setTrackCountMode(counts[count]);
+    engine_.setMasterVolume(*apvts_.getRawParameterValue(params::kMasterVol));
     for (int i = 0; i < 4; ++i) {
         pageBtns_[static_cast<size_t>(i)].setToggleState(i == page, juce::dontSendNotification);
         trackCountBtns_[static_cast<size_t>(i)].setToggleState(i == count, juce::dontSendNotification);
@@ -336,6 +345,10 @@ TrackerPanel::TrackerPanel(openfruit::core::FruitEngine& engine,
         auto* row = rows_[static_cast<size_t>(i)].get();
         row->onOpenBrowser = [this](int trackIdx) { openSampleBrowser(trackIdx); };
         row->onOpenSettings = [this](int track) { openTrackSettings(track); };
+        row->onStepEdited = [this, row](openfruit::core::PageIndex page, int step,
+                                        openfruit::core::StepData before, openfruit::core::StepData after) {
+            if (onStepEdited) onStepEdited(row->getTrackIndex(), page, step, before, after);
+        };
         grid_.addAndMakeVisible(row);
     }
 }
