@@ -5,6 +5,9 @@
 #include "ToneCache.h"
 #include "AnalysisQueue.h"
 #include "Parameters.h"
+#include "suite/AbCompare.h"
+#include "suite/PresetLibrary.h"
+#include "suite/UndoHistory.h"
 
 class OpenFruitAudioProcessor : public juce::AudioProcessor {
 public:
@@ -41,16 +44,33 @@ public:
     openfruit::core::ToneCache& getToneCache() noexcept { return toneCache_; }
     openfruit::core::AnalysisQueue& getAnalysisQueue() noexcept { return *analysisQueue_; }
     juce::AudioProcessorValueTreeState& getAPVTS() noexcept { return apvts_; }
+    openfruit::suite::UndoHistory& getUndo() noexcept { return undo_; }
+    openfruit::suite::AbCompare& getAb() noexcept { return ab_; }
+    openfruit::suite::PresetLibrary& getPresets() noexcept { return presets_; }
+
+    void selectAbSlot(int index);
+    void copyAbSlot(int from, int to);
+    void loadPresetBlock(const juce::MemoryBlock& block);
+    [[nodiscard]] juce::MemoryBlock captureInnerState();
 
 private:
     openfruit::core::FruitEngine engine_;
     openfruit::core::ToneCache toneCache_;
     std::unique_ptr<openfruit::core::AnalysisQueue> analysisQueue_;
     juce::AudioProcessorValueTreeState apvts_;
+    openfruit::suite::UndoHistory undo_;
+    openfruit::suite::AbCompare ab_;
+    openfruit::suite::PresetLibrary presets_ { "openFruit" };
 
     bool legacyKit_ = false;
+    int stateRestoreDepth_ = 0;
+    bool loadingSlot_ = false;
     void loadFactoryKit(bool legacy);
     void syncParametersToEngine();
+    void buildFactoryPresets();
+    [[nodiscard]] juce::ValueTree makeStateTree();
+    [[nodiscard]] juce::MemoryBlock treeToBlock(const juce::ValueTree& tree);
+    void restoreBlock(const juce::MemoryBlock& block);
 
     JUCE_DECLARE_NON_COPYABLE_WITH_LEAK_DETECTOR(OpenFruitAudioProcessor)
 };

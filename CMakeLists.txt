@@ -1,6 +1,6 @@
 cmake_minimum_required(VERSION 3.22)
 
-project(OpenFruit VERSION 1.8.1 LANGUAGES C CXX)
+project(OpenFruit VERSION 1.9.0 LANGUAGES C CXX)
 
 set(CMAKE_CXX_STANDARD 20)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
@@ -67,7 +67,7 @@ if(OF_BUILD_PLUGIN)
         NEEDS_MIDI_INPUT TRUE
         NEEDS_MIDI_OUTPUT FALSE
         IS_MIDI_EFFECT FALSE
-        EDITOR_WANTS_KEYBOARD_FOCUS FALSE
+        EDITOR_WANTS_KEYBOARD_FOCUS TRUE
         COPY_PLUGIN_AFTER_BUILD FALSE)
 
     target_sources(OpenFruit PRIVATE
@@ -78,11 +78,18 @@ if(OF_BUILD_PLUGIN)
         Source/Plugin/SampleBrowserModal.cpp
         Source/Plugin/Panels.cpp
         Source/Plugin/PatternState.cpp
+        Source/Plugin/SampleState.cpp
         Source/Plugin/MidiEventProcessor.cpp
         Source/Plugin/PluginProcessor.cpp
-        Source/Plugin/PluginEditor.cpp)
+        Source/Plugin/PluginEditor.cpp
+        Source/suite/UndoHistory.cpp
+        Source/suite/AbCompare.cpp
+        Source/suite/PresetLibrary.cpp
+        Source/suite/SuiteBar.cpp
+        Source/suite/PresetBrowser.cpp)
 
     target_include_directories(OpenFruit PRIVATE
+        Source
         Source/Core
         Source/Plugin)
 
@@ -114,11 +121,18 @@ if(OF_BUILD_PLUGIN)
             Source/Plugin/SampleBrowserModal.cpp
             Source/Plugin/Panels.cpp
             Source/Plugin/PatternState.cpp
+            Source/Plugin/SampleState.cpp
             Source/Plugin/MidiEventProcessor.cpp
             Source/Plugin/PluginProcessor.cpp
-            Source/Plugin/PluginEditor.cpp)
+            Source/Plugin/PluginEditor.cpp
+            Source/suite/UndoHistory.cpp
+            Source/suite/AbCompare.cpp
+            Source/suite/PresetLibrary.cpp
+            Source/suite/SuiteBar.cpp
+            Source/suite/PresetBrowser.cpp)
 
         target_include_directories(render_ui_snapshot PRIVATE
+            Source
             Source/Core
             Source/Plugin)
 
@@ -156,11 +170,18 @@ if(OF_BUILD_TESTS)
         Tests/PluginParameterTests.cpp
         Tests/PluginStateTests.cpp
         Tests/PluginMidiTests.cpp
+        Tests/SessionTests.cpp
         Source/Plugin/PatternState.cpp
+        Source/Plugin/SampleState.cpp
         Source/Plugin/MidiEventProcessor.cpp
-        Source/Plugin/Parameters.cpp)
+        Source/Plugin/Parameters.cpp
+        Source/Plugin/DefaultKit.cpp
+        Source/Plugin/PluginProcessor.cpp
+        Source/suite/UndoHistory.cpp
+        Source/suite/AbCompare.cpp
+        Source/suite/PresetLibrary.cpp)
 
-    target_include_directories(openfruit_tests PRIVATE Tests Source/Plugin)
+    target_include_directories(openfruit_tests PRIVATE Tests Source Source/Plugin Source/Core)
     target_link_libraries(openfruit_tests PRIVATE openfruit_core juce::juce_audio_processors Catch2::Catch2WithMain)
 
     enable_testing()

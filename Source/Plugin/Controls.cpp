@@ -56,6 +56,7 @@ void CyberStepPad::paint(juce::Graphics& g) {
 }
 
 void CyberStepPad::mouseDown(const juce::MouseEvent& e) {
+    if (onEditBegan) onEditBegan();
     if (e.mods.isRightButtonDown()) {
         // Right drag tunes the hit; a stationary right click opens its detail menu.
         dragStartPos_ = e.getPosition();
@@ -107,13 +108,18 @@ void CyberStepPad::mouseDrag(const juce::MouseEvent& e) {
 
 void CyberStepPad::mouseUp(const juce::MouseEvent& e) {
     if (tuneGesture_) {
-        if (e.mouseWasClicked() && !tuneDragged_) showStepMenu();
+        if (e.mouseWasClicked() && !tuneDragged_) {
+            showStepMenu();
+            tuneGesture_ = false;
+            return;
+        }
         tuneGesture_ = false;
     } else if (!velocityDragged_) {
         data_.active = !wasActive_;
         if (onToggle) onToggle(data_.active);
         repaint();
     }
+    if (onEditEnded) onEditEnded();
 }
 
 void CyberStepPad::showStepMenu() {
@@ -159,9 +165,11 @@ void CyberStepPad::showStepMenu() {
     menu.addItem(700, "Reverse", true, data_.reverse);
     menu.addSubMenu("Choke group", choke);
     menu.setLookAndFeel(&getLookAndFeel());
-    menu.showMenuAsync(juce::PopupMenu::Options().withTargetComponent(this),
+        menu.showMenuAsync(juce::PopupMenu::Options().withTargetComponent(this),
         juce::ModalCallbackFunction::create([safeThis = juce::Component::SafePointer<CyberStepPad>(this)](int result) {
-            if (safeThis != nullptr && result != 0) safeThis->selectStepMenuItem(result);
+            if (safeThis == nullptr) return;
+            if (result != 0) safeThis->selectStepMenuItem(result);
+            else if (safeThis->onEditEnded) safeThis->onEditEnded();
         }));
 }
 
@@ -191,10 +199,12 @@ void CyberStepPad::selectStepMenuItem(int itemId) {
     data_.sampleEnd = std::max(data_.sampleEnd, std::min(1.0f, data_.sampleStart + 0.01f));
     repaint();
     if (onStepDataChange) onStepDataChange(data_);
+    if (onEditEnded) onEditEnded();
 }
 
 void CyberStepPad::mouseWheelMove(const juce::MouseEvent& /*e*/, const juce::MouseWheelDetails& wheel) {
     if (!data_.active) return;
+    if (onEditBegan) onEditBegan();
     const int delta = (wheel.deltaY > 0.0f) ? 1 : -1;
     const int newTune = std::clamp(data_.semitoneOffset + delta, -24, 24);
     if (newTune != data_.semitoneOffset) {
@@ -204,6 +214,7 @@ void CyberStepPad::mouseWheelMove(const juce::MouseEvent& /*e*/, const juce::Mou
             onTuneChange(newTune);
         }
     }
+    if (onEditEnded) onEditEnded();
 }
 
 // ============================================================================
@@ -219,7 +230,9 @@ void setApvtsParamValue(juce::AudioProcessorValueTreeState* apvts,
         return;
     }
     if (auto* param = apvts->getParameter(paramId)) {
+        param->beginChangeGesture();
         param->setValueNotifyingHost(param->convertTo0to1(plainValue));
+        param->endChangeGesture();
     }
 }
 
@@ -367,6 +380,19 @@ TrackRowComponent::TrackRowComponent(int trackIdx,
         pad->onStepDataChange = [this, s](openfruit::core::StepData data) {
             engine_.setStepData(trackIdx_, engine_.getActivePage(), s, data);
         };
+        pad->onEditBegan = [this, s] {
+            editOpen_ = true;
+            editStep_ = s;
+            editPage_ = engine_.getActivePage();
+            editBefore_ = engine_.getStep(trackIdx_, editPage_, s);
+        };
+        pad->onEditEnded = [this, s] {
+            if (!editOpen_ || editStep_ != s) return;
+            editOpen_ = false;
+            const auto after = engine_.getStep(trackIdx_, editPage_, s);
+            if (after == editBefore_) return;
+            if (onStepEdited) onStepEdited(editPage_, s, editBefore_, after);
+        };
 
         addAndMakeVisible(pad);
     }
@@ -387,8 +413,16 @@ void TrackRowComponent::updateFromEngine() {
     const juce::String name = sample ? sample->sampleName : track.name;
     samplePadBtn_.setButtonText(name);
     samplePadBtn_.setTooltip("Audition " + name + (sample ? "   " + juce::String(sample->toneResult.formattedTone()) : ""));
-    muteBtn_.setToggleState(track.mute, juce::dontSendNotification);
-    soloBtn_.setToggleState(track.solo, juce::dontSendNotification);
+    const bool muted = apvts_ != nullptr
+        ? apvts_->getRawParameterValue(openfruit::params::trackMuteId(trackIdx_))->load() > 0.5f
+        : static_cast<bool>(track.mute);
+    const bool soloed = apvts_ != nullptr
+        ? apvts_->getRawParameterValue(openfruit::params::trackSoloId(trackIdx_))->load() > 0.5f
+        : static_cast<bool>(track.solo);
+    engine_.getTrack(trackIdx_).mute = muted;
+    engine_.getTrack(trackIdx_).solo = soloed;
+    muteBtn_.setToggleState(muted, juce::dontSendNotification);
+    soloBtn_.setToggleState(soloed, juce::dontSendNotification);
 
     // Update 16 pads for active page
     const auto activePage = engine_.getActivePage();

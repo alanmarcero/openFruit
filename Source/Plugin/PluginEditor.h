@@ -5,6 +5,8 @@
 #include "PluginProcessor.h"
 #include "Panels.h"
 #include "CyberLookAndFeel.h"
+#include "suite/PresetBrowser.h"
+#include "suite/SuiteBar.h"
 
 class OpenFruitAudioProcessorEditor : public juce::AudioProcessorEditor,
                                       private juce::Timer {
@@ -14,6 +16,7 @@ public:
 
     void paint(juce::Graphics& g) override;
     void resized() override;
+    bool keyPressed(const juce::KeyPress& key) override;
 
     void refresh() { timerCallback(); }
     void openSampleBrowser(int trackIdx, const juce::File& folder = {}) {
@@ -26,6 +29,8 @@ private:
     OpenFruitAudioProcessor& processorRef_;
     openfruit::ui::CyberLookAndFeel cyberLookAndFeel_;
     openfruit::ui::HeaderPanel headerPanel_;
+    openfruit::suite::SuiteBar suiteBar_;
+    openfruit::suite::PresetBrowser presetBrowser_;
     openfruit::ui::TrackerPanel trackerPanel_;
     juce::TooltipWindow tooltips_ {this, 550};
     int displayedPage_ = -1;
