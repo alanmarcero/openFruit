@@ -137,6 +137,14 @@ jobs:
     permissions:
       contents: write
     steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+          ref: ${{ github.ref }}
+
+      - name: Write release notes
+        run: python3 scripts/release_notes.py "${{ github.ref_name }}" > release_notes.md
+
       - uses: actions/download-artifact@v4
         with:
           merge-multiple: true
@@ -146,8 +154,5 @@ jobs:
           tag_name: ${{ github.ref_name }}
           name: openFruit ${{ github.ref_name }}
           files: openFruit-*.zip
-          body: |
-            Redesigned native sequencer, Citrus kit and reduced aliasing during pitched-up sample playback.
-
-            ![openFruit sequencer](https://raw.githubusercontent.com/alanmarcero/openFruit/${{ github.ref_name }}/docs/screenshots/preview.png)
+          body_path: release_notes.md
           generate_release_notes: true
