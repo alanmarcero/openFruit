@@ -12,12 +12,14 @@ struct ToneAnalysisResult {
     std::string noteName = "---";
     int midiNote = 60;
     int detuneCents = 0;
+    float fineDetuneCents = 0.0f;
     double durationSeconds = 0.0;
     int64_t durationSamples = 0;
     float peakAmplitude = 0.0f;
     float rmsAmplitude = 0.0f;
     bool hasClearTone = false;
 
+    [[nodiscard]] double pitchNormalizationSemitones() const noexcept;
     [[nodiscard]] std::string formattedTone() const;
     [[nodiscard]] std::string formattedDuration() const;
 };

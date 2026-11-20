@@ -499,3 +499,261 @@ TEST_CASE("Citrus clock follows the real host bar and manual transport", "[Fruit
     REQUIRE(std::abs(block(0,120,false) - .005f) < 1e-5f);
     REQUIRE(std::abs(block(0,120,false) - .010f) < 1e-5f);
 }
+
+TEST_CASE("FruitEngine interpolates sub-sample fractional ratchet triggers without jitter", "[FruitEngine][sequencer]") {
+    constexpr double sr = 48000.0;
+    // At 137 BPM, 1 quarter = 21021.8978 samples, 1/16 step = 5255.47445 samples,
+    // 4 ratchets = 1313.86861 samples apart (non-integer fractional spacing!).
+    constexpr double bpm = 137.0;
+
+    auto tone = std::make_shared<AudioSampleBuffer>();
+    tone->sampleRate = sr;
+    tone->numChannels = 1;
+    tone->numSamples = 512;
+    tone->channels.resize(1);
+    tone->channels[0].resize(512);
+    for (int i = 0; i < 512; ++i) {
+        const double window = 0.5 - 0.5 * std::cos(2.0 * 3.14159265358979323846 * static_cast<double>(i) / 511.0);
+        tone->channels[0][static_cast<size_t>(i)] =
+            static_cast<float>(0.5 * window * std::sin(2.0 * 3.14159265358979323846 * 6000.0 * static_cast<double>(i) / sr));
+    }
+    tone->buildMipPyramid();
+    tone->isLoaded = true;
+
+    FruitEngine engine;
+    engine.prepare(sr, 8192);
+    engine.loadSampleForTrack(0, tone);
+
+    StepData step;
+    step.active = true;
+    step.velocity = 1.0f;
+    step.ratchets = 4;
+    engine.setStepData(0, PageIndex::PageA, 0, step);
+    engine.setPlaying(true);
+
+    std::vector<float> left(6000, 0.0f), right(6000, 0.0f);
+    engine.process(left.data(), right.data(), 6000, bpm, 0.0, true);
+
+    // Measure 6 kHz phase of ratchet 0 (around t0 = 0.0) vs ratchet 1 (around t1 = 1313.868613 samples).
+    // With sub-sample fractional interpolation, the measured phase delay matches t1 within < 0.08 samples;
+    // integer rounding (1314.0) leaves a 0.1314-sample error, and ratchet 2 (2627.7372 -> 2628) leaves 0.2628 samples!
+    const auto measureOnsetDelay = [&](int windowStart) {
+        constexpr double omega = 2.0 * 3.14159265358979323846 * 6000.0 / sr;
+        double re = 0.0;
+        double im = 0.0;
+        for (int i = 0; i < 520; ++i) {
+            const double x = static_cast<double>(left[static_cast<size_t>(windowStart + i)]);
+            re += x * std::cos(omega * static_cast<double>(windowStart + i));
+            im -= x * std::sin(omega * static_cast<double>(windowStart + i));
+        }
+        return std::atan2(im, re);
+    };
+
+    const double phase0 = measureOnsetDelay(0);
+    const double phase2 = measureOnsetDelay(2625);
+    const double exactSpacing2 = 2.0 * (sr * 60.0 / bpm) * 0.25 / 4.0; // 2627.737226 samples (frac = 0.2628)
+    constexpr double omega = 2.0 * 3.14159265358979323846 * 6000.0 / sr;
+    double phaseDiff = (phase0 - phase2) - omega * exactSpacing2;
+    while (phaseDiff > 3.14159265358979323846) phaseDiff -= 2.0 * 3.14159265358979323846;
+    while (phaseDiff < -3.14159265358979323846) phaseDiff += 2.0 * 3.14159265358979323846;
+    const double timingErrorSamples = std::abs(phaseDiff / omega);
+
+    REQUIRE(timingErrorSamples < 0.08);
+}
+
+TEST_CASE("FruitEngine humanize applies Gaussian micro-timing and micro-cent pitch jitter", "[FruitEngine][sequencer][humanize]") {
+    constexpr double sr = 48000.0;
+    auto sample = std::make_shared<AudioSampleBuffer>();
+    sample->sampleRate = sr;
+    sample->numChannels = 1;
+    sample->numSamples = 2048;
+    sample->channels.resize(1);
+    sample->channels[0].resize(2048);
+    for (int i = 0; i < 2048; ++i) {
+        sample->channels[0][static_cast<size_t>(i)] =
+            static_cast<float>(0.6 * std::sin(2.0 * 3.14159265358979323846 * 1000.0 * static_cast<double>(i) / sr));
+    }
+    sample->buildMipPyramid();
+    sample->isLoaded = true;
+
+    const auto renderSteps = [&](float humanizeAmount) {
+        FruitEngine engine;
+        engine.prepare(sr, 4096);
+        engine.loadSampleForTrack(0, sample);
+        engine.setHumanize(humanizeAmount);
+        for (int s = 0; s < 16; ++s) {
+            StepData step;
+            step.active = true;
+            step.velocity = 0.75f;
+            engine.setStepData(0, PageIndex::PageA, s, step);
+        }
+        engine.setPlaying(true);
+
+        constexpr int totalSamples = 96000;
+        std::vector<float> left(totalSamples, 0.0f), right(totalSamples, 0.0f);
+        for (int pos = 0; pos < totalSamples; pos += 512) {
+            const int chunk = std::min(512, totalSamples - pos);
+            const double ppq = static_cast<double>(pos) / (sr * 60.0 / 120.0);
+            engine.process(left.data() + pos, right.data() + pos, chunk, 120.0, ppq, true);
+        }
+        return left;
+    };
+
+    const auto quantized = renderSteps(0.0f);
+    const auto humanized = renderSteps(1.0f);
+
+    // Steps 1..15 sit at multiples of 6000 samples (125 ms apart; sample lasts 42.6 ms so hits never overlap).
+    int shiftedTimingCount = 0;
+    int maxTimingShiftSamples = 0;
+    int pitchShiftedCount = 0;
+
+    for (int s = 1; s < 16; ++s) {
+        const int nominalOnset = s * 6000;
+        int actualOnset = -1;
+        for (int idx = nominalOnset - 200; idx <= nominalOnset + 200; ++idx) {
+            if (std::abs(humanized[static_cast<size_t>(idx)]) > 1e-4f) {
+                actualOnset = idx;
+                break;
+            }
+        }
+        REQUIRE(actualOnset >= 0);
+        const int shift = std::abs(actualOnset - nominalOnset);
+        maxTimingShiftSamples = std::max(maxTimingShiftSamples, shift);
+        if (shift > 1) {
+            ++shiftedTimingCount;
+        }
+
+        // Compare zero-crossing span across 30 cycles inside the note body to detect micro-cent pitch variation.
+        const auto measureZeroCrossSpan = [&](const std::vector<float>& buf, int onset) {
+            int firstCross = -1;
+            int lastCross = -1;
+            int crossings = 0;
+            for (int i = onset + 48; i < onset + 1800 && crossings < 31; ++i) {
+                if (buf[static_cast<size_t>(i - 1)] <= 0.0f && buf[static_cast<size_t>(i)] > 0.0f) {
+                    const double frac = static_cast<double>(-buf[static_cast<size_t>(i - 1)])
+                        / static_cast<double>(buf[static_cast<size_t>(i)] - buf[static_cast<size_t>(i - 1)]);
+                    const double exactPos = static_cast<double>(i - 1) + frac;
+                    if (firstCross < 0) firstCross = i;
+                    lastCross = i;
+                    if (crossings == 0) firstCross = static_cast<int>(exactPos * 1000.0);
+                    if (crossings == 30) lastCross = static_cast<int>(exactPos * 1000.0);
+                    ++crossings;
+                }
+            }
+            return lastCross - firstCross;
+        };
+
+        const int qSpan = measureZeroCrossSpan(quantized, nominalOnset);
+        const int hSpan = measureZeroCrossSpan(humanized, actualOnset);
+        if (std::abs(hSpan - qSpan) >= 150) { // >= 0.15 samples over 1440 samples (~0.18 cents)
+            ++pitchShiftedCount;
+        }
+    }
+
+    // Timing shifts occur within ±3 ms (±144 samples at 48 kHz + 1 sample onset threshold)
+    REQUIRE(shiftedTimingCount >= 8);
+    REQUIRE(maxTimingShiftSamples <= 146);
+    REQUIRE(pitchShiftedCount >= 8);
+}
+
+TEST_CASE("FruitEngine smooths masterVolume per sample and limits 16-track sums with 4x oversampling", "[FruitEngine][master]") {
+    // 1. Per-sample masterVolume smoothing prevents step discontinuities
+    {
+        FruitEngine engine;
+        engine.prepare(48000.0, 256);
+        std::vector<float> left(256, 0.25f), right(256, 0.25f);
+        engine.process(left.data(), right.data(), 256, 120.0, 0.0, false);
+        const float prevSample = left.back();
+
+        engine.setMasterVolume(0.0f);
+        std::fill(left.begin(), left.end(), 0.25f);
+        std::fill(right.begin(), right.end(), 0.25f);
+        engine.process(left.data(), right.data(), 256, 120.0, 0.0, false);
+
+        // First sample after masterVolume step must ramp smoothly from prevSample instead of jumping straight to 0.0f
+        REQUIRE(std::abs(left.front() - prevSample) < 0.01f);
+        REQUIRE(std::abs(left.back()) < std::abs(left.front()) * 0.5f);
+    }
+
+    // 2. 16 hot tracks (808 sub + high hat tone) through 2 ms lookahead limiter + 4x oversampled bus clipper
+    {
+        constexpr double sr = 48000.0;
+        constexpr int n = 4096;
+
+        auto kick808 = std::make_shared<AudioSampleBuffer>();
+        kick808->sampleRate = sr;
+        kick808->numChannels = 1;
+        kick808->numSamples = n;
+        kick808->channels = {std::vector<float>(n, 0.0f)};
+        for (int i = 0; i < n; ++i) {
+            kick808->channels[0][static_cast<size_t>(i)] =
+                static_cast<float>(0.95 * std::sin(2.0 * 3.14159265358979323846 * 60.0 * static_cast<double>(i) / sr));
+        }
+        kick808->buildMipPyramid();
+        kick808->isLoaded = true;
+
+        // 17500 Hz tone: at 1x host rate, 3rd harmonic = 52500 Hz aliases to 4500 Hz!
+        auto hatTone = std::make_shared<AudioSampleBuffer>();
+        hatTone->sampleRate = sr;
+        hatTone->numChannels = 1;
+        hatTone->numSamples = n;
+        hatTone->channels = {std::vector<float>(n, 0.0f)};
+        for (int i = 0; i < n; ++i) {
+            hatTone->channels[0][static_cast<size_t>(i)] =
+                static_cast<float>(0.95 * std::sin(2.0 * 3.14159265358979323846 * 17500.0 * static_cast<double>(i) / sr));
+        }
+        hatTone->buildMipPyramid();
+        hatTone->isLoaded = true;
+
+        FruitEngine engine;
+        engine.prepare(sr, n);
+        engine.setTrackCountMode(TrackCountMode::Tracks16);
+        engine.setMasterOversampling(true);
+
+        for (int t = 0; t < 16; ++t) {
+            engine.loadSampleForTrack(t, (t < 8) ? kick808 : hatTone);
+            engine.getTrack(t).volume = 1.2f;
+            engine.setStepActive(t, PageIndex::PageA, 0, true);
+            engine.setStepVelocity(t, PageIndex::PageA, 0, 1.0f);
+        }
+        engine.setPlaying(true);
+
+        std::vector<float> left(n, 0.0f), right(n, 0.0f);
+        engine.process(left.data(), right.data(), n, 120.0, 0.0, true);
+
+        float peakSample = 0.0f;
+        for (int i = 0; i < n; ++i) {
+            peakSample = std::max(peakSample, std::abs(left[static_cast<size_t>(i)]));
+        }
+        REQUIRE(peakSample <= 1.0f);
+        REQUIRE(peakSample > 0.7f);
+
+        // Measure folded 4500 Hz alias (|48000 - 3 * 17500| = 4500 Hz) in steady state [1024, 3072)
+        constexpr int start = 1024;
+        constexpr int count = 2048;
+        double re = 0.0;
+        double im = 0.0;
+        for (int i = 0; i < count; ++i) {
+            const double w = 0.5 - 0.5 * std::cos(2.0 * 3.14159265358979323846 * static_cast<double>(i) / static_cast<double>(count - 1));
+            const double x = static_cast<double>(left[static_cast<size_t>(start + i)]) * w;
+            const double angle = 2.0 * 3.14159265358979323846 * 4500.0 * static_cast<double>(i) / sr;
+            re += x * std::cos(angle);
+            im -= x * std::sin(angle);
+        }
+        const double folded4500Hz = 4.0 * std::sqrt(re * re + im * im) / static_cast<double>(count);
+        REQUIRE(folded4500Hz < 0.005);
+
+        // Verify the 17.5 kHz hi-hat fundamental itself passes cleanly through the 4x oversampler passband
+        double hatRe = 0.0;
+        double hatIm = 0.0;
+        for (int i = 0; i < count; ++i) {
+            const double w = 0.5 - 0.5 * std::cos(2.0 * 3.14159265358979323846 * static_cast<double>(i) / static_cast<double>(count - 1));
+            const double x = static_cast<double>(left[static_cast<size_t>(start + i)]) * w;
+            const double angle = 2.0 * 3.14159265358979323846 * 17500.0 * static_cast<double>(i) / sr;
+            hatRe += x * std::cos(angle);
+            hatIm -= x * std::sin(angle);
+        }
+        const double hat17500Hz = 4.0 * std::sqrt(hatRe * hatRe + hatIm * hatIm) / static_cast<double>(count);
+        REQUIRE(hat17500Hz > 0.25);
+    }
+}

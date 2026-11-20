@@ -46,6 +46,37 @@ struct RelaxedInt {
     operator int() const noexcept { return value.load(std::memory_order_relaxed); }
 };
 
+template <typename T>
+struct AtomicShared {
+#if defined(__cpp_lib_atomic_shared_ptr) && __cpp_lib_atomic_shared_ptr >= 201711L
+    std::atomic<std::shared_ptr<T>> value;
+    std::shared_ptr<T> load(std::memory_order order) const noexcept { return value.load(order); }
+    void store(std::shared_ptr<T> next, std::memory_order order) noexcept { value.store(std::move(next), order); }
+#else
+    std::shared_ptr<T> value;
+    std::shared_ptr<T> load(std::memory_order order) const noexcept {
+#if defined(__clang__)
+#pragma clang diagnostic push
+#pragma clang diagnostic ignored "-Wdeprecated-declarations"
+#endif
+        return std::atomic_load_explicit(&value, order);
+#if defined(__clang__)
+#pragma clang diagnostic pop
+#endif
+    }
+    void store(std::shared_ptr<T> next, std::memory_order order) noexcept {
+#if defined(__clang__)
+#pragma clang diagnostic push
+#pragma clang diagnostic ignored "-Wdeprecated-declarations"
+#endif
+        std::atomic_store_explicit(&value, std::move(next), order);
+#if defined(__clang__)
+#pragma clang diagnostic pop
+#endif
+    }
+#endif
+};
+
 struct TrackState {
     int trackIndex = 0; // 0..15
     int midiChannel = 1; // 1..16
@@ -64,7 +95,10 @@ struct TrackState {
     RelaxedFlag solo;
     float filterCutoffHz = 20000.0f;
     float highPassCutoffHz = 20.0f;
+    float filterResonance = 0.0f;
+    float filterKeyTrack = 0.0f;
     float drive = 0.0f;
+    bool keyNormalizePitch = false;
     float amplitudeAttackSeconds = 0.0f;
     float amplitudeDecaySeconds = 0.0f;
     float amplitudeSustain = 1.0f;
@@ -170,6 +204,8 @@ public:
     void setMasterVolume(float vol) noexcept { masterVolume_.store(vol, std::memory_order_relaxed); }
     [[nodiscard]] float getMasterVolume() const noexcept { return masterVolume_.load(std::memory_order_relaxed); }
     void setOutputDb(float decibels) noexcept;
+    void setMasterOversampling(bool enabled) noexcept { masterOversampling_.store(enabled, std::memory_order_relaxed); }
+    [[nodiscard]] bool getMasterOversampling() const noexcept { return masterOversampling_.load(std::memory_order_relaxed); }
 
     // Color theme
     void setColorTheme(ColorTheme theme) noexcept { colorTheme_ = theme; }
@@ -190,6 +226,20 @@ private:
 
     double sampleRate_ = 44100.0;
     std::atomic<float> masterVolume_ { 1.0f };
+    std::atomic<bool> masterOversampling_ { false };
+    float masterVolumeCurrent_ = 1.0f;
+    float masterVolumeSmoothAlpha_ = 0.005f;
+    float limiterEnvGain_ = 1.0f;
+    float limiterAttackCoeff_ = 0.96f;
+    float limiterReleaseCoeff_ = 0.9995f;
+    Halfband2x masterUp1L_{};
+    Halfband2x masterUp1R_{};
+    Halfband2x masterUp2L_{};
+    Halfband2x masterUp2R_{};
+    Halfband2x masterDown2L_{};
+    Halfband2x masterDown2R_{};
+    Halfband2x masterDown1L_{};
+    Halfband2x masterDown1R_{};
     float outputGainCurrent_ = 1.0f;
     float outputGainTarget_ = 1.0f;
     float outputGainStep_ = 0.0f;
@@ -210,9 +260,9 @@ private:
     ColorTheme colorTheme_ = ColorTheme::CyberpunkNeon;
 
     std::array<TrackState, kMaxTracks> tracks_;
-    std::array<std::atomic<std::shared_ptr<const AudioSampleBuffer>>, kMaxTracks> liveSample_;
-    std::array<std::atomic<std::shared_ptr<const AudioSampleBuffer>>, kMaxTracks> liveAudition_;
-    std::atomic<std::shared_ptr<const PatternSnapshot>> pattern_;
+    std::array<AtomicShared<const AudioSampleBuffer>, kMaxTracks> liveSample_;
+    std::array<AtomicShared<const AudioSampleBuffer>, kMaxTracks> liveAudition_;
+    AtomicShared<const PatternSnapshot> pattern_;
     int patternBatch_ = 0;
 
     static constexpr int kManualQueue = 64;
@@ -228,6 +278,8 @@ private:
         int sampleOffset = 0;
         int trackIndex = 0;
         StepData step;
+        double subSampleOffset = 0.0;
+        float fineTuneCents = 0.0f;
         size_t sequence = 0;
     };
     static constexpr size_t kMaxScheduledHits = 4096;
