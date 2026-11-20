@@ -175,8 +175,8 @@ private:
     bool adaaPrimed_ = false;
 
     // De-click shadow tail for choke & voice steal
-    std::array<float, kMaxShadowTailFrames> tailLeft_{};
-    std::array<float, kMaxShadowTailFrames> tailRight_{};
+    std::vector<float> tailLeft_ = std::vector<float>(static_cast<size_t>(kMaxShadowTailFrames), 0.0f);
+    std::vector<float> tailRight_ = std::vector<float>(static_cast<size_t>(kMaxShadowTailFrames), 0.0f);
     int tailPos_ = 0;
     int tailLength_ = 0;
 
