@@ -259,7 +259,7 @@ private:
     std::array<SongSection, kNumPages> songSections_ {};
     ColorTheme colorTheme_ = ColorTheme::CyberpunkNeon;
 
-    std::array<TrackState, kMaxTracks> tracks_;
+    std::vector<TrackState> tracks_ = std::vector<TrackState>(static_cast<size_t>(kMaxTracks));
     std::array<AtomicShared<const AudioSampleBuffer>, kMaxTracks> liveSample_;
     std::array<AtomicShared<const AudioSampleBuffer>, kMaxTracks> liveAudition_;
     AtomicShared<const PatternSnapshot> pattern_;
@@ -283,7 +283,7 @@ private:
         size_t sequence = 0;
     };
     static constexpr size_t kMaxScheduledHits = 4096;
-    std::array<ScheduledHit, kMaxScheduledHits> scheduledHits_ {};
+    std::vector<ScheduledHit> scheduledHits_ = std::vector<ScheduledHit>(kMaxScheduledHits);
     size_t scheduledHitCount_ = 0;
 
     std::atomic<float> displayBarPhase_ {0.0f};
