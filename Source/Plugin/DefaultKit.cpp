@@ -24,6 +24,7 @@ std::shared_ptr<openfruit::core::AudioSampleBuffer> createBuffer(const std::stri
     buf->toneResult = openfruit::core::SonicAnalyzer::analyze(buf->channels[0].data(),
                                                               buf->numSamples,
                                                               sampleRate);
+    buf->buildMipPyramid();
     return buf;
 }
 

@@ -507,6 +507,16 @@ void SonicAnalyzer::frequencyToNote(double freqHz,
     outNoteName = midiNoteToName(nearestMidi);
 }
 
+double ToneAnalysisResult::pitchNormalizationSemitones() const noexcept {
+    if (!hasClearTone) return 0.0;
+    const int noteInOctave = ((midiNote % 12) + 12) % 12;
+    const int rootOffset = (noteInOctave <= 6) ? -noteInOctave : (12 - noteInOctave);
+    const double cents = (std::abs(fineDetuneCents) > 0.0f || detuneCents == 0)
+        ? static_cast<double>(fineDetuneCents)
+        : static_cast<double>(detuneCents);
+    return static_cast<double>(rootOffset) - (cents * 0.01);
+}
+
 std::string ToneAnalysisResult::formattedTone() const {
     if (dominantFrequencyHz <= 10.0 || !std::isfinite(dominantFrequencyHz) || noteName.empty() || noteName == "---") {
         return "~C3 (130.8 Hz)";
@@ -711,6 +721,10 @@ ToneAnalysisResult SonicAnalyzer::analyze(const float* const* channelData,
                                   : kDefaultFallbackHz;
     res.hasClearTone = (winner.clarity >= 0.40);
     frequencyToNote(res.dominantFrequencyHz, res.midiNote, res.detuneCents, res.noteName);
+    if (res.dominantFrequencyHz > 10.0 && std::isfinite(res.dominantFrequencyHz)) {
+        const double exactMidi = 69.0 + 12.0 * std::log2(res.dominantFrequencyHz / 440.0);
+        res.fineDetuneCents = static_cast<float>(std::clamp((exactMidi - static_cast<double>(res.midiNote)) * 100.0, -50.0, 50.0));
+    }
     return res;
 }
 

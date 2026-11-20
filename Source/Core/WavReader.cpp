@@ -505,6 +505,7 @@ std::shared_ptr<AudioSampleBuffer> WavReader::loadSample(const std::string& path
     sample->numSamples = decoded.numSamples;
     sample->channels = std::move(decoded.channels);
     sample->toneResult = analysis ? *analysis : SonicAnalyzer::analyze(decoded.monoChannel.data(), decoded.numSamples, decoded.sampleRate);
+    sample->buildMipPyramid();
     sample->isLoaded = true;
     return sample;
 }

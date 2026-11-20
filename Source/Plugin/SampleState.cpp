@@ -90,6 +90,7 @@ std::shared_ptr<core::AudioSampleBuffer> decodeFlac(const juce::MemoryBlock& enc
                                                           sample->numSamples,
                                                           sample->sampleRate);
     }
+    sample->buildMipPyramid();
     sample->isLoaded = true;
     return sample;
 }
