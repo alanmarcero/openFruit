@@ -84,6 +84,8 @@ public:
 private:
     int track_;
     juce::TextButton close_ {"Done"};
+    juce::TextButton previous_ {"<"};
+    juce::TextButton next_ {">"};
     juce::ComboBox midi_, timing_;
     std::array<juce::Label, 2> routingLabels_;
     std::unique_ptr<juce::AudioProcessorValueTreeState::ComboBoxAttachment> timingAttachment_;
@@ -93,6 +95,7 @@ private:
     std::array<std::unique_ptr<juce::AudioProcessorValueTreeState::SliderAttachment>, 12> attachments_;
 public:
     std::function<void()> onClose;
+    std::function<void(int delta)> onStepTrack;
 };
 
 class TrackRowComponent : public juce::Component, public juce::SettableTooltipClient {
@@ -107,6 +110,7 @@ public:
     void updatePlayhead(int currentStep, bool live);
     void setShownPage(openfruit::core::PageIndex page) noexcept { page_ = page; }
     void setAnySolo(bool anySolo);
+    void setMixView(bool mix);
 
     std::function<void(int trackIdx)> onOpenBrowser, onOpenSettings;
     std::function<void(int trackIdx)> onSampleAudition;
@@ -129,6 +133,8 @@ private:
     juce::TextButton voiceSettingsBtn_ {"Settings"};
     juce::ToggleButton muteBtn_{ "Mute" };
     juce::ToggleButton soloBtn_{ "Solo" };
+    juce::Slider levelSlider_, panSlider_;
+    std::unique_ptr<juce::AudioProcessorValueTreeState::SliderAttachment> levelAttachment_, panAttachment_;
 
     std::array<std::unique_ptr<CyberStepPad>, openfruit::core::kStepsPerPage> stepPads_;
     openfruit::core::PageIndex page_ = openfruit::core::PageIndex::PageA;

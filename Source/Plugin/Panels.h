@@ -98,7 +98,8 @@ public:
     TrackerPanel(openfruit::core::FruitEngine& engine,
                  openfruit::core::ToneCache& cache,
                  openfruit::core::AnalysisQueue& queue,
-                 juce::AudioProcessorValueTreeState* apvts = nullptr);
+                 juce::AudioProcessorValueTreeState* apvts,
+                 juce::ValueTree session);
     ~TrackerPanel() override = default;
 
     void setTheme(const openfruit::theme::Palette& palette);
@@ -118,14 +119,20 @@ public:
     SampleBrowserModal* getActiveBrowser() noexcept { return activeBrowser_.get(); }
 
 private:
+    void showGrid(bool visible);
+    void setMixView(bool mix);
 
     openfruit::core::FruitEngine& engine_;
     openfruit::core::ToneCache& cache_;
     openfruit::core::AnalysisQueue& queue_;
     juce::AudioProcessorValueTreeState* apvts_ = nullptr;
+    juce::ValueTree session_;
     openfruit::theme::Palette palette_;
 
     int visibleTrackCount_ = 8;
+    bool mixView_ = false;
+    juce::TextButton stepsViewBtn_ { "Steps" };
+    juce::TextButton mixViewBtn_ { "Mix" };
     uint32_t playheadSteps_ = 0;
     openfruit::core::PageIndex shownPage_ = openfruit::core::PageIndex::PageA;
     bool playheadLive_ = true;

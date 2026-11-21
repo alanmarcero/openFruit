@@ -336,3 +336,44 @@ TEST_CASE("Follow shows the playing page and the playhead dims elsewhere", "[edi
     CHECK(header->shownPage() == openfruit::core::PageIndex::PageC);
     CHECK(header->playheadLive());
 }
+
+TEST_CASE("Mix view shows level and pan for every lane", "[editor][mix]") {
+    juce::ScopedJuceInitialiser_GUI gui;
+    OpenFruitAudioProcessor processor;
+    auto editor = openEditor(processor);
+    click(*findButton(*editor, "Mix"));
+
+    CHECK(findVisible<openfruit::ui::CyberStepPad>(*editor) == nullptr);
+    auto* level = findVisible<juce::Slider>(*findVisible<openfruit::ui::TrackRowComponent>(*editor));
+    REQUIRE(level != nullptr);
+    CHECK(level->getTooltip() == "Level for track 1");
+    CHECK(static_cast<bool>(processor.getSessionState().getProperty("mixView")));
+    juce::StringArray problems;
+    checkLayout(*editor, problems);
+    CHECK(problems.joinIntoString("\n").toStdString() == "");
+}
+
+TEST_CASE("Voice settings step between tracks and group the filters", "[editor][settings]") {
+    juce::ScopedJuceInitialiser_GUI gui;
+    OpenFruitAudioProcessor processor;
+    auto editor = openEditor(processor);
+    click(*findButton(*editor, "Edit"));
+    click(*findButton(*findVisible<openfruit::ui::TrackVoiceSettingsPanel>(*editor), ">"));
+
+    auto* panel = findVisible<openfruit::ui::TrackVoiceSettingsPanel>(*editor);
+    REQUIRE(panel != nullptr);
+    const auto children = panel->getChildren();
+    const auto sliderWithTooltip = [&children](const juce::String& tooltip) -> juce::Component* {
+        const auto found = std::find_if(children.begin(), children.end(), [&tooltip](juce::Component* child) {
+            auto* slider = dynamic_cast<juce::Slider*>(child);
+            return slider != nullptr && slider->getTooltip() == tooltip;
+        });
+        return found == children.end() ? nullptr : *found;
+    };
+    REQUIRE(sliderWithTooltip("High-pass for track 2") != nullptr);
+    CHECK(sliderWithTooltip("Pitch for track 2") != nullptr);
+    CHECK(sliderWithTooltip("High-pass for track 2")->getX() == sliderWithTooltip("Low-pass for track 2")->getX());
+    juce::StringArray problems;
+    checkLayout(*editor, problems);
+    CHECK(problems.joinIntoString("\n").toStdString() == "");
+}

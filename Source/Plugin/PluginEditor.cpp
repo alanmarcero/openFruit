@@ -19,7 +19,8 @@ OpenFruitAudioProcessorEditor::OpenFruitAudioProcessorEditor(OpenFruitAudioProce
       headerPanel_(ownerProcessor.getEngine(), ownerProcessor.getAPVTS(), ownerProcessor.getSessionState()),
       suiteBar_(ownerProcessor.getUndoHistories(), ownerProcessor.getAb()),
       presetBrowser_(ownerProcessor.getPresets()),
-      trackerPanel_(ownerProcessor.getEngine(), ownerProcessor.getToneCache(), ownerProcessor.getAnalysisQueue(), &ownerProcessor.getAPVTS()) {
+      trackerPanel_(ownerProcessor.getEngine(), ownerProcessor.getToneCache(), ownerProcessor.getAnalysisQueue(),
+                    &ownerProcessor.getAPVTS(), ownerProcessor.getSessionState()) {
 
     const auto theme = processorRef_.getEngine().getColorTheme();
     const auto palette = openfruit::theme::getPalette(theme);

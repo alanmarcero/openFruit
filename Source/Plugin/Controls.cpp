@@ -325,6 +325,12 @@ TrackVoiceSettingsPanel::TrackVoiceSettingsPanel(int trackIdx,
     close_.onClick = [this] { if (onClose) onClose(); };
     close_.setTooltip("Return to the pattern grid");
     addAndMakeVisible(close_);
+    previous_.setTooltip("Previous track");
+    next_.setTooltip("Next track");
+    previous_.onClick = [this] { if (onStepTrack) onStepTrack(-1); };
+    next_.onClick = [this] { if (onStepTrack) onStepTrack(1); };
+    addAndMakeVisible(previous_);
+    addAndMakeVisible(next_);
     for (int i = 1; i <= 16; ++i) midi_.addItem("Channel " + juce::String(i), i);
     midi_.setTooltip("Incoming MIDI channel for this track");
     midiAttachment_ = std::make_unique<juce::ParameterAttachment>(*apvts.getParameter(params::trackMidiChId(trackIdx)),
@@ -341,10 +347,10 @@ TrackVoiceSettingsPanel::TrackVoiceSettingsPanel(int trackIdx,
     for (auto& label : routingLabels_) addAndMakeVisible(label);
     const std::array<std::string, 12> ids = {
         params::trackTuneId(trackIdx), params::trackVolId(trackIdx), params::trackPanId(trackIdx),
-        params::trackFilterId(trackIdx), params::trackNudgeId(trackIdx), params::trackGrooveId(trackIdx),
-        params::trackHpfId(trackIdx), params::trackDriveId(trackIdx),
+        params::trackDriveId(trackIdx), params::trackNudgeId(trackIdx), params::trackGrooveId(trackIdx),
+        params::trackHpfId(trackIdx), params::trackFilterId(trackIdx),
         params::trackAttackId(trackIdx), params::trackDecayId(trackIdx), params::trackSustainId(trackIdx), params::trackReleaseId(trackIdx)};
-    const std::array<const char*, 12> names = {"Pitch", "Level", "Pan", "Low-pass", "Nudge", "Groove", "High-pass", "Drive", "Attack", "Decay", "Sustain", "Release"};
+    const std::array<const char*, 12> names = {"Pitch", "Level", "Pan", "Drive", "Nudge", "Groove", "High-pass", "Low-pass", "Attack", "Decay", "Sustain", "Release"};
     for (size_t i = 0; i < sliders_.size(); ++i) {
         labels_[i].setText(names[i], juce::dontSendNotification);
         labels_[i].setJustificationType(juce::Justification::centredLeft);
@@ -378,13 +384,16 @@ void TrackVoiceSettingsPanel::paint(juce::Graphics& g) {
     g.setFont(juce::FontOptions(16.0f, juce::Font::bold));
     g.setColour(findColour(juce::Slider::thumbColourId, true));
     g.drawText("Mix and timing", area.getX(), area.getY(), column, 26, juce::Justification::centredLeft);
-    g.drawText("Tone and envelope", area.getX()+column, area.getY(), column, 26, juce::Justification::centredLeft);
+    g.drawText("Filter and envelope", area.getX()+column, area.getY(), column, 26, juce::Justification::centredLeft);
 }
 
 void TrackVoiceSettingsPanel::resized() {
     auto area = getLocalBounds().reduced(36, 16);
     auto title = area.removeFromTop(48);
     close_.setBounds(title.removeFromRight(98).reduced(0, 5));
+    title.removeFromRight(8);
+    next_.setBounds(title.removeFromRight(44).reduced(2, 4));
+    previous_.setBounds(title.removeFromRight(44).reduced(2, 4));
     auto route = area.removeFromTop(70).reduced(0, 17);
     for (size_t i = 0; i < 2; ++i) {
         routingLabels_[i].setBounds(route.removeFromLeft(82));
@@ -429,6 +438,19 @@ TrackRowComponent::TrackRowComponent(int trackIdx,
         engine_.getTrack(trackIdx_).mute = m;
         setApvtsParamValue(apvts_, openfruit::params::trackMuteId(trackIdx_), m ? 1.0f : 0.0f);
     };
+    for (auto* slider : { &levelSlider_, &panSlider_ }) {
+        slider->setSliderStyle(juce::Slider::LinearHorizontal);
+        slider->setTextBoxStyle(juce::Slider::TextBoxRight, false, 72, 28);
+        addChildComponent(slider);
+    }
+    levelSlider_.setTooltip("Level for track " + juce::String(trackIdx_ + 1));
+    panSlider_.setTooltip("Pan for track " + juce::String(trackIdx_ + 1));
+    if (apvts_ != nullptr) {
+        levelAttachment_ = std::make_unique<juce::AudioProcessorValueTreeState::SliderAttachment>(
+            *apvts_, openfruit::params::trackVolId(trackIdx_), levelSlider_);
+        panAttachment_ = std::make_unique<juce::AudioProcessorValueTreeState::SliderAttachment>(
+            *apvts_, openfruit::params::trackPanId(trackIdx_), panSlider_);
+    }
     muteBtn_.setTooltip("Mute this track");
     addAndMakeVisible(muteBtn_);
 
@@ -537,6 +559,15 @@ void TrackRowComponent::setAnySolo(bool anySolo) {
         note = "\nSilent: unmute this track to hear it.";
     for (auto& pad : stepPads_)
         pad->setSilencedNote(note);
+    levelSlider_.setAlpha(note.isEmpty() ? 1.0f : 0.4f);
+    panSlider_.setAlpha(note.isEmpty() ? 1.0f : 0.4f);
+}
+
+void TrackRowComponent::setMixView(bool mix) {
+    for (auto& pad : stepPads_)
+        pad->setVisible(!mix);
+    levelSlider_.setVisible(mix);
+    panSlider_.setVisible(mix);
 }
 
 void TrackRowComponent::updatePlayhead(int currentStep, bool live) {
@@ -571,6 +602,9 @@ void TrackRowComponent::resized() {
         const int right = area.getX() + (s+1) * area.getWidth() / 16;
         stepPads_[static_cast<size_t>(s)]->setBounds(left, 2, right-left, area.getHeight()-4);
     }
+    auto mix = area.withSizeKeepingCentre(area.getWidth(), 36);
+    levelSlider_.setBounds(mix.removeFromLeft(mix.getWidth() / 2).reduced(12, 0));
+    panSlider_.setBounds(mix.reduced(12, 0));
 }
 
 } // namespace openfruit::ui

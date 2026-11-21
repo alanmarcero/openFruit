@@ -391,11 +391,13 @@ void HeaderPanel::resized() {
 TrackerPanel::TrackerPanel(openfruit::core::FruitEngine& engine,
                            openfruit::core::ToneCache& cache,
                            openfruit::core::AnalysisQueue& queue,
-                           juce::AudioProcessorValueTreeState* apvts)
+                           juce::AudioProcessorValueTreeState* apvts,
+                           juce::ValueTree session)
     : engine_(engine),
       cache_(cache),
       queue_(queue),
       apvts_(apvts),
+      session_(std::move(session)),
       palette_(openfruit::theme::getPalette(openfruit::core::ColorTheme::CyberpunkNeon)) {
     viewport_.setViewedComponent(&grid_, false);
     viewport_.setScrollBarsShown(true, false);
@@ -413,6 +415,31 @@ TrackerPanel::TrackerPanel(openfruit::core::FruitEngine& engine,
         };
         grid_.addAndMakeVisible(row);
     }
+    stepsViewBtn_.setTooltip("Show the step pads");
+    mixViewBtn_.setTooltip("Show each track's level and pan");
+    for (auto* button : { &stepsViewBtn_, &mixViewBtn_ }) {
+        button->setRadioGroupId(1);
+        button->setClickingTogglesState(true);
+        button->onClick = [this] { setMixView(mixViewBtn_.getToggleState()); };
+        addAndMakeVisible(button);
+    }
+    setMixView(session_.getProperty("mixView", false));
+}
+
+void TrackerPanel::setMixView(bool mix) {
+    mixView_ = mix;
+    session_.setProperty("mixView", mix, nullptr);
+    mixViewBtn_.setToggleState(mix, juce::dontSendNotification);
+    stepsViewBtn_.setToggleState(!mix, juce::dontSendNotification);
+    for (auto& row : rows_)
+        row->setMixView(mix);
+    repaint();
+}
+
+void TrackerPanel::showGrid(bool visible) {
+    viewport_.setVisible(visible);
+    stepsViewBtn_.setVisible(visible);
+    mixViewBtn_.setVisible(visible);
 }
 
 void TrackerPanel::setTheme(const openfruit::theme::Palette& palette) {
@@ -475,7 +502,7 @@ void TrackerPanel::updatePlayhead() {
 }
 
 SampleBrowserModal* TrackerPanel::openSampleBrowser(int trackIdx, const juce::File& folder) {
-    viewport_.setVisible(false);
+    showGrid(false);
     settings_.reset();
     activeBrowser_ = std::make_unique<SampleBrowserModal>(trackIdx, engine_, cache_, queue_);
     activeBrowser_->setTheme(palette_);
@@ -500,16 +527,20 @@ void TrackerPanel::closeSampleBrowser() {
         removeChildComponent(activeBrowser_.get());
         activeBrowser_.reset();
     }
-    viewport_.setVisible(true);
+    showGrid(true);
     updateFromEngine();
 }
 
 void TrackerPanel::openTrackSettings(int track) {
     if (!apvts_) return;
     closeSampleBrowser();
-    viewport_.setVisible(false);
+    showGrid(false);
     settings_ = std::make_unique<TrackVoiceSettingsPanel>(track, *apvts_);
-    settings_->onClose = [this] { settings_.reset(); viewport_.setVisible(true); repaint(); };
+    settings_->onClose = [this] { settings_.reset(); showGrid(true); repaint(); };
+    settings_->onStepTrack = [this, track](int delta) {
+        const int count = visibleTrackCount_;
+        openTrackSettings((track + delta + count) % count);
+    };
     addAndMakeVisible(*settings_);
     resized();
 }
@@ -526,6 +557,12 @@ void TrackerPanel::paint(juce::Graphics& g) {
     g.drawText("Track   /   Sample", 23, 41, 206, 24, juce::Justification::centredLeft);
     const int start = 12 + kLaneWidth;
     const int width = grid_.getWidth() - kLaneWidth;
+    if (mixView_) {
+        g.setColour(palette_.textDim);
+        g.drawText("Level", start, 41, width / 2, 24, juce::Justification::centred);
+        g.drawText("Pan", start + width / 2, 41, width / 2, 24, juce::Justification::centred);
+        return;
+    }
     for (int i = 0; i < 16; ++i) {
         const auto number = juce::Rectangle<int>(start+i*width/16, 41, (i+1)*width/16-i*width/16, 24);
         const bool playing = ((playheadSteps_ >> i) & 1u) != 0;
@@ -541,6 +578,8 @@ void TrackerPanel::paint(juce::Graphics& g) {
 
 void TrackerPanel::resized() {
     auto area = getLocalBounds().reduced(12,4);
+    stepsViewBtn_.setBounds(190, 1, 76, 36);
+    mixViewBtn_.setBounds(268, 1, 64, 36);
     if (activeBrowser_) activeBrowser_->setBounds(area);
     if (settings_) settings_->setBounds(area);
     area.removeFromTop(64);
