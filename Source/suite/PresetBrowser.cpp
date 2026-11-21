@@ -26,8 +26,11 @@ PresetBrowser::PresetBrowser(PresetLibrary& library)
     addAndMakeVisible(list_);
 
     save_.setTooltip("Save the current song as a kit");
+    save_.setTitle("Save");
     rename_.setTooltip("Rename the selected saved kit");
+    rename_.setTitle("Rename");
     remove_.setTooltip("Delete the selected saved kit. Click again to confirm.");
+    remove_.setTitle("Delete");
     save_.onClick = [this] {
         if (!captureState)
             return;

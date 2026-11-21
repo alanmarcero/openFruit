@@ -325,21 +325,26 @@ TrackVoiceSettingsPanel::TrackVoiceSettingsPanel(int trackIdx,
     track_ = trackIdx;
     close_.onClick = [this] { if (onClose) onClose(); };
     close_.setTooltip("Return to the pattern grid");
+    close_.setTitle("Done");
     addAndMakeVisible(close_);
     previous_.setTooltip("Previous track");
+    previous_.setTitle("Previous track");
     next_.setTooltip("Next track");
+    next_.setTitle("Next track");
     previous_.onClick = [this] { if (onStepTrack) onStepTrack(-1); };
     next_.onClick = [this] { if (onStepTrack) onStepTrack(1); };
     addAndMakeVisible(previous_);
     addAndMakeVisible(next_);
     for (int i = 1; i <= 16; ++i) midi_.addItem("Channel " + juce::String(i), i);
     midi_.setTooltip("Incoming MIDI channel for this track");
+    midi_.setTitle("MIDI input");
     midiAttachment_ = std::make_unique<juce::ParameterAttachment>(*apvts.getParameter(params::trackMidiChId(trackIdx)),
         [this](float value) { midi_.setSelectedId(juce::roundToInt(value), juce::dontSendNotification); });
     midiAttachment_->sendInitialUpdate();
     midi_.onChange = [this] { midiAttachment_->setValueAsCompleteGesture(static_cast<float>(midi_.getSelectedId())); };
     timing_.addItemList({"1/16", "1/32", "1/64"}, 1);
     timing_.setTooltip("Duration of one step for this track");
+    timing_.setTitle("Step rate");
     timingAttachment_ = std::make_unique<juce::AudioProcessorValueTreeState::ComboBoxAttachment>(apvts, params::trackTimingId(trackIdx), timing_);
     addAndMakeVisible(midi_);
     addAndMakeVisible(timing_);
@@ -361,6 +366,7 @@ TrackVoiceSettingsPanel::TrackVoiceSettingsPanel(int trackIdx,
         slider.setSliderStyle(juce::Slider::LinearHorizontal);
         slider.setTextBoxStyle(juce::Slider::TextBoxRight, false, 82, 28);
         slider.setTooltip(juce::String(names[i]) + " for track " + juce::String(trackIdx+1));
+        slider.setTitle(names[i]);
         addAndMakeVisible(slider);
         attachments_[i] = std::make_unique<juce::AudioProcessorValueTreeState::SliderAttachment>(
             apvts, ids[i], slider);
@@ -420,6 +426,7 @@ TrackRowComponent::TrackRowComponent(int trackIdx,
 
     // 1. Sample Trigger Pad Button
     samplePadBtn_.setButtonText("Loading");
+    samplePadBtn_.setTitle("Track " + juce::String(trackIdx_ + 1) + " sample");
     samplePadBtn_.onClick = [this] {
         engine_.triggerTrackManual(trackIdx_);
         if (onSampleAudition) onSampleAudition(trackIdx_);
@@ -428,6 +435,7 @@ TrackRowComponent::TrackRowComponent(int trackIdx,
 
     // 2. Load / Browse Button
     loadBtn_.setButtonText("Browse");
+    loadBtn_.setTitle("Browse");
     loadBtn_.onClick = [this] {
         if (onOpenBrowser) onOpenBrowser(trackIdx_);
     };
@@ -445,7 +453,9 @@ TrackRowComponent::TrackRowComponent(int trackIdx,
         addChildComponent(slider);
     }
     levelSlider_.setTooltip("Level for track " + juce::String(trackIdx_ + 1));
+    levelSlider_.setTitle("Level");
     panSlider_.setTooltip("Pan for track " + juce::String(trackIdx_ + 1));
+    panSlider_.setTitle("Pan");
     if (apvts_ != nullptr) {
         levelAttachment_ = std::make_unique<juce::AudioProcessorValueTreeState::SliderAttachment>(
             *apvts_, openfruit::params::trackVolId(trackIdx_), levelSlider_);
@@ -453,6 +463,7 @@ TrackRowComponent::TrackRowComponent(int trackIdx,
             *apvts_, openfruit::params::trackPanId(trackIdx_), panSlider_);
     }
     muteBtn_.setTooltip("Mute this track");
+    muteBtn_.setTitle("Mute");
     addAndMakeVisible(muteBtn_);
 
     soloBtn_.onClick = [this] {
@@ -461,10 +472,12 @@ TrackRowComponent::TrackRowComponent(int trackIdx,
         setApvtsParamValue(apvts_, openfruit::params::trackSoloId(trackIdx_), s ? 1.0f : 0.0f);
     };
     soloBtn_.setTooltip("Solo this track");
+    soloBtn_.setTitle("Solo");
     addAndMakeVisible(soloBtn_);
 
     setTooltip("Right-click the track number to copy, paste, clear or shift this row.");
     voiceSettingsBtn_.setButtonText("Edit");
+    voiceSettingsBtn_.setTitle("Edit");
     voiceSettingsBtn_.setTooltip("Edit tuning, level, MIDI, timing, filter and amplitude envelope");
     voiceSettingsBtn_.onClick = [this] { if (onOpenSettings) onOpenSettings(trackIdx_); };
     loadBtn_.setTooltip("Choose a sample for this track");

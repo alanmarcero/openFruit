@@ -500,3 +500,45 @@ TEST_CASE("Track lanes accept dropped audio files", "[editor][dnd]") {
     CHECK(loaded->sampleName == "dropped_hat");
     dir.deleteRecursively();
 }
+
+namespace {
+
+void checkControlTitles(const juce::Component& root, juce::StringArray& missing) {
+    if (dynamic_cast<const juce::Slider*>(&root) != nullptr
+        || dynamic_cast<const juce::ComboBox*>(&root) != nullptr
+        || dynamic_cast<const juce::Button*>(&root) != nullptr) {
+        if (root.getTitle().isEmpty()) {
+            const auto* tip = dynamic_cast<const juce::TooltipClient*>(&root);
+            missing.add(typeid(root).name() + juce::String(": ") + (tip != nullptr ? const_cast<juce::TooltipClient*>(tip)->getTooltip() : root.getName()));
+        }
+    }
+    if (dynamic_cast<const juce::Slider*>(&root) != nullptr) {
+        return;
+    }
+    for (auto* child : root.getChildren()) {
+        checkControlTitles(*child, missing);
+    }
+}
+
+} // namespace
+
+TEST_CASE("Every slider, combo box, and button sets a screen-reader title", "[editor][a11y]") {
+    juce::ScopedJuceInitialiser_GUI gui;
+    OpenFruitAudioProcessor processor;
+    auto editor = openEditor(processor);
+
+    juce::StringArray missing;
+    checkControlTitles(*editor, missing);
+
+    click(*findButton(*editor, "Edit"));
+    checkControlTitles(*editor, missing);
+    click(*findButton(*editor, "Done"));
+
+    const auto dir = juce::File::getSpecialLocation(juce::File::tempDirectory).getChildFile("openfruit-a11y-test");
+    dir.createDirectory();
+    editor->openSampleBrowser(0, dir);
+    checkControlTitles(*editor, missing);
+    dir.deleteRecursively();
+
+    CHECK(missing.joinIntoString("\n").toStdString() == "");
+}

@@ -17,7 +17,9 @@ HeaderPanel::HeaderPanel(openfruit::core::FruitEngine& engine,
     pageLabel_.setText("Pattern", juce::dontSendNotification);
     masterVolLabel_.setText("Master", juce::dontSendNotification);
     masterVolSlider_.setTooltip("Master mix level");
+    masterVolSlider_.setTitle("Master");
     playBtn_.setTooltip("Start or pause the sequencer; play arms host transport sync");
+    playBtn_.setTitle("Play");
     transportState_.setTooltip("Stopped, Armed or Playing. Armed starts the sequencer when the host starts.");
     transportState_.setFont(juce::FontOptions(14.0f, juce::Font::bold));
     transportState_.setJustificationType(juce::Justification::centredRight);
@@ -29,6 +31,7 @@ HeaderPanel::HeaderPanel(openfruit::core::FruitEngine& engine,
     const std::array<int, 4> counts = { 4, 8, 12, 16 };
     for (size_t i = 0; i < 4; ++i) {
         trackCountBtns_[i].setTooltip("Show " + juce::String(counts[i]) + " tracks");
+        trackCountBtns_[i].setTitle(juce::String(counts[i]) + " tracks");
         trackCountBtns_[i].setButtonText(std::to_string(counts[i]));
         trackCountBtns_[i].setClickingTogglesState(false);
         trackCountBtns_[i].onClick = [this, count = counts[i], idx = static_cast<int>(i)] {
@@ -58,6 +61,7 @@ HeaderPanel::HeaderPanel(openfruit::core::FruitEngine& engine,
             if (onPatternMenu) onPatternMenu(pageBtns_[i], static_cast<openfruit::core::PageIndex>(i));
         };
         pageBtns_[i].setButtonText(pageNames[i]);
+        pageBtns_[i].setTitle("Pattern " + juce::String(pageNames[i]));
         pageBtns_[i].setClickingTogglesState(false);
         pageBtns_[i].onClick = [this, pageIdx = static_cast<openfruit::core::PageIndex>(i)] {
             if (auto* param = apvts_.getParameter(openfruit::params::kPage)) {
@@ -86,6 +90,7 @@ HeaderPanel::HeaderPanel(openfruit::core::FruitEngine& engine,
     themeBox_.addItem("Acid Matrix", 4);
     themeBox_.setSelectedId(1, juce::dontSendNotification);
     themeBox_.setTooltip("Choose a color theme for the editor.");
+    themeBox_.setTitle("Theme");
     themeBox_.onChange = [this] {
         const int id = themeBox_.getSelectedId();
         const auto th = static_cast<openfruit::core::ColorTheme>(id - 1);
@@ -121,6 +126,7 @@ HeaderPanel::HeaderPanel(openfruit::core::FruitEngine& engine,
     outputDbSlider_.setRange(-24.0, 12.0, 0.1);
     outputDbSlider_.setDoubleClickReturnValue(true, 0.0);
     outputDbSlider_.setTooltip("Output gain in decibels");
+    outputDbSlider_.setTitle("Output");
     outputDbAttachment_ = std::make_unique<juce::AudioProcessorValueTreeState::SliderAttachment>(
         apvts_, openfruit::params::kOutputDb, outputDbSlider_);
     addAndMakeVisible(outputDbSlider_);
@@ -135,8 +141,10 @@ HeaderPanel::HeaderPanel(openfruit::core::FruitEngine& engine,
     songModeAttachment_ = std::make_unique<juce::AudioProcessorValueTreeState::ButtonAttachment>(
         apvts_, openfruit::params::kSongMode, songModeToggle_);
     songModeToggle_.setButtonText("Song mode");
+    songModeToggle_.setTitle("Song mode");
     songModeToggle_.setTooltip("Chain the four sections in Song Mode");
     addAndMakeVisible(songModeToggle_);
+    followToggle_.setTitle("Follow");
     followToggle_.setTooltip("Show the pattern the song is playing. Picking a pattern turns this off.");
     followToggle_.onClick = [this] { session_.setProperty("followSong", followToggle_.getToggleState(), nullptr); };
     addChildComponent(followToggle_);
@@ -148,6 +156,7 @@ HeaderPanel::HeaderPanel(openfruit::core::FruitEngine& engine,
     swingSlider_.setRange(0.0, 0.5, 0.001);
     swingSlider_.setNumDecimalPlacesToDisplay(2);
     swingSlider_.setTooltip("Delay alternating steps by up to half a step");
+    swingSlider_.setTitle("Swing");
     swingAttachment_ = std::make_unique<juce::AudioProcessorValueTreeState::SliderAttachment>(
         apvts_, openfruit::params::kSwing, swingSlider_);
     addAndMakeVisible(swingSlider_);
@@ -159,11 +168,13 @@ HeaderPanel::HeaderPanel(openfruit::core::FruitEngine& engine,
     styleValueBox(accentAmountSlider_);
     accentAmountSlider_.setRange(0.0, 1.0, 0.01);
     accentAmountSlider_.setTooltip("Periodic accent amount. Stored step velocities remain unchanged.");
+    accentAmountSlider_.setTitle("Accent");
     accentAmountAttachment_ = std::make_unique<juce::AudioProcessorValueTreeState::SliderAttachment>(
         apvts_, openfruit::params::kAccentAmount, accentAmountSlider_);
     addAndMakeVisible(accentAmountSlider_);
     // The stepper buttons copy the tooltip when the style creates them.
     accentEverySlider_.setTooltip("Accent every 2 to 16 steps. Raise Accent above 0% to hear it.");
+    accentEverySlider_.setTitle("Every");
     accentEverySlider_.setSliderStyle(juce::Slider::IncDecButtons);
     accentEverySlider_.setTextBoxStyle(juce::Slider::TextBoxLeft, false, 36, 36);
     accentEverySlider_.setRange(2.0, 16.0, 1.0);
@@ -178,6 +189,7 @@ HeaderPanel::HeaderPanel(openfruit::core::FruitEngine& engine,
     styleValueBox(humanizeSlider_);
     humanizeSlider_.setRange(0.0, 100.0, 0.1);
     humanizeSlider_.setTooltip("Deterministic step velocity humanization amount");
+    humanizeSlider_.setTitle("Human");
     humanizeAttachment_ = std::make_unique<juce::AudioProcessorValueTreeState::SliderAttachment>(
         apvts_, openfruit::params::kHumanize, humanizeSlider_);
     addAndMakeVisible(humanizeSlider_);
@@ -195,6 +207,7 @@ HeaderPanel::HeaderPanel(openfruit::core::FruitEngine& engine,
         pageBox.addItem("C", 3);
         pageBox.addItem("D", 4);
         pageBox.setTooltip("Pattern page for this song section");
+        pageBox.setTitle("Section " + juce::String(i + 1) + " pattern");
         sectionPageAttachments_[index] = std::make_unique<juce::AudioProcessorValueTreeState::ComboBoxAttachment>(
             apvts_, openfruit::params::songSectionPageId(i), pageBox);
         addAndMakeVisible(pageBox);
@@ -203,12 +216,14 @@ HeaderPanel::HeaderPanel(openfruit::core::FruitEngine& engine,
         styleValueBox(barsSlider);
         barsSlider.setRange(1.0, 32.0, 1.0);
         barsSlider.setTooltip("Number of bars in this section");
+        barsSlider.setTitle("Section " + juce::String(i + 1) + " bars");
         sectionBarsAttachments_[index] = std::make_unique<juce::AudioProcessorValueTreeState::SliderAttachment>(
             apvts_, openfruit::params::songSectionBarsId(i), barsSlider);
         addAndMakeVisible(barsSlider);
 
         auto& fillButton = sectionFillButtons_[index];
         fillButton.setButtonText("Fill");
+        fillButton.setTitle("Section " + juce::String(i + 1) + " fill");
         fillButton.setClickingTogglesState(true);
         fillButton.setTooltip("Use Page D as a one-bar fill at this section's end");
         sectionFillAttachments_[index] = std::make_unique<juce::AudioProcessorValueTreeState::ButtonAttachment>(
@@ -416,7 +431,9 @@ TrackerPanel::TrackerPanel(openfruit::core::FruitEngine& engine,
         grid_.addAndMakeVisible(row);
     }
     stepsViewBtn_.setTooltip("Show the step pads");
+    stepsViewBtn_.setTitle("Steps");
     mixViewBtn_.setTooltip("Show each track's level and pan");
+    mixViewBtn_.setTitle("Mix");
     for (auto* button : { &stepsViewBtn_, &mixViewBtn_ }) {
         button->setRadioGroupId(1);
         button->setClickingTogglesState(true);

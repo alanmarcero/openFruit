@@ -96,12 +96,19 @@ SampleBrowserModal::SampleBrowserModal(int targetTrackIdx,
     const int midiCh = engine_.getTrack(targetTrackIdx).midiChannel;
 
     browseFolderBtn_.setTooltip("Choose a folder or audio file");
+    browseFolderBtn_.setTitle("Browse folder");
     clearCacheBtn_.setTooltip("Clear cached pitch analysis and rescan this folder");
+    clearCacheBtn_.setTitle("Clear cache");
     sortBox_.setTooltip("Change sample order");
+    sortBox_.setTitle("Sort");
     autoPlayToggle_.setTooltip("Audition each sample as you select it");
+    autoPlayToggle_.setTitle("Autoplay");
     playBtn_.setTooltip("Hear the selected sample in this track");
+    playBtn_.setTitle("Preview");
     commitBtn_.setTooltip("Assign the selected sample and return to the pattern");
+    commitBtn_.setTitle("Load sample");
     cancelBtn_.setTooltip("Return to the pattern with the current sample");
+    cancelBtn_.setTitle("Cancel");
     commitBtn_.setButtonText("Load sample");
     table_.setRowHeight(34);
     // 1. Title Label
