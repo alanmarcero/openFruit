@@ -16,7 +16,7 @@ juce::AudioProcessorEditor* OpenFruitAudioProcessor::createEditor() {
 OpenFruitAudioProcessorEditor::OpenFruitAudioProcessorEditor(OpenFruitAudioProcessor& ownerProcessor)
     : AudioProcessorEditor(&ownerProcessor),
       processorRef_(ownerProcessor),
-      headerPanel_(ownerProcessor.getEngine(), ownerProcessor.getAPVTS()),
+      headerPanel_(ownerProcessor.getEngine(), ownerProcessor.getAPVTS(), ownerProcessor.getSessionState()),
       suiteBar_(ownerProcessor.getUndoHistories(), ownerProcessor.getAb()),
       presetBrowser_(ownerProcessor.getPresets()),
       trackerPanel_(ownerProcessor.getEngine(), ownerProcessor.getToneCache(), ownerProcessor.getAnalysisQueue(), &ownerProcessor.getAPVTS()) {
@@ -83,9 +83,7 @@ OpenFruitAudioProcessorEditor::OpenFruitAudioProcessorEditor(OpenFruitAudioProce
     setWantsKeyboardFocus(true);
 
     trackerPanel_.setVisibleTrackCount(processorRef_.getEngine().getActiveTrackCount());
-    headerPanel_.updateFromParameters();
-    trackerPanel_.updateFromEngine();
-    trackerPanel_.updatePlayhead();
+    timerCallback();
 
     // The resize limits trigger resized(), which stores the size, so read the saved size first.
     const auto session = processorRef_.getSessionState();
@@ -104,12 +102,8 @@ OpenFruitAudioProcessorEditor::~OpenFruitAudioProcessorEditor() {
 }
 
 void OpenFruitAudioProcessorEditor::timerCallback() {
-    const int page = static_cast<int>(processorRef_.getEngine().getActivePage());
-    if (page != displayedPage_) {
-        displayedPage_ = page;
-        trackerPanel_.repaint();
-    }
     headerPanel_.updateFromParameters();
+    trackerPanel_.setShownPage(headerPanel_.shownPage(), headerPanel_.playheadLive());
     trackerPanel_.updateFromEngine();
     trackerPanel_.updatePlayhead();
     suiteBar_.setPreset(processorRef_.getPresetName(), processorRef_.isPresetEdited());

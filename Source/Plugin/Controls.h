@@ -33,7 +33,7 @@ public:
 
     void setTheme(const openfruit::theme::Palette& palette);
     void setStepData(const openfruit::core::StepData& data);
-    void setIsCurrentPlayhead(bool isPlayhead);
+    void setIsCurrentPlayhead(bool isPlayhead, bool live);
     void setSilencedNote(const juce::String& note);
 
     std::function<void(bool newActive)> onToggle;
@@ -57,6 +57,7 @@ private:
     openfruit::theme::Palette palette_;
     openfruit::core::StepData data_{};
     bool isPlayhead_ = false;
+    bool playheadLive_ = true;
     juce::String silencedNote_;
     bool wasActive_ = false;
     bool velocityDragged_ = false;
@@ -103,7 +104,8 @@ public:
 
     void setTheme(const openfruit::theme::Palette& palette);
     void updateFromEngine();
-    void updatePlayhead(int currentStep);
+    void updatePlayhead(int currentStep, bool live);
+    void setShownPage(openfruit::core::PageIndex page) noexcept { page_ = page; }
     void setAnySolo(bool anySolo);
 
     std::function<void(int trackIdx)> onOpenBrowser, onOpenSettings;
@@ -129,6 +131,7 @@ private:
     juce::ToggleButton soloBtn_{ "Solo" };
 
     std::array<std::unique_ptr<CyberStepPad>, openfruit::core::kStepsPerPage> stepPads_;
+    openfruit::core::PageIndex page_ = openfruit::core::PageIndex::PageA;
     bool editOpen_ = false;
     int paintStep_ = 0;
     openfruit::core::PageIndex editPage_ = openfruit::core::PageIndex::PageA;

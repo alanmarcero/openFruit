@@ -312,3 +312,27 @@ TEST_CASE("Muted and solo-silenced rows dim their pads", "[editor][mute]") {
     CHECK(padAlpha(1) < 0.5f);
     CHECK(padAlpha(2) == 1.0f);
 }
+
+TEST_CASE("Follow shows the playing page and the playhead dims elsewhere", "[editor][song]") {
+    juce::ScopedJuceInitialiser_GUI gui;
+    OpenFruitAudioProcessor processor;
+    auto& state = processor.getAPVTS();
+    state.getParameter(openfruit::params::kSongMode)->setValueNotifyingHost(1.0f);
+    auto* firstPage = state.getParameter(openfruit::params::songSectionPageId(0));
+    firstPage->setValueNotifyingHost(firstPage->convertTo0to1(2.0f));
+    auto& engine = processor.getEngine();
+    engine.prepare(48000.0, 480);
+    engine.setPlaying(true);
+    std::vector<float> left(480), right(480);
+    engine.process(left.data(), right.data(), 480, 120.0, 0.5, true);
+    auto editor = openEditor(processor);
+    auto* header = findVisible<openfruit::ui::HeaderPanel>(*editor);
+    REQUIRE(header != nullptr);
+    CHECK(header->shownPage() == openfruit::core::PageIndex::PageA);
+    CHECK_FALSE(header->playheadLive());
+
+    processor.getSessionState().setProperty("followSong", true, nullptr);
+    editor->refresh();
+    CHECK(header->shownPage() == openfruit::core::PageIndex::PageC);
+    CHECK(header->playheadLive());
+}

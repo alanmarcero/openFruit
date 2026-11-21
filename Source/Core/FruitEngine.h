@@ -77,6 +77,14 @@ struct AtomicShared {
 #endif
 };
 
+struct SongPosition {
+    int section = 0;
+    int bar = 0; // bar within the section, from 0
+    PageIndex page = PageIndex::PageA;
+};
+
+[[nodiscard]] SongPosition songPositionAt(const std::array<SongSection, kNumPages>& sections, double ppq) noexcept;
+
 struct TrackState {
     int trackIndex = 0; // 0..15
     int midiChannel = 1; // 1..16
@@ -158,6 +166,7 @@ public:
     [[nodiscard]] bool isHostSyncArmed() const noexcept { return hostSyncArmed_.load(std::memory_order_acquire); }
 
     [[nodiscard]] float displayBarPhase() const noexcept { return displayBarPhase_.load(std::memory_order_relaxed); }
+    [[nodiscard]] double displayPpq() const noexcept { return displayPpq_.load(std::memory_order_relaxed); }
 
     // Per-Track MIDI Channel (1..16)
     void setTrackMidiChannel(int trackIndex, int channel1to16) noexcept;
@@ -290,6 +299,7 @@ private:
     size_t scheduledHitCount_ = 0;
 
     std::atomic<float> displayBarPhase_ {0.0f};
+    std::atomic<double> displayPpq_ {0.0};
     double visualPpq_ = 0.0;
     double internalPpq_ = 0.0;
     double lastPpq_ = 0.0;

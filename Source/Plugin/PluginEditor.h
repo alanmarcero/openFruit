@@ -34,7 +34,6 @@ private:
     openfruit::suite::PresetBrowser presetBrowser_;
     openfruit::ui::TrackerPanel trackerPanel_;
     juce::TooltipWindow tooltips_ {this, 550};
-    int displayedPage_ = -1;
     std::vector<openfruit::plugin::StepRow> clipboard_;
 
     JUCE_DECLARE_NON_COPYABLE_WITH_LEAK_DETECTOR(OpenFruitAudioProcessorEditor)

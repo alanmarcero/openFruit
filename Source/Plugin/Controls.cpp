@@ -48,9 +48,10 @@ void CyberStepPad::setSilencedNote(const juce::String& note) {
     setAlpha(note.isEmpty() ? 1.0f : 0.4f);
 }
 
-void CyberStepPad::setIsCurrentPlayhead(bool isPlayhead) {
-    if (isPlayhead_ == isPlayhead) return;
+void CyberStepPad::setIsCurrentPlayhead(bool isPlayhead, bool live) {
+    if (isPlayhead_ == isPlayhead && playheadLive_ == live) return;
     isPlayhead_ = isPlayhead;
+    playheadLive_ = live;
     repaint();
 }
 
@@ -116,12 +117,13 @@ void CyberStepPad::paint(juce::Graphics& g) {
             g.drawText("C" + juce::String(data_.chokeGroup), marks, juce::Justification::centredRight);
     }
     // The playhead uses the text colour, so it shows on lit pads of either accent.
+    // A dim playhead means the shown page is not the one playing.
     if (isPlayhead_) {
-        g.setColour(palette_.text.withAlpha(0.28f));
+        g.setColour(palette_.text.withAlpha(playheadLive_ ? 0.28f : 0.08f));
         g.fillRoundedRectangle(cell, 5.0f);
     }
     if (isPlayhead_ || isMouseOver() || hasKeyboardFocus(false)) {
-        g.setColour(palette_.text);
+        g.setColour(palette_.text.withAlpha(isPlayhead_ && !playheadLive_ ? 0.35f : 1.0f));
         g.drawRoundedRectangle(cell, 5.0f, 2.0f);
     }
 }
@@ -451,16 +453,16 @@ TrackRowComponent::TrackRowComponent(int trackIdx,
         auto* pad = stepPads_[static_cast<size_t>(s)].get();
 
         pad->onToggle = [this, s](bool active) {
-            engine_.setStepActive(trackIdx_, engine_.getActivePage(), s, active);
+            engine_.setStepActive(trackIdx_, page_, s, active);
         };
         pad->onTuneChange = [this, s](int tune) {
-            engine_.setStepTune(trackIdx_, engine_.getActivePage(), s, tune);
+            engine_.setStepTune(trackIdx_, page_, s, tune);
         };
         pad->onVelocityChange = [this, s](float vel) {
-            engine_.setStepVelocity(trackIdx_, engine_.getActivePage(), s, vel);
+            engine_.setStepVelocity(trackIdx_, page_, s, vel);
         };
         pad->onStepDataChange = [this, s](openfruit::core::StepData data) {
-            engine_.setStepData(trackIdx_, engine_.getActivePage(), s, data);
+            engine_.setStepData(trackIdx_, page_, s, data);
         };
         pad->onPaint = [this](int x, bool active) {
             const int step = std::clamp((x - kLaneWidth) * core::kStepsPerPage / std::max(1, getWidth() - kLaneWidth),
@@ -476,7 +478,7 @@ TrackRowComponent::TrackRowComponent(int trackIdx,
             paintStep_ = s;
             if (editOpen_) return;
             editOpen_ = true;
-            editPage_ = engine_.getActivePage();
+            editPage_ = page_;
             editBefore_ = plugin::copyRows(engine_, editPage_, trackIdx_, 1).front();
         };
         pad->onEditEnded = [this] {
@@ -522,9 +524,8 @@ void TrackRowComponent::updateFromEngine() {
     soloBtn_.setToggleState(soloed, juce::dontSendNotification);
 
     // Update 16 pads for active page
-    const auto activePage = engine_.getActivePage();
     for (int s = 0; s < openfruit::core::kStepsPerPage; ++s) {
-        stepPads_[static_cast<size_t>(s)]->setStepData(engine_.getStep(trackIdx_, activePage, s));
+        stepPads_[static_cast<size_t>(s)]->setStepData(engine_.getStep(trackIdx_, page_, s));
     }
 }
 
@@ -538,9 +539,9 @@ void TrackRowComponent::setAnySolo(bool anySolo) {
         pad->setSilencedNote(note);
 }
 
-void TrackRowComponent::updatePlayhead(int currentStep) {
+void TrackRowComponent::updatePlayhead(int currentStep, bool live) {
     for (int s = 0; s < openfruit::core::kStepsPerPage; ++s) {
-        stepPads_[static_cast<size_t>(s)]->setIsCurrentPlayhead(s == currentStep);
+        stepPads_[static_cast<size_t>(s)]->setIsCurrentPlayhead(s == currentStep, live);
     }
 }
 
@@ -553,7 +554,7 @@ void TrackRowComponent::paint(juce::Graphics& g) {
 
 void TrackRowComponent::mouseDown(const juce::MouseEvent& e) {
     if (e.x < 31 && e.mods.isPopupMenu() && onRowMenu)
-        onRowMenu(*this, engine_.getActivePage(), trackIdx_);
+        onRowMenu(*this, page_, trackIdx_);
 }
 
 void TrackRowComponent::resized() {

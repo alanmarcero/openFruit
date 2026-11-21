@@ -5,9 +5,11 @@
 namespace openfruit::ui {
 
 HeaderPanel::HeaderPanel(openfruit::core::FruitEngine& engine,
-                         juce::AudioProcessorValueTreeState& apvts)
+                         juce::AudioProcessorValueTreeState& apvts,
+                         juce::ValueTree session)
     : engine_(engine),
       apvts_(apvts),
+      session_(std::move(session)),
       palette_(openfruit::theme::getPalette(openfruit::core::ColorTheme::CyberpunkNeon)),
       fruitLogo_(juce::Drawable::createFromImageData(BinaryData::citrusclock_svg, BinaryData::citrusclock_svgSize)) {
 
@@ -52,7 +54,6 @@ HeaderPanel::HeaderPanel(openfruit::core::FruitEngine& engine,
 
     const std::array<const char*, 4> pageNames = { "A", "B", "C", "D" };
     for (size_t i = 0; i < 4; ++i) {
-        pageBtns_[i].setTooltip("Edit and play pattern " + juce::String(pageNames[i]) + ". Right-click to copy, paste, clear or shift it.");
         pageBtns_[i].onPopupMenu = [this, i] {
             if (onPatternMenu) onPatternMenu(pageBtns_[i], static_cast<openfruit::core::PageIndex>(i));
         };
@@ -65,6 +66,7 @@ HeaderPanel::HeaderPanel(openfruit::core::FruitEngine& engine,
                 param->endChangeGesture();
             }
             engine_.setActivePage(pageIdx);
+            session_.setProperty("followSong", false, nullptr);
             updateFromParameters();
         };
         addAndMakeVisible(pageBtns_[i]);
@@ -135,6 +137,9 @@ HeaderPanel::HeaderPanel(openfruit::core::FruitEngine& engine,
     songModeToggle_.setButtonText("Song mode");
     songModeToggle_.setTooltip("Chain the four sections in Song Mode");
     addAndMakeVisible(songModeToggle_);
+    followToggle_.setTooltip("Show the pattern the song is playing. Picking a pattern turns this off.");
+    followToggle_.onClick = [this] { session_.setProperty("followSong", followToggle_.getToggleState(), nullptr); };
+    addChildComponent(followToggle_);
     addAndMakeVisible(intervalLabel_);
 
     swingLabel_.setFont(juce::FontOptions(14.0f, juce::Font::bold));
@@ -230,12 +235,43 @@ void HeaderPanel::updateFromParameters() {
     if (count >= 0 && count < 4)
         engine_.setTrackCountMode(counts[count]);
     engine_.setMasterVolume(*apvts_.getRawParameterValue(params::kMasterVol));
+    const bool song = *apvts_.getRawParameterValue(params::kSongMode) > .5f;
+    const bool playing = engine_.isPlaying();
+
+    // In Song mode the sections pick the playing page, and Follow shows it.
+    std::array<core::SongSection, core::kNumPages> sections;
+    for (int i = 0; i < core::kNumPages; ++i)
+        sections[static_cast<size_t>(i)] = {
+            static_cast<core::PageIndex>(static_cast<int>(*apvts_.getRawParameterValue(params::songSectionPageId(i)))),
+            static_cast<int>(*apvts_.getRawParameterValue(params::songSectionBarsId(i))),
+            *apvts_.getRawParameterValue(params::songSectionFillId(i)) > 0.5f };
+    const auto position = core::songPositionAt(sections, std::max(0.0, engine_.displayPpq()));
+    const bool follow = session_.getProperty("followSong", false);
+    followToggle_.setToggleState(follow, juce::dontSendNotification);
+    shownPage_ = song && playing && follow ? position.page : static_cast<core::PageIndex>(page);
+    playheadLive_ = !song || position.page == shownPage_;
+    const int playingSection = song && playing ? position.section : -1;
+    for (size_t i = 0; i < sectionLabels_.size(); ++i) {
+        juce::String label = "Section " + juce::String(i + 1);
+        if (static_cast<int>(i) == playingSection)
+            label << "\nbar " << (position.bar + 1) << " of " << sections[i].bars;
+        sectionLabels_[i].setText(label, juce::dontSendNotification);
+    }
+    if (playingSection != playingSection_) {
+        playingSection_ = playingSection;
+        repaint();
+    }
+
     for (int i = 0; i < 4; ++i) {
-        pageBtns_[static_cast<size_t>(i)].setToggleState(i == page, juce::dontSendNotification);
+        const juce::String verb = song ? "Edit pattern " : "Edit and play pattern ";
+        const juce::String note = song ? ". The song sections choose what plays." : ".";
+        pageBtns_[static_cast<size_t>(i)].setTooltip(verb + core::pageName(static_cast<core::PageIndex>(i)) + note
+                                                     + " Right-click to copy, paste, clear or shift it.");
+        pageBtns_[static_cast<size_t>(i)].setToggleState(i == static_cast<int>(shownPage_), juce::dontSendNotification);
         trackCountBtns_[static_cast<size_t>(i)].setToggleState(i == count, juce::dontSendNotification);
     }
     accentEverySlider_.setAlpha(*apvts_.getRawParameterValue(params::kAccentAmount) > 0.0f ? 1.0f : 0.4f);
-    const bool song = *apvts_.getRawParameterValue(params::kSongMode) > .5f;
+    followToggle_.setVisible(song);
     for (size_t i = 0; i < 4; ++i) {
         sectionLabels_[i].setVisible(song);
         sectionPageBoxes_[i].setVisible(song);
@@ -253,7 +289,6 @@ void HeaderPanel::updateFromParameters() {
         if (onThemeChanged) onThemeChanged();
     }
     masterVolSlider_.setValue(*apvts_.getRawParameterValue(params::kMasterVol), juce::dontSendNotification);
-    const bool playing = engine_.isPlaying();
     playBtn_.setButtonText(playing ? "Pause" : "Play");
     playBtn_.setToggleState(playing, juce::dontSendNotification);
     const int transport = playing ? 2 : static_cast<int>(engine_.isHostSyncArmed());
@@ -291,6 +326,10 @@ void HeaderPanel::paint(juce::Graphics& g) {
         g.fillRoundedRectangle(10, 142, static_cast<float>(getWidth()-20), 54, 8);
         g.setColour(palette_.panelEdge);
         g.drawRoundedRectangle(10.5f, 142.5f, static_cast<float>(getWidth()-21), 53.0f, 8.0f, 1.0f);
+        if (playingSection_ >= 0) {
+            g.setColour(palette_.accentPrimary.withAlpha(0.18f));
+            g.fillRoundedRectangle(sectionBounds_[static_cast<size_t>(playingSection_)].expanded(3).toFloat(), 6.0f);
+        }
     }
 }
 
@@ -332,10 +371,13 @@ void HeaderPanel::resized() {
     humanizeSlider_.setBounds(row.removeFromLeft(64).reduced(0,4));
 
     auto sections = juce::Rectangle<int>(22, 151, getWidth()-44, 36);
+    followToggle_.setBounds(sections.removeFromLeft(80));
+    sections.removeFromLeft(8);
     const int width = sections.getWidth()/4;
     for (size_t i = 0; i < 4; ++i) {
         auto section = sections.removeFromLeft(width).reduced(5,0);
-        sectionLabels_[i].setBounds(section.removeFromLeft(65));
+        sectionBounds_[i] = section;
+        sectionLabels_[i].setBounds(section.removeFromLeft(84));
         sectionPageBoxes_[i].setBounds(section.removeFromLeft(48));
         sectionFillButtons_[i].setBounds(section.removeFromRight(44));
         sectionBarsSliders_[i].setBounds(section.reduced(3,0));
@@ -406,11 +448,24 @@ void TrackerPanel::updateFromEngine() {
         rows_[static_cast<size_t>(i)]->setAnySolo(anySolo);
 }
 
+void TrackerPanel::setShownPage(core::PageIndex page, bool playheadLive) {
+    if (playheadLive != playheadLive_) {
+        playheadLive_ = playheadLive;
+        repaint(0, 38, getWidth(), 28);
+    }
+    if (page == shownPage_)
+        return;
+    shownPage_ = page;
+    for (auto& row : rows_)
+        row->setShownPage(page);
+    repaint();
+}
+
 void TrackerPanel::updatePlayhead() {
     uint32_t steps = 0;
     for (int i = 0; i < visibleTrackCount_; ++i) {
         const int step = engine_.isPlaying() ? engine_.getCurrentStep(i) : -1;
-        rows_[static_cast<size_t>(i)]->updatePlayhead(step);
+        rows_[static_cast<size_t>(i)]->updatePlayhead(step, playheadLive_);
         if (step >= 0) steps |= 1u << step;
     }
     if (steps != playheadSteps_) {
@@ -464,7 +519,7 @@ void TrackerPanel::paint(juce::Graphics& g) {
     if (settings_ || activeBrowser_) return;
     g.setColour(palette_.text);
     g.setFont(juce::FontOptions(24.0f, juce::Font::bold));
-    g.drawText("Pattern " + juce::String(core::pageName(engine_.getActivePage())), 20, 0, 200, 37, juce::Justification::centredLeft);
+    g.drawText("Pattern " + juce::String(core::pageName(shownPage_)), 20, 0, 200, 37, juce::Justification::centredLeft);
     g.setFont(juce::FontOptions(13.0f));
     g.setColour(palette_.textDim);
     g.drawText("Click a pad to toggle   /   Drag for velocity   /   Right-click to edit", 190, 2, getWidth()-216, 34, juce::Justification::centredRight);
@@ -475,7 +530,7 @@ void TrackerPanel::paint(juce::Graphics& g) {
         const auto number = juce::Rectangle<int>(start+i*width/16, 41, (i+1)*width/16-i*width/16, 24);
         const bool playing = ((playheadSteps_ >> i) & 1u) != 0;
         if (playing) {
-            g.setColour(palette_.text);
+            g.setColour(palette_.text.withAlpha(playheadLive_ ? 1.0f : 0.35f));
             g.fillRoundedRectangle(number.reduced(6, 2).toFloat(), 4.0f);
         }
         const auto numberColour = i % 4 == 0 ? palette_.accentSecondary : palette_.textDim;

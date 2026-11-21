@@ -375,21 +375,27 @@ SongSection FruitEngine::getSongSection(int index) const noexcept {
     return songSections_[static_cast<size_t>(index)];
 }
 
-PageIndex FruitEngine::getSongPageAtPpq(double ppq) const noexcept {
-    if (!songMode_ || !std::isfinite(ppq) || ppq < 0.0) return getActivePage();
+SongPosition songPositionAt(const std::array<SongSection, kNumPages>& sections, double ppq) noexcept {
     int totalBars = 0;
-    for (const auto& section : songSections_) totalBars += std::clamp(section.bars, 1, 32);
+    for (const auto& section : sections) totalBars += std::clamp(section.bars, 1, 32);
     const int barInSong = static_cast<int>(std::floor(ppq / 4.0)) % totalBars;
     int sectionStart = 0;
-    for (const auto& section : songSections_) {
+    for (int index = 0; index < kNumPages; ++index) {
+        const auto& section = sections[static_cast<size_t>(index)];
         const int bars = std::clamp(section.bars, 1, 32);
         if (barInSong < sectionStart + bars) {
-            if (section.fill && barInSong == sectionStart + bars - 1) return PageIndex::PageD;
-            return section.page;
+            const int bar = barInSong - sectionStart;
+            if (section.fill && bar == bars - 1) return { index, bar, PageIndex::PageD };
+            return { index, bar, section.page };
         }
         sectionStart += bars;
     }
-    return songSections_.back().page;
+    return { kNumPages - 1, 0, sections.back().page };
+}
+
+PageIndex FruitEngine::getSongPageAtPpq(double ppq) const noexcept {
+    if (!songMode_ || !std::isfinite(ppq) || ppq < 0.0) return getActivePage();
+    return songPositionAt(songSections_, ppq).page;
 }
 
 int FruitEngine::getCurrentStep(int trackIndex) const {
@@ -604,6 +610,7 @@ void FruitEngine::process(float* leftChannel,
         const double quarter = isHostPlaying ? (std::isfinite(ppqPosition) ? ppqPosition : visualPpq_) : lastPpq_;
         const double beatEnd = quarter + numSamples * ((bpm > 10.0 ? bpm : 120.0) / (60.0 * sampleRate_));
         visualPpq_ = beatEnd;
+        displayPpq_.store(beatEnd, std::memory_order_relaxed);
         const double bar = beatEnd * 0.25;
         displayBarPhase_.store(static_cast<float>(bar - std::floor(bar)), std::memory_order_relaxed);
     }

@@ -16,7 +16,7 @@ Press **Play** to start the sequencer and arm host sync. The label beside it rea
 
 Click a sample name to audition it. Click any of its 16 pads to toggle a hit, drag across a row to paint hits, drag vertically for velocity, or right-drag or hold Alt and scroll for pitch. Right-click for probability, 1–8 ratchets, timing offset, sample start and end, reverse playback, and choke group. The menu ticks the current values, and Reset step clears them. Each pad draws a small mark for every setting that differs from the default. Right-click a track number or a pattern button to copy, paste, clear or shift that row or pattern. Mute and Solo are beside the sample, and a row that cannot be heard dims its pads. Select 4, 8, 12 or 16 tracks. Larger patterns scroll vertically at compact sizes, and the editor reopens at the size you left it.
 
-**Song mode** reveals four sections. Choose the page and length for each (1–32 bars). **Fill** plays page D during the final bar. Global swing delays alternate steps. Accent sets periodic emphasis and its interval, from 2 to 16 steps. The master level and output trim (−24 to +12 dB) sit beside the transport.
+**Song mode** reveals four sections. Choose the page and length for each (1–32 bars). **Fill** plays page D during the final bar. While the song plays, its current section lights up with the bar it is on, and **Follow** shows the pattern that section plays. The playhead dims while the grid shows a pattern that is not playing. Global swing delays alternate steps. Accent sets periodic emphasis and its interval, from 2 to 16 steps. The master level and output trim (−24 to +12 dB) sit beside the transport.
 
 ![openFruit Song mode](assets/openFruit-song-mode-screenshot.png)
 

@@ -14,7 +14,8 @@ namespace openfruit::ui {
 class HeaderPanel : public juce::Component {
 public:
     HeaderPanel(openfruit::core::FruitEngine& engine,
-                juce::AudioProcessorValueTreeState& apvts);
+                juce::AudioProcessorValueTreeState& apvts,
+                juce::ValueTree session);
     ~HeaderPanel() override = default;
 
     void setTheme(const openfruit::theme::Palette& palette);
@@ -24,6 +25,9 @@ public:
     std::function<void(juce::Component& target, openfruit::core::PageIndex page)> onPatternMenu;
     std::function<void()> onThemeChanged, onArrangementChanged;
     bool arrangementVisible() const noexcept { return arrangementVisible_; }
+    // The page the grid shows, and whether that page is the one playing.
+    openfruit::core::PageIndex shownPage() const noexcept { return shownPage_; }
+    bool playheadLive() const noexcept { return playheadLive_; }
 
     void paint(juce::Graphics& g) override;
     void resized() override;
@@ -31,6 +35,7 @@ public:
 private:
     openfruit::core::FruitEngine& engine_;
     juce::AudioProcessorValueTreeState& apvts_;
+    juce::ValueTree session_;
     openfruit::theme::Palette palette_;
 
     // Track Count Toggle: 4, 8, 12, 16
@@ -70,7 +75,12 @@ private:
     juce::Label humanizeLabel_ { "Humanize", "Human" };
     juce::Slider humanizeSlider_;
     std::unique_ptr<juce::AudioProcessorValueTreeState::SliderAttachment> humanizeAttachment_;
+    juce::ToggleButton followToggle_ { "Follow" };
     std::array<juce::Label, openfruit::core::kNumPages> sectionLabels_;
+    std::array<juce::Rectangle<int>, openfruit::core::kNumPages> sectionBounds_;
+    int playingSection_ = -1;
+    openfruit::core::PageIndex shownPage_ = openfruit::core::PageIndex::PageA;
+    bool playheadLive_ = true;
     std::array<juce::ComboBox, openfruit::core::kNumPages> sectionPageBoxes_;
     std::array<juce::Slider, openfruit::core::kNumPages> sectionBarsSliders_;
     std::array<juce::TextButton, openfruit::core::kNumPages> sectionFillButtons_;
@@ -95,6 +105,7 @@ public:
     void updateFromEngine();
     void updatePlayhead();
     void setVisibleTrackCount(int count);
+    void setShownPage(openfruit::core::PageIndex page, bool playheadLive);
     std::function<void(std::vector<openfruit::plugin::StepChange>)> onStepsEdited;
     std::function<void(juce::Component& target, openfruit::core::PageIndex page, int trackIdx)> onRowMenu;
 
@@ -116,6 +127,8 @@ private:
 
     int visibleTrackCount_ = 8;
     uint32_t playheadSteps_ = 0;
+    openfruit::core::PageIndex shownPage_ = openfruit::core::PageIndex::PageA;
+    bool playheadLive_ = true;
     juce::File lastBrowsedFolder_;
     juce::Component grid_;
     juce::Viewport viewport_;

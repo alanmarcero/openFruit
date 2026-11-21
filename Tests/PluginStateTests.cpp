@@ -99,3 +99,20 @@ TEST_CASE("Row commands shift, clear and paste as undoable change sets", "[plugi
     clear.undo();
     REQUIRE(engine.getStep(3, PageIndex::PageB, 0).active);
 }
+
+TEST_CASE("Song position names the section, bar and page that play", "[plugin][song]") {
+    const std::array<SongSection, kNumPages> sections {{
+        { PageIndex::PageA, 2, false }, { PageIndex::PageB, 3, true },
+        { PageIndex::PageC, 1, false }, { PageIndex::PageD, 1, false } }};
+
+    const auto start = songPositionAt(sections, 0.5);
+    CHECK(start.section == 0);
+    CHECK(start.bar == 0);
+    CHECK(start.page == PageIndex::PageA);
+    const auto middle = songPositionAt(sections, 4.0 * 3.0 + 1.0);
+    CHECK(middle.section == 1);
+    CHECK(middle.bar == 1);
+    CHECK(middle.page == PageIndex::PageB);
+    CHECK(songPositionAt(sections, 4.0 * 4.0).page == PageIndex::PageD);
+    CHECK(songPositionAt(sections, 4.0 * 7.0).section == 0);
+}
