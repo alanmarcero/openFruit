@@ -115,6 +115,7 @@ private:
     openfruit::theme::Palette palette_;
 
     int visibleTrackCount_ = 8;
+    uint32_t playheadSteps_ = 0;
     juce::File lastBrowsedFolder_;
     juce::Component grid_;
     juce::Viewport viewport_;

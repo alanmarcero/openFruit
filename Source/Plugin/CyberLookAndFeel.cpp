@@ -13,6 +13,7 @@ void CyberLookAndFeel::setPalette(const openfruit::theme::Palette& palette) {
     setColour(juce::ResizableWindow::backgroundColourId, palette.background);
     setColour(juce::Label::textColourId, palette.text);
     setColour(juce::TextButton::buttonColourId, palette.panel);
+    setColour(juce::TextButton::buttonOnColourId, palette.accentPrimary);
     setColour(juce::Slider::thumbColourId, palette.accentPrimary);
     setColour(juce::Slider::textBoxTextColourId, palette.text);
     setColour(juce::Slider::textBoxBackgroundColourId, palette.background);
@@ -33,7 +34,7 @@ void CyberLookAndFeel::drawButtonBackground(juce::Graphics& g, juce::Button& but
                                             bool hover, bool down) {
     const auto rect = button.getLocalBounds().toFloat().reduced(1.0f);
     const float alpha = button.isEnabled() ? 1.0f : 0.4f;
-    const auto fill = button.getToggleState() ? palette_.accentPrimary : colour.brighter(down ? .18f : .07f);
+    const auto fill = button.getToggleState() ? button.findColour(juce::TextButton::buttonOnColourId) : colour.brighter(down ? .18f : .07f);
     g.setColour(fill.withMultipliedAlpha(alpha));
     g.fillRoundedRectangle(rect, 5);
     const auto edge = hover || button.hasKeyboardFocus(false) ? palette_.accentSecondary : palette_.panelEdge;

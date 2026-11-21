@@ -43,6 +43,11 @@ void CyberStepPad::setStepData(const openfruit::core::StepData& data) {
     repaint();
 }
 
+void CyberStepPad::setSilencedNote(const juce::String& note) {
+    silencedNote_ = note;
+    setAlpha(note.isEmpty() ? 1.0f : 0.4f);
+}
+
 void CyberStepPad::setIsCurrentPlayhead(bool isPlayhead) {
     if (isPlayhead_ == isPlayhead) return;
     isPlayhead_ = isPlayhead;
@@ -54,7 +59,7 @@ juce::String CyberStepPad::getTooltip() {
                       "Right-drag or Alt+scroll to tune. Right-click for step settings.";
     const auto step = "Step " + juce::String(stepIdx_ + 1) + ": ";
     if (!data_.active)
-        return step + "off." + help;
+        return step + "off." + help + silencedNote_;
     juce::StringArray settings { "velocity " + percentText(data_.velocity, false) };
     if (data_.probability < 1.0f) settings.add(percentText(data_.probability, false) + " chance");
     if (data_.ratchets > 1) settings.add(juce::String(data_.ratchets) + " ratchets");
@@ -64,7 +69,7 @@ juce::String CyberStepPad::getTooltip() {
         settings.add("plays " + percentText(data_.sampleStart, false) + " to " + percentText(data_.sampleEnd, false));
     if (data_.reverse) settings.add("reversed");
     if (data_.chokeGroup > 0) settings.add("choke group " + juce::String(data_.chokeGroup));
-    return step + settings.joinIntoString(", ") + "." + help;
+    return step + settings.joinIntoString(", ") + "." + help + silencedNote_;
 }
 
 void CyberStepPad::paint(juce::Graphics& g) {
@@ -110,8 +115,13 @@ void CyberStepPad::paint(juce::Graphics& g) {
         if (data_.chokeGroup > 0)
             g.drawText("C" + juce::String(data_.chokeGroup), marks, juce::Justification::centredRight);
     }
+    // The playhead uses the text colour, so it shows on lit pads of either accent.
+    if (isPlayhead_) {
+        g.setColour(palette_.text.withAlpha(0.28f));
+        g.fillRoundedRectangle(cell, 5.0f);
+    }
     if (isPlayhead_ || isMouseOver() || hasKeyboardFocus(false)) {
-        g.setColour(isPlayhead_ ? palette_.playheadGlow : palette_.text);
+        g.setColour(palette_.text);
         g.drawRoundedRectangle(cell, 5.0f, 2.0f);
     }
 }
@@ -486,6 +496,7 @@ TrackRowComponent::TrackRowComponent(int trackIdx,
 
 void TrackRowComponent::setTheme(const openfruit::theme::Palette& palette) {
     palette_ = palette;
+    soloBtn_.setColour(juce::TextButton::buttonOnColourId, palette.accentSecondary);
     for (auto& pad : stepPads_) {
         if (pad) pad->setTheme(palette);
     }
@@ -515,6 +526,16 @@ void TrackRowComponent::updateFromEngine() {
     for (int s = 0; s < openfruit::core::kStepsPerPage; ++s) {
         stepPads_[static_cast<size_t>(s)]->setStepData(engine_.getStep(trackIdx_, activePage, s));
     }
+}
+
+void TrackRowComponent::setAnySolo(bool anySolo) {
+    juce::String note;
+    if (anySolo && !soloBtn_.getToggleState())
+        note = "\nSilent while another track is soloed.";
+    if (muteBtn_.getToggleState())
+        note = "\nSilent: unmute this track to hear it.";
+    for (auto& pad : stepPads_)
+        pad->setSilencedNote(note);
 }
 
 void TrackRowComponent::updatePlayhead(int currentStep) {

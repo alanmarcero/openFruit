@@ -399,12 +399,23 @@ void TrackerPanel::updateFromEngine() {
     for (int i = 0; i < visibleTrackCount_; ++i) {
         rows_[static_cast<size_t>(i)]->updateFromEngine();
     }
+    // A muted track, or any other track while one is soloed, plays nothing.
+    const bool anySolo = std::any_of(rows_.begin(), rows_.begin() + visibleTrackCount_,
+        [this](const auto& row) { return static_cast<bool>(engine_.getTrack(row->getTrackIndex()).solo); });
+    for (int i = 0; i < visibleTrackCount_; ++i)
+        rows_[static_cast<size_t>(i)]->setAnySolo(anySolo);
 }
 
 void TrackerPanel::updatePlayhead() {
+    uint32_t steps = 0;
     for (int i = 0; i < visibleTrackCount_; ++i) {
-        const int step = engine_.getCurrentStep(i);
-        rows_[static_cast<size_t>(i)]->updatePlayhead(engine_.isPlaying() ? step : -1);
+        const int step = engine_.isPlaying() ? engine_.getCurrentStep(i) : -1;
+        rows_[static_cast<size_t>(i)]->updatePlayhead(step);
+        if (step >= 0) steps |= 1u << step;
+    }
+    if (steps != playheadSteps_) {
+        playheadSteps_ = steps;
+        repaint(0, 38, getWidth(), 28);
     }
 }
 
@@ -461,8 +472,15 @@ void TrackerPanel::paint(juce::Graphics& g) {
     const int start = 12 + kLaneWidth;
     const int width = grid_.getWidth() - kLaneWidth;
     for (int i = 0; i < 16; ++i) {
-        g.setColour(i % 4 == 0 ? palette_.accentSecondary : palette_.textDim);
-        g.drawText(juce::String(i+1), start+i*width/16, 41, (i+1)*width/16-i*width/16, 24, juce::Justification::centred);
+        const auto number = juce::Rectangle<int>(start+i*width/16, 41, (i+1)*width/16-i*width/16, 24);
+        const bool playing = ((playheadSteps_ >> i) & 1u) != 0;
+        if (playing) {
+            g.setColour(palette_.text);
+            g.fillRoundedRectangle(number.reduced(6, 2).toFloat(), 4.0f);
+        }
+        const auto numberColour = i % 4 == 0 ? palette_.accentSecondary : palette_.textDim;
+        g.setColour(playing ? palette_.background : numberColour);
+        g.drawText(juce::String(i+1), number, juce::Justification::centred);
     }
 }
 

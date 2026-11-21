@@ -34,6 +34,7 @@ public:
     void setTheme(const openfruit::theme::Palette& palette);
     void setStepData(const openfruit::core::StepData& data);
     void setIsCurrentPlayhead(bool isPlayhead);
+    void setSilencedNote(const juce::String& note);
 
     std::function<void(bool newActive)> onToggle;
     std::function<void(int newTune)> onTuneChange;
@@ -56,6 +57,7 @@ private:
     openfruit::theme::Palette palette_;
     openfruit::core::StepData data_{};
     bool isPlayhead_ = false;
+    juce::String silencedNote_;
     bool wasActive_ = false;
     bool velocityDragged_ = false;
     bool painting_ = false;
@@ -102,6 +104,7 @@ public:
     void setTheme(const openfruit::theme::Palette& palette);
     void updateFromEngine();
     void updatePlayhead(int currentStep);
+    void setAnySolo(bool anySolo);
 
     std::function<void(int trackIdx)> onOpenBrowser, onOpenSettings;
     std::function<void(int trackIdx)> onSampleAudition;

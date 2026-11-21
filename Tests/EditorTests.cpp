@@ -293,3 +293,22 @@ TEST_CASE("Each pad describes and draws its own step settings", "[editor][pads]"
     CHECK(pad.getTooltip().startsWith("Step 5: velocity 85%, 0% chance, 3 ratchets, reversed."));
     CHECK(neverImage.getPixelAt(10, 30).getAlpha() < fullImage.getPixelAt(10, 30).getAlpha());
 }
+
+TEST_CASE("Muted and solo-silenced rows dim their pads", "[editor][mute]") {
+    juce::ScopedJuceInitialiser_GUI gui;
+    OpenFruitAudioProcessor processor;
+    auto editor = openEditor(processor);
+    auto& state = processor.getAPVTS();
+    const auto padAlpha = [&](int track) {
+        editor->refresh();
+        return findVisible<openfruit::ui::CyberStepPad>(*editor, "Track " + juce::String(track) + " step 1")->getAlpha();
+    };
+    REQUIRE(padAlpha(1) == 1.0f);
+
+    state.getParameter(openfruit::params::trackMuteId(0))->setValueNotifyingHost(1.0f);
+    CHECK(padAlpha(1) < 0.5f);
+    state.getParameter(openfruit::params::trackMuteId(0))->setValueNotifyingHost(0.0f);
+    state.getParameter(openfruit::params::trackSoloId(1))->setValueNotifyingHost(1.0f);
+    CHECK(padAlpha(1) < 0.5f);
+    CHECK(padAlpha(2) == 1.0f);
+}
