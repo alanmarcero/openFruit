@@ -108,6 +108,7 @@ public:
     void setVisibleTrackCount(int count);
     void setShownPage(openfruit::core::PageIndex page, bool playheadLive);
     std::function<void(std::vector<openfruit::plugin::StepChange>)> onStepsEdited;
+    std::function<void()> onSampleLoaded;
     std::function<void(juce::Component& target, openfruit::core::PageIndex page, int trackIdx)> onRowMenu;
 
     void paint(juce::Graphics& g) override;

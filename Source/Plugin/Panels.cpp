@@ -176,7 +176,7 @@ HeaderPanel::HeaderPanel(openfruit::core::FruitEngine& engine,
     accentEverySlider_.setTooltip("Accent every 2 to 16 steps. Raise Accent above 0% to hear it.");
     accentEverySlider_.setTitle("Every");
     accentEverySlider_.setSliderStyle(juce::Slider::IncDecButtons);
-    accentEverySlider_.setTextBoxStyle(juce::Slider::TextBoxLeft, false, 36, 36);
+    accentEverySlider_.setTextBoxStyle(juce::Slider::TextBoxLeft, false, 36, 40);
     accentEverySlider_.setRange(2.0, 16.0, 1.0);
     accentEveryAttachment_ = std::make_unique<juce::AudioProcessorValueTreeState::SliderAttachment>(
         apvts_, openfruit::params::kAccentEvery, accentEverySlider_);
@@ -380,7 +380,7 @@ void HeaderPanel::resized() {
     accentAmountSlider_.setBounds(row.removeFromLeft(64).reduced(0,4));
     row.removeFromLeft(6);
     intervalLabel_.setBounds(row.removeFromLeft(42));
-    accentEverySlider_.setBounds(row.removeFromLeft(116).reduced(0,4));
+    accentEverySlider_.setBounds(row.removeFromLeft(120).reduced(0,2));
     row.removeFromLeft(8);
     humanizeLabel_.setBounds(row.removeFromLeft(48));
     humanizeSlider_.setBounds(row.removeFromLeft(64).reduced(0,4));
@@ -424,6 +424,9 @@ TrackerPanel::TrackerPanel(openfruit::core::FruitEngine& engine,
         row->onOpenSettings = [this](int track) { openTrackSettings(track); };
         row->onStepsEdited = [this](std::vector<openfruit::plugin::StepChange> changes) {
             if (onStepsEdited) onStepsEdited(std::move(changes));
+        };
+        row->onSampleLoaded = [this] {
+            if (onSampleLoaded) onSampleLoaded();
         };
         row->onRowMenu = [this](juce::Component& target, openfruit::core::PageIndex page, int track) {
             if (onRowMenu) onRowMenu(target, page, track);
@@ -538,6 +541,7 @@ SampleBrowserModal* TrackerPanel::openSampleBrowser(int trackIdx, const juce::Fi
     activeBrowser_ = std::make_unique<SampleBrowserModal>(trackIdx, engine_, cache_, queue_, initialFolder);
     activeBrowser_->setTheme(palette_);
     activeBrowser_->onClose = [this] { closeSampleBrowser(); };
+    activeBrowser_->onSampleLoaded = [this] { if (onSampleLoaded) onSampleLoaded(); };
     activeBrowser_->onFolderChanged = [this](const juce::File& newFolder) {
         lastBrowsedFolder_ = newFolder;
         if (session_.isValid() && newFolder.isDirectory()) {

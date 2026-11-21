@@ -34,6 +34,7 @@ public:
     void setFolder(const juce::File& folder);
 
     std::function<void()> onClose;
+    std::function<void()> onSampleLoaded;
     std::function<void(const juce::File&)> onFolderChanged;
 
     // TableListBoxModel implementation
@@ -42,6 +43,7 @@ public:
     void paintCell(juce::Graphics& g, int rowNumber, int columnId, int width, int height, bool rowIsSelected) override;
     void selectedRowsChanged(int lastRowSelected) override;
     void cellDoubleClicked(int rowNumber, int columnId, const juce::MouseEvent&) override;
+    void returnKeyPressed(int row) override;
     void sortOrderChanged(int newSortColumnId, bool isForwards) override;
 
     // FileDragAndDropTarget implementation
@@ -60,6 +62,7 @@ private:
     void selectFileByPath(const std::string& fullPath);
     void previewSelectedItem();
     void clearCache();
+    void commitRow(int row);
     void commitSelection();
     void cancelAndClose();
 

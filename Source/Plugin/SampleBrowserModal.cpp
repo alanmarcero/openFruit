@@ -478,11 +478,11 @@ void SampleBrowserModal::selectedRowsChanged(int lastRowSelected) {
 }
 
 void SampleBrowserModal::cellDoubleClicked(int rowNumber, int /*columnId*/, const juce::MouseEvent&) {
-    if (rowNumber < 0 || rowNumber >= static_cast<int>(files_.size())) {
-        return;
-    }
-    table_.selectRow(rowNumber);
-    commitSelection();
+    commitRow(rowNumber);
+}
+
+void SampleBrowserModal::returnKeyPressed(int row) {
+    commitRow(row);
 }
 
 void SampleBrowserModal::sortOrderChanged(int newSortColumnId, bool isForwards) {
@@ -559,6 +559,14 @@ void SampleBrowserModal::clearCache() {
     refreshFileList();
 }
 
+void SampleBrowserModal::commitRow(int row) {
+    if (row < 0 || row >= static_cast<int>(files_.size())) {
+        return;
+    }
+    table_.selectRow(row);
+    commitSelection();
+}
+
 void SampleBrowserModal::commitSelection() {
     const int row = table_.getSelectedRow();
     if (row >= 0 && row < static_cast<int>(files_.size())) {
@@ -567,7 +575,10 @@ void SampleBrowserModal::commitSelection() {
                 engine_.setAuditionSampleForTrack(targetTrackIdx_, sample);
             }
         }
-        engine_.commitAuditionSample(targetTrackIdx_);
+        if (engine_.getTrack(targetTrackIdx_).auditionSample) {
+            engine_.commitAuditionSample(targetTrackIdx_);
+            if (onSampleLoaded) onSampleLoaded();
+        }
     }
     if (onClose) onClose();
 }

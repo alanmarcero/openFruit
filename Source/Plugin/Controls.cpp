@@ -637,6 +637,7 @@ void TrackRowComponent::filesDropped(const juce::StringArray& files, int, int) {
         if (auto sample = openfruit::core::WavReader::loadSample(path.toStdString())) {
             engine_.loadSampleForTrack(trackIdx_, std::move(sample));
             updateFromEngine();
+            if (onSampleLoaded) onSampleLoaded();
         }
         return;
     }

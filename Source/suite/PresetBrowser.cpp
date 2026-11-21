@@ -191,6 +191,7 @@ void PresetBrowser::returnKeyPressed(int lastRow) {
 }
 
 void PresetBrowser::selectedRowsChanged(int lastRow) {
+    timerCallback();
     const bool saved = lastRow >= 0 && lastRow < static_cast<int>(entries_.size()) && !entries_[static_cast<size_t>(lastRow)].factory;
     rename_.setEnabled(saved);
     remove_.setEnabled(saved);

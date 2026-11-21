@@ -116,6 +116,7 @@ public:
 
     std::function<void(int trackIdx)> onOpenBrowser, onOpenSettings;
     std::function<void(int trackIdx)> onSampleAudition;
+    std::function<void()> onSampleLoaded;
     std::function<void(std::vector<openfruit::plugin::StepChange>)> onStepsEdited;
     std::function<void(juce::Component& target, openfruit::core::PageIndex page, int trackIdx)> onRowMenu;
 

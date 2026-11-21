@@ -74,6 +74,10 @@ OpenFruitAudioProcessorEditor::OpenFruitAudioProcessorEditor(OpenFruitAudioProce
     trackerPanel_.onStepsEdited = [this](std::vector<openfruit::plugin::StepChange> changes) {
         processorRef_.performEdit(new openfruit::plugin::StepEditAction(processorRef_.getEngine(), std::move(changes)));
     };
+    trackerPanel_.onSampleLoaded = [this] {
+        processorRef_.markEdited();
+        suiteBar_.setPreset(processorRef_.getPresetName(), processorRef_.isPresetEdited());
+    };
     trackerPanel_.onRowMenu = [this](juce::Component& target, openfruit::core::PageIndex page, int track) {
         showPatternMenu(target, page, track, 1);
     };

@@ -123,6 +123,13 @@ TEST_CASE("Editor controls stay apart and buttons stay large enough", "[editor][
     juce::StringArray problems;
     checkLayout(*editor, problems);
     CHECK(problems.joinIntoString("\n").toStdString() == "");
+
+    for (const auto* text : { "-", "+" }) {
+        auto* btn = findButton(*editor, text);
+        REQUIRE(btn != nullptr);
+        CHECK(btn->getWidth() >= 40);
+        CHECK(btn->getHeight() >= 40);
+    }
 }
 
 TEST_CASE("Previous and next step through the kit list and wrap", "[editor][presets]") {
@@ -187,10 +194,23 @@ TEST_CASE("Replacing or deleting a saved kit takes a second click", "[editor][pr
     REQUIRE(file.existsAsFile());
     click(*findButton(*editor, "Save"));
     REQUIRE(findButton(*editor, "Replace?") != nullptr);
+    list->selectRow(0);
+    CHECK(findButton(*editor, "Replace?") == nullptr);
+    CHECK(findButton(*editor, "Save") != nullptr);
+
+    click(*findButton(*editor, "Save"));
+    REQUIRE(findButton(*editor, "Replace?") != nullptr);
     click(*findButton(*editor, "Replace?"));
     CHECK(findButton(*editor, "Save") != nullptr);
 
     const int lastRow = list->getListBoxModel()->getNumRows() - 1;
+    click(*list->getComponentAt(list->getRowPosition(lastRow, true).getCentre()));
+    click(*findButton(*editor, "Delete"));
+    REQUIRE(findButton(*editor, "Delete?") != nullptr);
+    list->selectRow(0);
+    CHECK(findButton(*editor, "Delete?") == nullptr);
+    CHECK(findButton(*editor, "Delete") != nullptr);
+
     click(*list->getComponentAt(list->getRowPosition(lastRow, true).getCentre()));
     click(*findButton(*editor, "Delete"));
     CHECK(file.existsAsFile());
@@ -351,6 +371,13 @@ TEST_CASE("Mix view shows level and pan for every lane", "[editor][mix]") {
     juce::StringArray problems;
     checkLayout(*editor, problems);
     CHECK(problems.joinIntoString("\n").toStdString() == "");
+
+    for (const auto* text : { "-", "+" }) {
+        auto* btn = findButton(*editor, text);
+        REQUIRE(btn != nullptr);
+        CHECK(btn->getWidth() >= 40);
+        CHECK(btn->getHeight() >= 40);
+    }
 }
 
 TEST_CASE("Voice settings step between tracks and group the filters", "[editor][settings]") {
@@ -376,6 +403,13 @@ TEST_CASE("Voice settings step between tracks and group the filters", "[editor][
     juce::StringArray problems;
     checkLayout(*editor, problems);
     CHECK(problems.joinIntoString("\n").toStdString() == "");
+
+    for (const auto* text : { "-", "+" }) {
+        auto* btn = findButton(*editor, text);
+        REQUIRE(btn != nullptr);
+        CHECK(btn->getWidth() >= 40);
+        CHECK(btn->getHeight() >= 40);
+    }
 }
 
 namespace {
@@ -473,6 +507,31 @@ TEST_CASE("Sample browser filters, remembers its folder, sorts unanalysed last, 
         const auto loaded = processor.getEngine().loadedSample(0);
         REQUIRE(loaded != nullptr);
         CHECK(loaded->sampleName == "kick_short");
+        CHECK(processor.isPresetEdited());
+    }
+
+    // Clicking a row in the table and pressing Enter invokes TableListBoxModel::returnKeyPressed(row).
+    {
+        OpenFruitAudioProcessor fresh;
+        REQUIRE_FALSE(fresh.isPresetEdited());
+        auto editor = openEditor(fresh);
+        editor->openSampleBrowser(0, dir);
+        auto* browser = findVisible<openfruit::ui::SampleBrowserModal>(*editor);
+        REQUIRE(browser != nullptr);
+        auto* table = findVisible<juce::TableListBox>(*browser);
+        REQUIRE(table != nullptr);
+        table->selectRow(0);
+        browser->returnKeyPressed(0);
+        CHECK(findVisible<openfruit::ui::SampleBrowserModal>(*editor) == nullptr);
+        const auto loaded = fresh.getEngine().loadedSample(0);
+        REQUIRE(loaded != nullptr);
+        CHECK(loaded->sampleName == "kick_short");
+        CHECK(fresh.isPresetEdited());
+        auto* suiteBar = findVisible<openfruit::suite::SuiteBar>(*editor);
+        REQUIRE(suiteBar != nullptr);
+        auto* presetLabel = dynamic_cast<juce::Label*>(suiteBar->getChildComponent(0));
+        REQUIRE(presetLabel != nullptr);
+        CHECK(presetLabel->getText().endsWith(" *"));
     }
 
     dir.deleteRecursively();
@@ -487,6 +546,7 @@ TEST_CASE("Track lanes accept dropped audio files", "[editor][dnd]") {
     writeTestWav(wav, 0.15);
 
     OpenFruitAudioProcessor processor;
+    REQUIRE_FALSE(processor.isPresetEdited());
     auto editor = openEditor(processor);
     auto* row = findVisible<openfruit::ui::TrackRowComponent>(*editor);
     REQUIRE(row != nullptr);
@@ -498,6 +558,12 @@ TEST_CASE("Track lanes accept dropped audio files", "[editor][dnd]") {
     const auto loaded = processor.getEngine().loadedSample(row->getTrackIndex());
     REQUIRE(loaded != nullptr);
     CHECK(loaded->sampleName == "dropped_hat");
+    CHECK(processor.isPresetEdited());
+    auto* suiteBar = findVisible<openfruit::suite::SuiteBar>(*editor);
+    REQUIRE(suiteBar != nullptr);
+    auto* presetLabel = dynamic_cast<juce::Label*>(suiteBar->getChildComponent(0));
+    REQUIRE(presetLabel != nullptr);
+    CHECK(presetLabel->getText().endsWith(" *"));
     dir.deleteRecursively();
 }
 
