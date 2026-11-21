@@ -83,9 +83,13 @@ OpenFruitAudioProcessorEditor::OpenFruitAudioProcessorEditor(OpenFruitAudioProce
     trackerPanel_.updateFromEngine();
     trackerPanel_.updatePlayhead();
 
+    // The resize limits trigger resized(), which stores the size, so read the saved size first.
+    const auto session = processorRef_.getSessionState();
+    const int width = session.getProperty("editorWidth", 1200);
+    const int height = session.getProperty("editorHeight", 792);
     setResizable(true, true);
     setResizeLimits(1120, 680, 1920, 1200);
-    setSize(1200, 792);
+    setSize(width, height);
 
     startTimerHz(30); // 30 fps UI animation & playhead updates
 }
@@ -124,6 +128,9 @@ bool OpenFruitAudioProcessorEditor::keyPressed(const juce::KeyPress& key) {
 }
 
 void OpenFruitAudioProcessorEditor::resized() {
+    auto session = processorRef_.getSessionState();
+    session.setProperty("editorWidth", getWidth(), nullptr);
+    session.setProperty("editorHeight", getHeight(), nullptr);
     auto bounds = getLocalBounds();
     headerPanel_.setBounds(bounds.removeFromTop(headerPanel_.arrangementVisible() ? 206 : 142));
     suiteBar_.setBounds(bounds.removeFromTop(56).reduced(10, 4));

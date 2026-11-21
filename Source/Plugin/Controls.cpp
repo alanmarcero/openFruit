@@ -8,7 +8,7 @@ namespace openfruit::ui {
 CyberStepPad::CyberStepPad(int trackIdx, int stepIdx)
     : trackIdx_(trackIdx), stepIdx_(stepIdx), palette_(openfruit::theme::getPalette(openfruit::core::ColorTheme::CyberpunkNeon)) {
     setRepaintsOnMouseActivity(true);
-    setTooltip("Click to toggle. Drag vertically for velocity. Right-drag or scroll to tune. Right-click for step settings.");
+    setTooltip("Click to toggle. Drag vertically for velocity. Right-drag or Alt+scroll to tune. Right-click for step settings.");
     setName("Track " + juce::String(trackIdx+1) + " step " + juce::String(stepIdx+1));
 }
 
@@ -202,9 +202,13 @@ void CyberStepPad::selectStepMenuItem(int itemId) {
     if (onEditEnded) onEditEnded();
 }
 
-void CyberStepPad::mouseWheelMove(const juce::MouseEvent& /*e*/, const juce::MouseWheelDetails& wheel) {
-    if (!data_.active) return;
-    if (onEditBegan) onEditBegan();
+void CyberStepPad::mouseWheelMove(const juce::MouseEvent& e, const juce::MouseWheelDetails& wheel) {
+    // Without Alt or Cmd the wheel scrolls the grid.
+    if (!(e.mods.isAltDown() || e.mods.isCommandDown()) || wheel.deltaY == 0.0f || !data_.active) {
+        juce::Component::mouseWheelMove(e, wheel);
+        return;
+    }
+    if (!isTimerRunning() && onEditBegan) onEditBegan();
     const int delta = (wheel.deltaY > 0.0f) ? 1 : -1;
     const int newTune = std::clamp(data_.semitoneOffset + delta, -24, 24);
     if (newTune != data_.semitoneOffset) {
@@ -214,6 +218,12 @@ void CyberStepPad::mouseWheelMove(const juce::MouseEvent& /*e*/, const juce::Mou
             onTuneChange(newTune);
         }
     }
+    // Ticks less than half a second apart make one undo step.
+    startTimer(500);
+}
+
+void CyberStepPad::timerCallback() {
+    stopTimer();
     if (onEditEnded) onEditEnded();
 }
 

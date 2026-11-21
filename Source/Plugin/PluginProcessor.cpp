@@ -327,6 +327,7 @@ void OpenFruitAudioProcessor::getStateInformation(juce::MemoryBlock& destData) {
     if (stateRestoreDepth_ == 0)
         ab_.rememberActive(treeToBlock(tree));
     tree.addChild(ab_.toTree(), -1, nullptr);
+    tree.addChild(session_.createCopy(), -1, nullptr);
     if (auto xml = tree.createXml())
         copyXmlToBinary(*xml, destData);
 }
@@ -343,6 +344,8 @@ void OpenFruitAudioProcessor::setStateInformation(const void* data, int sizeInBy
     auto abTree = state.getChildWithName("AbSlots");
     if (abTree.isValid())
         state.removeChild(abTree, nullptr);
+    const auto session = state.getChildWithName("Session");
+    state.removeChild(session, nullptr);
 
     loadFactoryKit(static_cast<int>(state.getProperty("factoryKit", 1)) < 2);
     auto files = state.getChildWithName("SampleFiles");
@@ -362,6 +365,7 @@ void OpenFruitAudioProcessor::setStateInformation(const void* data, int sizeInBy
     --stateRestoreDepth_;
 
     if (!loadingSlot_) {
+        session_.copyPropertiesFrom(session, nullptr);
         for (auto& history : undo_)
             history.clearUndoHistory();
         getUndo().detach();

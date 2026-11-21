@@ -48,6 +48,8 @@ public:
     std::array<openfruit::suite::UndoHistory, 2>& getUndoHistories() noexcept { return undo_; }
     openfruit::suite::AbCompare& getAb() noexcept { return ab_; }
     openfruit::suite::PresetLibrary& getPresets() noexcept { return presets_; }
+    // Editor and view settings saved with the session, not with A/B slots or kits.
+    juce::ValueTree getSessionState() noexcept { return session_; }
 
     void selectAbSlot(int index);
     void copyAbSlot(int from, int to);
@@ -67,6 +69,7 @@ private:
     openfruit::suite::AbCompare ab_;
     std::array<openfruit::suite::UndoHistory, 2> undo_;
     openfruit::suite::PresetLibrary presets_ { "openFruit" };
+    juce::ValueTree session_ { "Session" };
 
     juce::String presetName_ { "Citrus" };
     bool presetEdited_ = false;

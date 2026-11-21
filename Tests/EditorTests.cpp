@@ -37,12 +37,15 @@ Type* findVisible(juce::Component& parent) {
     return nullptr;
 }
 
-void click(juce::Component& target, int clicks = 1) {
+juce::MouseEvent mouseAt(juce::Component& target, juce::ModifierKeys modifiers, int clicks = 1) {
     const auto position = target.getLocalBounds().getCentre().toFloat();
     const auto now = juce::Time::getCurrentTime();
-    const juce::MouseEvent event(juce::Desktop::getInstance().getMainMouseSource(), position,
-                                 juce::ModifierKeys::leftButtonModifier, 1.0f, 0.0f, 0.0f, 0.0f, 0.0f,
-                                 &target, &target, now, position, now, clicks, false);
+    return { juce::Desktop::getInstance().getMainMouseSource(), position, modifiers, 1.0f, 0.0f, 0.0f, 0.0f, 0.0f,
+             &target, &target, now, position, now, clicks, false };
+}
+
+void click(juce::Component& target, int clicks = 1) {
+    const auto event = mouseAt(target, juce::ModifierKeys::leftButtonModifier, clicks);
     target.mouseDown(event);
     target.mouseUp(event);
     if (clicks == 2)
@@ -188,4 +191,40 @@ TEST_CASE("Replacing or deleting a saved kit takes a second click", "[editor][pr
     click(*findButton(*editor, "Delete?"));
     CHECK_FALSE(file.existsAsFile());
     directory.deleteRecursively();
+}
+
+TEST_CASE("The wheel scrolls the grid unless Alt or Cmd is held", "[editor][wheel]") {
+    juce::ScopedJuceInitialiser_GUI gui;
+    OpenFruitAudioProcessor processor;
+    auto* tracks = processor.getAPVTS().getParameter(openfruit::params::kTrackCount);
+    tracks->setValueNotifyingHost(tracks->convertTo0to1(3.0f));
+    auto editor = openEditor(processor);
+    auto* viewport = findVisible<juce::Viewport>(*editor);
+    auto* pad = findVisible<openfruit::ui::CyberStepPad>(*editor);
+    REQUIRE(pad != nullptr);
+    const auto before = processor.getEngine().getStep(0, openfruit::core::PageIndex::PageA, 0);
+    REQUIRE(before.active);
+
+    pad->mouseWheelMove(mouseAt(*pad, {}), { 0.0f, -0.5f, false, false, false });
+    CHECK(viewport->getViewPositionY() > 0);
+    CHECK(processor.getEngine().getStep(0, openfruit::core::PageIndex::PageA, 0) == before);
+
+    pad->mouseWheelMove(mouseAt(*pad, juce::ModifierKeys::altModifier), { 0.5f, 0.0f, false, false, false });
+    CHECK(processor.getEngine().getStep(0, openfruit::core::PageIndex::PageA, 0) == before);
+    pad->mouseWheelMove(mouseAt(*pad, juce::ModifierKeys::altModifier), { 0.0f, 0.5f, false, false, false });
+    CHECK(processor.getEngine().getStep(0, openfruit::core::PageIndex::PageA, 0).semitoneOffset == 1);
+}
+
+TEST_CASE("The editor reopens at its saved size", "[editor][session]") {
+    juce::ScopedJuceInitialiser_GUI gui;
+    OpenFruitAudioProcessor processor;
+    openEditor(processor)->setSize(1400, 900);
+    juce::MemoryBlock session;
+    processor.getStateInformation(session);
+
+    OpenFruitAudioProcessor restored;
+    restored.setStateInformation(session.getData(), static_cast<int>(session.getSize()));
+    auto editor = openEditor(restored);
+    CHECK(editor->getWidth() == 1400);
+    CHECK(editor->getHeight() == 900);
 }

@@ -11,7 +11,7 @@ namespace openfruit::ui {
 
 inline constexpr int kLaneWidth = 382;
 
-class CyberStepPad : public juce::Component, public juce::SettableTooltipClient {
+class CyberStepPad : public juce::Component, public juce::SettableTooltipClient, private juce::Timer {
 public:
     CyberStepPad(int trackIdx, int stepIdx);
     ~CyberStepPad() override = default;
@@ -47,6 +47,7 @@ private:
     juce::Point<int> dragStartPos_;
     float dragStartVelocity_ = 0.85f;
 
+    void timerCallback() override;
     void showStepMenu();
     void selectStepMenuItem(int itemId);
 };
