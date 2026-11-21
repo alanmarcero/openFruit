@@ -157,3 +157,35 @@ TEST_CASE("A click selects a kit and a double-click loads it", "[editor][presets
     click(*firstRow, 2);
     CHECK(processor.getPresetName() == processor.getPresets().list().front().name);
 }
+
+TEST_CASE("Replacing or deleting a saved kit takes a second click", "[editor][presets]") {
+    juce::ScopedJuceInitialiser_GUI gui;
+    const auto directory = juce::File::getSpecialLocation(juce::File::tempDirectory).getChildFile("openfruit-confirm-kits");
+    directory.deleteRecursively();
+    OpenFruitAudioProcessor processor;
+    processor.getPresets().setDirectory(directory);
+    auto editor = openEditor(processor);
+    click(*findButton(*editor, "Presets"));
+    auto* list = findVisible<juce::ListBox>(*editor);
+    auto* browser = findVisible<openfruit::suite::PresetBrowser>(*editor);
+    REQUIRE(browser != nullptr);
+    auto* name = dynamic_cast<juce::TextEditor*>(browser->getChildComponent(1));
+    REQUIRE(name != nullptr);
+    name->setText("Room Kit");
+
+    click(*findButton(*editor, "Save"));
+    const auto file = directory.getChildFile("Room Kit.preset");
+    REQUIRE(file.existsAsFile());
+    click(*findButton(*editor, "Save"));
+    REQUIRE(findButton(*editor, "Replace?") != nullptr);
+    click(*findButton(*editor, "Replace?"));
+    CHECK(findButton(*editor, "Save") != nullptr);
+
+    const int lastRow = list->getListBoxModel()->getNumRows() - 1;
+    click(*list->getComponentAt(list->getRowPosition(lastRow, true).getCentre()));
+    click(*findButton(*editor, "Delete"));
+    CHECK(file.existsAsFile());
+    click(*findButton(*editor, "Delete?"));
+    CHECK_FALSE(file.existsAsFile());
+    directory.deleteRecursively();
+}

@@ -124,6 +124,10 @@ std::vector<PresetEntry> PresetLibrary::list(const juce::String& search) const {
     return entries;
 }
 
+bool PresetLibrary::exists(const juce::String& name) const {
+    return fileFor(sanitiseName(name)).existsAsFile();
+}
+
 bool PresetLibrary::save(const juce::String& name, const juce::MemoryBlock& state, juce::String& error) {
     const auto cleaned = sanitiseName(name);
     if (cleaned.isEmpty()) {

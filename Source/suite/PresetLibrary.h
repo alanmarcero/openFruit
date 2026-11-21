@@ -25,6 +25,7 @@ public:
 
     [[nodiscard]] const juce::File& directory() const noexcept { return directory_; }
     [[nodiscard]] std::vector<PresetEntry> list(const juce::String& search = {}) const;
+    [[nodiscard]] bool exists(const juce::String& name) const;
 
     bool save(const juce::String& name, const juce::MemoryBlock& state, juce::String& error);
     bool rename(const PresetEntry& preset, const juce::String& newName, juce::String& error);

@@ -27,10 +27,18 @@ PresetBrowser::PresetBrowser(PresetLibrary& library)
 
     save_.setTooltip("Save the current song as a kit");
     rename_.setTooltip("Rename the selected saved kit");
-    remove_.setTooltip("Delete the selected saved kit");
+    remove_.setTooltip("Delete the selected saved kit. Click again to confirm.");
     save_.onClick = [this] {
         if (!captureState)
             return;
+        if (library_.exists(name_.getText()) && confirming_ != &save_) {
+            timerCallback();
+            confirming_ = &save_;
+            save_.setButtonText("Replace?");
+            startTimer(3000);
+            return;
+        }
+        timerCallback();
         juce::String error;
         if (!library_.save(name_.getText(), captureState(), error))
             showError(error);
@@ -55,6 +63,14 @@ PresetBrowser::PresetBrowser(PresetLibrary& library)
         const int row = list_.getSelectedRow();
         if (row < 0 || row >= static_cast<int>(entries_.size()))
             return;
+        if (confirming_ != &remove_) {
+            timerCallback();
+            confirming_ = &remove_;
+            remove_.setButtonText("Delete?");
+            startTimer(3000);
+            return;
+        }
+        timerCallback();
         juce::String error;
         if (!library_.remove(entries_[static_cast<size_t>(row)], error))
             showError(error);
@@ -67,6 +83,13 @@ PresetBrowser::PresetBrowser(PresetLibrary& library)
     status_.setJustificationType(juce::Justification::centredLeft);
     addAndMakeVisible(status_);
     refreshList();
+}
+
+void PresetBrowser::timerCallback() {
+    stopTimer();
+    confirming_ = nullptr;
+    save_.setButtonText("Save");
+    remove_.setButtonText("Delete");
 }
 
 void PresetBrowser::setColours(SuiteColours colours) {
@@ -88,6 +111,7 @@ void PresetBrowser::refreshList() {
             break;
         }
     }
+    selectedRowsChanged(list_.getSelectedRow());
     repaint();
 }
 
@@ -163,7 +187,11 @@ void PresetBrowser::returnKeyPressed(int lastRow) {
         apply(entries_[static_cast<size_t>(lastRow)]);
 }
 
-void PresetBrowser::selectedRowsChanged(int) {}
+void PresetBrowser::selectedRowsChanged(int lastRow) {
+    const bool saved = lastRow >= 0 && lastRow < static_cast<int>(entries_.size()) && !entries_[static_cast<size_t>(lastRow)].factory;
+    rename_.setEnabled(saved);
+    remove_.setEnabled(saved);
+}
 
 void PresetBrowser::paint(juce::Graphics& g) {
     g.setColour(colours_.panel);
@@ -176,7 +204,7 @@ void PresetBrowser::resized() {
     auto area = getLocalBounds().reduced(10, 8);
     search_.setBounds(area.removeFromTop(28));
     area.removeFromTop(6);
-    auto buttons = area.removeFromBottom(32);
+    auto buttons = area.removeFromBottom(36);
     status_.setBounds(area.removeFromBottom(18));
     name_.setBounds(area.removeFromBottom(28));
     area.removeFromBottom(6);

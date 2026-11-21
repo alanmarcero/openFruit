@@ -6,7 +6,7 @@
 
 namespace openfruit::suite {
 
-class PresetBrowser : public juce::Component, private juce::ListBoxModel {
+class PresetBrowser : public juce::Component, private juce::ListBoxModel, private juce::Timer {
 public:
     PresetBrowser(PresetLibrary& library);
     void setColours(SuiteColours colours);
@@ -26,6 +26,7 @@ private:
     void listBoxItemDoubleClicked(int row, const juce::MouseEvent& event) override;
     void returnKeyPressed(int lastRow) override;
     void selectedRowsChanged(int lastRow) override;
+    void timerCallback() override;
     void apply(const PresetEntry& entry);
     void showError(const juce::String& message);
 
@@ -39,6 +40,7 @@ private:
     juce::TextButton rename_ { "Rename" };
     juce::TextButton remove_ { "Delete" };
     juce::Label status_;
+    juce::Button* confirming_ = nullptr;
 };
 
 }
