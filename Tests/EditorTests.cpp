@@ -377,3 +377,126 @@ TEST_CASE("Voice settings step between tracks and group the filters", "[editor][
     checkLayout(*editor, problems);
     CHECK(problems.joinIntoString("\n").toStdString() == "");
 }
+
+namespace {
+
+void writeTestWav(const juce::File& file, double durationSeconds) {
+    std::unique_ptr<juce::FileOutputStream> out(file.createOutputStream());
+    REQUIRE(out != nullptr);
+    constexpr uint32_t sampleRate = 44100;
+    const uint32_t numSamples = static_cast<uint32_t>(sampleRate * durationSeconds);
+    const uint32_t dataBytes = numSamples * 2;
+    out->write("RIFF", 4);
+    out->writeInt(static_cast<int>(36 + dataBytes));
+    out->write("WAVEfmt ", 8);
+    out->writeInt(16);
+    out->writeShort(1);
+    out->writeShort(1);
+    out->writeInt(static_cast<int>(sampleRate));
+    out->writeInt(static_cast<int>(sampleRate * 2));
+    out->writeShort(2);
+    out->writeShort(16);
+    out->write("data", 4);
+    out->writeInt(static_cast<int>(dataBytes));
+    for (uint32_t i = 0; i < numSamples; ++i) {
+        out->writeShort(0);
+    }
+    out->flush();
+}
+
+} // namespace
+
+TEST_CASE("Sample browser filters, remembers its folder, sorts unanalysed last, and handles Enter/Esc", "[editor][browser]") {
+    juce::ScopedJuceInitialiser_GUI gui;
+    const auto dir = juce::File::getSpecialLocation(juce::File::tempDirectory).getChildFile("openfruit-browser-test");
+    dir.deleteRecursively();
+    REQUIRE(dir.createDirectory());
+    const auto kickWav = dir.getChildFile("kick_short.wav");
+    const auto snareWav = dir.getChildFile("snare_unanalysed.wav");
+    writeTestWav(kickWav, 0.1);
+    writeTestWav(snareWav, 0.3);
+
+    OpenFruitAudioProcessor processor;
+    // Pre-cache only kickWav so snareWav is unanalysed when the browser opens.
+    int64_t modTime = 0;
+    int64_t fileSize = 0;
+    REQUIRE(openfruit::core::ToneCache::getFileStats(kickWav.getFullPathName().toStdString(), modTime, fileSize));
+    openfruit::core::ToneAnalysisResult cachedTone;
+    cachedTone.durationSeconds = 0.1;
+    cachedTone.hasClearTone = true;
+    cachedTone.midiNote = 36;
+    cachedTone.noteName = "C2";
+    processor.getToneCache().put(kickWav.getFullPathName().toStdString(), modTime, fileSize, cachedTone);
+
+    {
+        auto editor = openEditor(processor);
+        editor->openSampleBrowser(0, dir);
+        auto* browser = findVisible<openfruit::ui::SampleBrowserModal>(*editor);
+        REQUIRE(browser != nullptr);
+
+        juce::StringArray problems;
+        checkLayout(*editor, problems);
+        CHECK(problems.joinIntoString("\n").toStdString() == "");
+
+        auto* table = findVisible<juce::TableListBox>(*browser);
+        REQUIRE(table != nullptr);
+        REQUIRE(browser->getNumRows() == 2);
+
+        // Unanalysed snareWav must sort after analysed kickWav in default shortest-first mode.
+        table->selectRow(0);
+        auto* search = findVisible<juce::TextEditor>(*browser);
+        REQUIRE(search != nullptr);
+        search->setText("snare", false);
+        if (search->onTextChange) search->onTextChange();
+        CHECK(browser->getNumRows() == 1);
+
+        // Esc closes without replacing track 0's sample.
+        const auto originalSample = processor.getEngine().loadedSample(0);
+        CHECK(browser->keyPressed(juce::KeyPress(juce::KeyPress::escapeKey)));
+        CHECK(findVisible<openfruit::ui::SampleBrowserModal>(*editor) == nullptr);
+        CHECK(processor.getEngine().loadedSample(0) == originalSample);
+    }
+
+    // Reopen editor and verify remembered folder persists in session state.
+    {
+        auto editor = openEditor(processor);
+        editor->openSampleBrowser(0);
+        auto* browser = findVisible<openfruit::ui::SampleBrowserModal>(*editor);
+        REQUIRE(browser != nullptr);
+        CHECK(browser->getNumRows() == 2);
+
+        auto* table = findVisible<juce::TableListBox>(*browser);
+        REQUIRE(table != nullptr);
+        table->selectRow(0);
+        CHECK(browser->keyPressed(juce::KeyPress(juce::KeyPress::returnKey)));
+        CHECK(findVisible<openfruit::ui::SampleBrowserModal>(*editor) == nullptr);
+        const auto loaded = processor.getEngine().loadedSample(0);
+        REQUIRE(loaded != nullptr);
+        CHECK(loaded->sampleName == "kick_short");
+    }
+
+    dir.deleteRecursively();
+}
+
+TEST_CASE("Track lanes accept dropped audio files", "[editor][dnd]") {
+    juce::ScopedJuceInitialiser_GUI gui;
+    const auto dir = juce::File::getSpecialLocation(juce::File::tempDirectory).getChildFile("openfruit-dnd-test");
+    dir.deleteRecursively();
+    REQUIRE(dir.createDirectory());
+    const auto wav = dir.getChildFile("dropped_hat.wav");
+    writeTestWav(wav, 0.15);
+
+    OpenFruitAudioProcessor processor;
+    auto editor = openEditor(processor);
+    auto* row = findVisible<openfruit::ui::TrackRowComponent>(*editor);
+    REQUIRE(row != nullptr);
+
+    CHECK_FALSE(row->isInterestedInFileDrag(juce::StringArray{ dir.getChildFile("notes.txt").getFullPathName() }));
+    CHECK(row->isInterestedInFileDrag(juce::StringArray{ wav.getFullPathName() }));
+    row->filesDropped(juce::StringArray{ wav.getFullPathName() }, 10, 10);
+
+    const auto loaded = processor.getEngine().loadedSample(row->getTrackIndex());
+    REQUIRE(loaded != nullptr);
+    CHECK(loaded->sampleName == "dropped_hat");
+    dir.deleteRecursively();
+}

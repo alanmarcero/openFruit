@@ -1,5 +1,6 @@
 #include "Controls.h"
 #include "Parameters.h"
+#include "WavReader.h"
 #include <iomanip>
 #include <sstream>
 
@@ -583,9 +584,49 @@ void TrackRowComponent::paint(juce::Graphics& g) {
     g.drawText(juce::String(trackIdx_+1).paddedLeft('0',2), 1, 0, 29, getHeight(), juce::Justification::centred);
 }
 
+void TrackRowComponent::paintOverChildren(juce::Graphics& g) {
+    if (!fileDragHover_) return;
+    g.setColour(palette_.accentPrimary);
+    g.drawRect(getLocalBounds().toFloat().reduced(1.0f), 2.0f);
+}
+
 void TrackRowComponent::mouseDown(const juce::MouseEvent& e) {
     if (e.x < 31 && e.mods.isPopupMenu() && onRowMenu)
         onRowMenu(*this, page_, trackIdx_);
+}
+
+bool TrackRowComponent::isInterestedInFileDrag(const juce::StringArray& files) {
+    for (const auto& path : files) {
+        if (openfruit::core::WavReader::isSupportedAudioFile(path.toStdString())) {
+            return true;
+        }
+    }
+    return false;
+}
+
+void TrackRowComponent::fileDragEnter(const juce::StringArray&, int, int) {
+    fileDragHover_ = true;
+    repaint();
+}
+
+void TrackRowComponent::fileDragExit(const juce::StringArray&) {
+    fileDragHover_ = false;
+    repaint();
+}
+
+void TrackRowComponent::filesDropped(const juce::StringArray& files, int, int) {
+    fileDragHover_ = false;
+    repaint();
+    for (const auto& path : files) {
+        if (!openfruit::core::WavReader::isSupportedAudioFile(path.toStdString())) {
+            continue;
+        }
+        if (auto sample = openfruit::core::WavReader::loadSample(path.toStdString())) {
+            engine_.loadSampleForTrack(trackIdx_, std::move(sample));
+            updateFromEngine();
+        }
+        return;
+    }
 }
 
 void TrackRowComponent::resized() {

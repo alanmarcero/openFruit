@@ -98,7 +98,9 @@ public:
     std::function<void(int delta)> onStepTrack;
 };
 
-class TrackRowComponent : public juce::Component, public juce::SettableTooltipClient {
+class TrackRowComponent : public juce::Component,
+                          public juce::SettableTooltipClient,
+                          public juce::FileDragAndDropTarget {
 public:
     TrackRowComponent(int trackIdx,
                       openfruit::core::FruitEngine& engine,
@@ -118,8 +120,14 @@ public:
     std::function<void(juce::Component& target, openfruit::core::PageIndex page, int trackIdx)> onRowMenu;
 
     void paint(juce::Graphics& g) override;
+    void paintOverChildren(juce::Graphics& g) override;
     void resized() override;
     void mouseDown(const juce::MouseEvent& e) override;
+
+    bool isInterestedInFileDrag(const juce::StringArray& files) override;
+    void fileDragEnter(const juce::StringArray& files, int x, int y) override;
+    void fileDragExit(const juce::StringArray& files) override;
+    void filesDropped(const juce::StringArray& files, int x, int y) override;
 
     [[nodiscard]] int getTrackIndex() const noexcept { return trackIdx_; }
 
@@ -139,6 +147,7 @@ private:
     std::array<std::unique_ptr<CyberStepPad>, openfruit::core::kStepsPerPage> stepPads_;
     openfruit::core::PageIndex page_ = openfruit::core::PageIndex::PageA;
     bool editOpen_ = false;
+    bool fileDragHover_ = false;
     int paintStep_ = 0;
     openfruit::core::PageIndex editPage_ = openfruit::core::PageIndex::PageA;
     openfruit::plugin::StepRow editBefore_ {};

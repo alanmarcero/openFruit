@@ -504,21 +504,32 @@ void TrackerPanel::updatePlayhead() {
 SampleBrowserModal* TrackerPanel::openSampleBrowser(int trackIdx, const juce::File& folder) {
     showGrid(false);
     settings_.reset();
-    activeBrowser_ = std::make_unique<SampleBrowserModal>(trackIdx, engine_, cache_, queue_);
+    const juce::File savedFolder(session_.isValid() ? session_.getProperty("sampleFolder").toString() : juce::String());
+    juce::File initialFolder = savedFolder.isDirectory() ? savedFolder : juce::File();
+    if (lastBrowsedFolder_.isDirectory()) {
+        initialFolder = lastBrowsedFolder_;
+    }
+    if (folder.isDirectory()) {
+        initialFolder = folder;
+    }
+    if (initialFolder.isDirectory()) {
+        lastBrowsedFolder_ = initialFolder;
+        if (session_.isValid()) {
+            session_.setProperty("sampleFolder", initialFolder.getFullPathName(), nullptr);
+        }
+    }
+    activeBrowser_ = std::make_unique<SampleBrowserModal>(trackIdx, engine_, cache_, queue_, initialFolder);
     activeBrowser_->setTheme(palette_);
     activeBrowser_->onClose = [this] { closeSampleBrowser(); };
     activeBrowser_->onFolderChanged = [this](const juce::File& newFolder) {
         lastBrowsedFolder_ = newFolder;
+        if (session_.isValid() && newFolder.isDirectory()) {
+            session_.setProperty("sampleFolder", newFolder.getFullPathName(), nullptr);
+        }
     };
-    if (folder.isDirectory()) {
-        lastBrowsedFolder_ = folder;
-        activeBrowser_->setFolder(folder);
-    }
-    if (!folder.isDirectory() && lastBrowsedFolder_.isDirectory()) {
-        activeBrowser_->setFolder(lastBrowsedFolder_);
-    }
     addAndMakeVisible(activeBrowser_.get());
     activeBrowser_->setBounds(getLocalBounds().reduced(12, 4));
+    activeBrowser_->grabKeyboardFocus();
     return activeBrowser_.get();
 }
 

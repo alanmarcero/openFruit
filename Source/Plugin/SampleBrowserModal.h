@@ -26,7 +26,8 @@ public:
     SampleBrowserModal(int targetTrackIdx,
                        openfruit::core::FruitEngine& engine,
                        openfruit::core::ToneCache& cache,
-                       openfruit::core::AnalysisQueue& queue);
+                       openfruit::core::AnalysisQueue& queue,
+                       const juce::File& initialFolder = {});
     ~SampleBrowserModal() override;
 
     void setTheme(const openfruit::theme::Palette& palette);
@@ -49,10 +50,12 @@ public:
 
     void paint(juce::Graphics& g) override;
     void resized() override;
+    bool keyPressed(const juce::KeyPress& key) override;
 
 private:
     void refreshFileList();
     void sortItems();
+    void applyFilter();
     std::shared_ptr<openfruit::core::AudioSampleBuffer> decodeItemToSample(const BrowserFileItem& item);
     void selectFileByPath(const std::string& fullPath);
     void previewSelectedItem();
@@ -67,6 +70,7 @@ private:
     openfruit::theme::Palette palette_;
 
     juce::File currentFolder_;
+    std::vector<BrowserFileItem> allFiles_;
     std::vector<BrowserFileItem> files_;
 
     // Sorting modes: 0=Name, 1=Length Asc, 2=Length Desc, 3=Tone
@@ -75,6 +79,7 @@ private:
 
     juce::Label titleLabel_;
     juce::Label folderLabel_;
+    juce::TextEditor searchBox_;
     juce::TextButton browseFolderBtn_{ "Browse folder" };
     juce::TextButton clearCacheBtn_{ "Clear cache" };
     juce::ComboBox sortBox_;

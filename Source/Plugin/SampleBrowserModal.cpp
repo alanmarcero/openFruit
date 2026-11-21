@@ -85,7 +85,8 @@ juce::File extractChosenFileFromChooser(const juce::FileChooser& chooser) {
 SampleBrowserModal::SampleBrowserModal(int targetTrackIdx,
                                        openfruit::core::FruitEngine& engine,
                                        openfruit::core::ToneCache& cache,
-                                       openfruit::core::AnalysisQueue& queue)
+                                       openfruit::core::AnalysisQueue& queue,
+                                       const juce::File& initialFolder)
     : targetTrackIdx_(targetTrackIdx),
       engine_(engine),
       cache_(cache),
@@ -112,6 +113,19 @@ SampleBrowserModal::SampleBrowserModal(int targetTrackIdx,
     // 2. Folder Navigation & Buttons
     folderLabel_.setText("Folder: (none)", juce::dontSendNotification);
     addAndMakeVisible(folderLabel_);
+
+    searchBox_.setTextToShowWhenEmpty("Search samples...", palette_.textDim);
+    searchBox_.setTooltip("Filter samples by name");
+    searchBox_.setTitle("Search samples");
+    searchBox_.onTextChange = [this] { applyFilter(); };
+    searchBox_.onReturnKey = [this] {
+        if (table_.getSelectedRow() >= 0) {
+            commitSelection();
+        }
+    };
+    searchBox_.onEscapeKey = [this] { cancelAndClose(); };
+    addAndMakeVisible(searchBox_);
+    setWantsKeyboardFocus(true);
 
     browseFolderBtn_.onClick = [this] {
         const juce::File startDir = currentFolder_.isDirectory()
@@ -188,10 +202,11 @@ SampleBrowserModal::SampleBrowserModal(int targetTrackIdx,
     addAndMakeVisible(cancelBtn_);
 
     selectedRowsChanged(-1);
-    // Default to music directory if exists
-    auto defaultDir = juce::File::getSpecialLocation(juce::File::userMusicDirectory);
-    if (defaultDir.exists()) {
-        setFolder(defaultDir);
+    const juce::File startDir = initialFolder.isDirectory()
+        ? initialFolder
+        : juce::File::getSpecialLocation(juce::File::userMusicDirectory);
+    if (startDir.isDirectory()) {
+        setFolder(startDir);
     }
 }
 
@@ -203,6 +218,11 @@ SampleBrowserModal::~SampleBrowserModal() {
 void SampleBrowserModal::setTheme(const openfruit::theme::Palette& palette) {
     palette_ = palette;
     table_.setColour(juce::ListBox::backgroundColourId, palette_.panel);
+    searchBox_.setColour(juce::TextEditor::backgroundColourId, palette_.panel.darker(0.2f));
+    searchBox_.setColour(juce::TextEditor::textColourId, palette_.text);
+    searchBox_.setColour(juce::TextEditor::outlineColourId, palette_.panelEdge);
+    searchBox_.setColour(juce::TextEditor::focusedOutlineColourId, palette_.accentPrimary);
+    searchBox_.setTextToShowWhenEmpty("Search samples...", palette_.textDim);
     repaint();
     table_.repaint();
 }
@@ -221,6 +241,7 @@ void SampleBrowserModal::setFolder(const juce::File& folder) {
 void SampleBrowserModal::refreshFileList() {
     table_.deselectAllRows();
     engine_.clearAuditionSampleForTrack(targetTrackIdx_);
+    allFiles_.clear();
     files_.clear();
     queue_.clearQueue();
 
@@ -252,7 +273,7 @@ void SampleBrowserModal::refreshFileList() {
         if (!cached.has_value()) {
             pendingPaths.push_back(item.fullPath);
         }
-        files_.push_back(std::move(item));
+        allFiles_.push_back(std::move(item));
     }
 
     sortItems();
@@ -266,6 +287,13 @@ void SampleBrowserModal::refreshFileList() {
                 if (safeThis == nullptr) {
                     return;
                 }
+                for (auto& f : safeThis->allFiles_) {
+                    if (f.fullPath == path) {
+                        f.toneResult = res;
+                        f.hasTone = true;
+                        break;
+                    }
+                }
                 for (auto& f : safeThis->files_) {
                     if (f.fullPath == path) {
                         f.toneResult = res;
@@ -273,10 +301,7 @@ void SampleBrowserModal::refreshFileList() {
                         break;
                     }
                 }
-                if (safeThis->sortMode_ != 3) {
-                    safeThis->sortItems();
-                    return;
-                }
+                // Repaint without re-sorting so rows stay put under the pointer.
                 safeThis->table_.repaint();
             });
         });
@@ -284,33 +309,60 @@ void SampleBrowserModal::refreshFileList() {
 }
 
 void SampleBrowserModal::sortItems() {
-    const int row = table_.getSelectedRow();
-    const auto selected = row >= 0 && row < static_cast<int>(files_.size()) ? files_[static_cast<size_t>(row)].fullPath : std::string{};
-    if (sortMode_ == 1) {
-        // Sort by length ascending (shortest first)
-        std::sort(files_.begin(), files_.end(), [](const BrowserFileItem& a, const BrowserFileItem& b) {
-            return a.toneResult.durationSeconds < b.toneResult.durationSeconds;
-        });
-    } else if (sortMode_ == 2) {
-        // Sort by length descending (longest first)
-        std::sort(files_.begin(), files_.end(), [](const BrowserFileItem& a, const BrowserFileItem& b) {
-            return a.toneResult.durationSeconds > b.toneResult.durationSeconds;
-        });
-    } else if (sortMode_ == 3) {
-        // Sort by name
-        std::sort(files_.begin(), files_.end(), [](const BrowserFileItem& a, const BrowserFileItem& b) {
+    std::stable_sort(allFiles_.begin(), allFiles_.end(), [mode = sortMode_](const BrowserFileItem& a, const BrowserFileItem& b) {
+        if (mode == 3) {
             return a.fileName < b.fileName;
-        });
-    } else if (sortMode_ == 4) {
-        // Sort by note / tone
-        std::sort(files_.begin(), files_.end(), [](const BrowserFileItem& a, const BrowserFileItem& b) {
+        }
+        if (a.hasTone != b.hasTone) {
+            return a.hasTone;
+        }
+        if (!a.hasTone) {
+            return a.fileName < b.fileName;
+        }
+        if (mode == 1) {
+            if (a.toneResult.durationSeconds < b.toneResult.durationSeconds) return true;
+            if (b.toneResult.durationSeconds < a.toneResult.durationSeconds) return false;
+            return a.fileName < b.fileName;
+        }
+        if (mode == 2) {
+            if (a.toneResult.durationSeconds > b.toneResult.durationSeconds) return true;
+            if (b.toneResult.durationSeconds > a.toneResult.durationSeconds) return false;
+            return a.fileName < b.fileName;
+        }
+        if (mode == 4 && a.toneResult.midiNote != b.toneResult.midiNote) {
             return a.toneResult.midiNote < b.toneResult.midiNote;
-        });
+        }
+        return a.fileName < b.fileName;
+    });
+    applyFilter();
+}
+
+void SampleBrowserModal::applyFilter() {
+    const int row = table_.getSelectedRow();
+    const auto selected = row >= 0 && row < static_cast<int>(files_.size())
+        ? files_[static_cast<size_t>(row)].fullPath
+        : std::string{};
+    const juce::String query = searchBox_.getText().trim();
+
+    files_.clear();
+    if (query.isEmpty()) {
+        files_ = allFiles_;
     }
+    if (query.isNotEmpty()) {
+        for (const auto& item : allFiles_) {
+            if (juce::String(item.fileName).containsIgnoreCase(query)) {
+                files_.push_back(item);
+            }
+        }
+    }
+
     table_.updateContent();
     if (!selected.empty()) {
         const juce::ScopedValueSetter<bool> preserve(restoringSelection_, true);
         selectFileByPath(selected);
+    }
+    if (table_.getSelectedRow() < 0) {
+        selectedRowsChanged(-1);
     }
     table_.repaint();
 }
@@ -532,6 +584,8 @@ void SampleBrowserModal::resized() {
     titleLabel_.setBounds(heading);
     auto tools = area.removeFromTop(46).reduced(0,5);
     sortBox_.setBounds(tools.removeFromRight(235));
+    tools.removeFromRight(8);
+    searchBox_.setBounds(tools.removeFromRight(240));
     folderLabel_.setBounds(tools.reduced(2,0));
     auto actions = area.removeFromBottom(48).reduced(0,5);
     commitBtn_.setBounds(actions.removeFromRight(128).reduced(2,0));
@@ -544,6 +598,20 @@ void SampleBrowserModal::resized() {
     header.setColumnWidth(1, table_.getWidth()*48/100);
     header.setColumnWidth(2, table_.getWidth()*33/100);
     header.setColumnWidth(3, table_.getWidth()*18/100);
+}
+
+bool SampleBrowserModal::keyPressed(const juce::KeyPress& key) {
+    if (key == juce::KeyPress::escapeKey) {
+        cancelAndClose();
+        return true;
+    }
+    if (key == juce::KeyPress::returnKey) {
+        if (table_.getSelectedRow() >= 0) {
+            commitSelection();
+        }
+        return true;
+    }
+    return false;
 }
 
 } // namespace openfruit::ui
