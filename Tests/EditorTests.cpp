@@ -273,3 +273,23 @@ TEST_CASE("Dragging across a row paints pads as one undo step", "[editor][paint]
     CHECK_FALSE(engine.getStep(6, openfruit::core::PageIndex::PageA, 0).active);
     CHECK_FALSE(engine.getStep(6, openfruit::core::PageIndex::PageA, 3).active);
 }
+
+TEST_CASE("Each pad describes and draws its own step settings", "[editor][pads]") {
+    juce::ScopedJuceInitialiser_GUI gui;
+    openfruit::ui::CyberStepPad pad(0, 4);
+    pad.setSize(48, 60);
+    openfruit::core::StepData full;
+    full.active = true;
+    pad.setStepData(full);
+    const auto fullImage = pad.createComponentSnapshot(pad.getLocalBounds());
+
+    openfruit::core::StepData never = full;
+    never.probability = 0.0f;
+    never.ratchets = 3;
+    never.reverse = true;
+    pad.setStepData(never);
+    const auto neverImage = pad.createComponentSnapshot(pad.getLocalBounds());
+
+    CHECK(pad.getTooltip().startsWith("Step 5: velocity 85%, 0% chance, 3 ratchets, reversed."));
+    CHECK(neverImage.getPixelAt(10, 30).getAlpha() < fullImage.getPixelAt(10, 30).getAlpha());
+}

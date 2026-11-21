@@ -4,11 +4,31 @@
 #include <sstream>
 
 namespace openfruit::ui {
+namespace {
+
+constexpr std::array<float, 5> kProbabilities { 0.0f, 0.25f, 0.5f, 0.75f, 1.0f };
+constexpr std::array<float, 5> kOffsets { -0.5f, -0.25f, 0.0f, 0.25f, 0.5f };
+constexpr std::array<float, 4> kStarts { 0.0f, 0.1f, 0.25f, 0.5f };
+constexpr std::array<float, 4> kEnds { 0.5f, 0.75f, 0.9f, 1.0f };
+
+juce::String percentText(float fraction, bool showPlus) {
+    const int percent = juce::roundToInt(fraction * 100.0f);
+    const juce::String sign = showPlus && percent > 0 ? "+" : "";
+    return sign + juce::String(percent) + "%";
+}
+
+// One item per value, ticked when it matches the step.
+template <size_t Count>
+void addPercentItems(juce::PopupMenu& menu, int firstId, const std::array<float, Count>& values, float current, bool showPlus) {
+    for (size_t i = 0; i < Count; ++i)
+        menu.addItem(firstId + static_cast<int>(i), percentText(values[i], showPlus), true, std::abs(values[i] - current) < 1.0e-4f);
+}
+
+} // namespace
 
 CyberStepPad::CyberStepPad(int trackIdx, int stepIdx)
     : trackIdx_(trackIdx), stepIdx_(stepIdx), palette_(openfruit::theme::getPalette(openfruit::core::ColorTheme::CyberpunkNeon)) {
     setRepaintsOnMouseActivity(true);
-    setTooltip("Click to toggle. Drag vertically for velocity. Right-drag or Alt+scroll to tune. Right-click for step settings.");
     setName("Track " + juce::String(trackIdx+1) + " step " + juce::String(stepIdx+1));
 }
 
@@ -29,25 +49,66 @@ void CyberStepPad::setIsCurrentPlayhead(bool isPlayhead) {
     repaint();
 }
 
+juce::String CyberStepPad::getTooltip() {
+    const auto help = "\nClick to toggle. Drag across to paint, or up and down for velocity. "
+                      "Right-drag or Alt+scroll to tune. Right-click for step settings.";
+    const auto step = "Step " + juce::String(stepIdx_ + 1) + ": ";
+    if (!data_.active)
+        return step + "off." + help;
+    juce::StringArray settings { "velocity " + percentText(data_.velocity, false) };
+    if (data_.probability < 1.0f) settings.add(percentText(data_.probability, false) + " chance");
+    if (data_.ratchets > 1) settings.add(juce::String(data_.ratchets) + " ratchets");
+    if (data_.semitoneOffset != 0) settings.add((data_.semitoneOffset > 0 ? "+" : "") + juce::String(data_.semitoneOffset) + " st");
+    if (data_.timingOffset != 0.0f) settings.add("offset " + percentText(data_.timingOffset, true));
+    if (data_.sampleStart > 0.0f || data_.sampleEnd < 1.0f)
+        settings.add("plays " + percentText(data_.sampleStart, false) + " to " + percentText(data_.sampleEnd, false));
+    if (data_.reverse) settings.add("reversed");
+    if (data_.chokeGroup > 0) settings.add("choke group " + juce::String(data_.chokeGroup));
+    return step + settings.joinIntoString(", ") + "." + help;
+}
+
 void CyberStepPad::paint(juce::Graphics& g) {
     auto cell = getLocalBounds().toFloat().reduced(1.5f, 3.0f);
     const auto accent = trackIdx_ % 4 < 2 ? palette_.accentPrimary : palette_.accentSecondary;
     const auto off = (stepIdx_ / 4) % 2 == 0 ? palette_.padInactiveBeatA : palette_.padInactiveBeatB;
-    g.setColour(data_.active ? accent.withMultipliedBrightness(.75f + .25f*data_.velocity) : off);
+    const auto hit = accent.withMultipliedBrightness(.75f + .25f*data_.velocity);
+    // A step that rarely plays fills more faintly.
+    g.setColour(data_.active ? hit.withMultipliedAlpha(.35f + .65f*data_.probability) : off);
     g.fillRoundedRectangle(cell, 5.0f);
     if (data_.active) {
         const auto ink = juce::Colour(0xff171b20);
         g.setColour(ink.withAlpha(.34f));
-        auto velocity = cell.reduced(5.0f).removeFromBottom(3.0f);
+        auto inner = cell.reduced(5.0f);
+        auto velocity = inner.removeFromBottom(3.0f);
         g.fillRoundedRectangle(velocity, 1.5f);
         g.setColour(ink);
         g.fillRoundedRectangle(velocity.withWidth(velocity.getWidth() * data_.velocity), 1.5f);
-        if (data_.semitoneOffset != 0 || data_.ratchets > 1) {
-            const juce::String value = data_.ratchets > 1 ? "x" + juce::String(data_.ratchets)
-                    : (data_.semitoneOffset > 0 ? "+" : "") + juce::String(data_.semitoneOffset);
-            g.setFont(juce::FontOptions(13.0f, juce::Font::bold));
-            g.drawText(value, cell.toNearestInt(), juce::Justification::centred);
+
+        g.setFont(juce::FontOptions(12.0f, juce::Font::bold));
+        const auto top = inner.removeFromTop(13.0f);
+        if (data_.ratchets > 1)
+            g.drawText("x" + juce::String(data_.ratchets), top, juce::Justification::topLeft);
+        if (data_.semitoneOffset != 0)
+            g.drawText((data_.semitoneOffset > 0 ? "+" : "") + juce::String(data_.semitoneOffset), top, juce::Justification::topRight);
+        auto marks = inner.removeFromBottom(12.0f);
+        if (data_.probability < 1.0f)
+            g.drawText(percentText(data_.probability, false), inner, juce::Justification::centred);
+        if (data_.timingOffset != 0.0f) {
+            const float edge = data_.timingOffset < 0.0f ? inner.getX() : inner.getRight();
+            const float tip = data_.timingOffset < 0.0f ? -4.0f : 4.0f;
+            juce::Path arrow;
+            arrow.addTriangle(edge, inner.getCentreY() - 4.0f, edge, inner.getCentreY() + 4.0f, edge + tip, inner.getCentreY());
+            g.fillPath(arrow);
         }
+        if (data_.sampleStart > 0.0f || data_.sampleEnd < 1.0f) {
+            const auto region = marks.removeFromBottom(2.0f);
+            g.fillRect(region.withTrimmedLeft(region.getWidth() * data_.sampleStart)
+                             .withWidth(region.getWidth() * (data_.sampleEnd - data_.sampleStart)));
+        }
+        if (data_.reverse)
+            g.drawText("R", marks, juce::Justification::centredLeft);
+        if (data_.chokeGroup > 0)
+            g.drawText("C" + juce::String(data_.chokeGroup), marks, juce::Justification::centredRight);
     }
     if (isPlayhead_ || isMouseOver() || hasKeyboardFocus(false)) {
         g.setColour(isPlayhead_ ? palette_.playheadGlow : palette_.text);
@@ -131,37 +192,23 @@ void CyberStepPad::mouseUp(const juce::MouseEvent& e) {
 
 void CyberStepPad::showStepMenu() {
     juce::PopupMenu probability;
-    probability.addItem(101, "0% (never)");
-    probability.addItem(102, "25%");
-    probability.addItem(103, "50%");
-    probability.addItem(104, "75%");
-    probability.addItem(105, "100%");
+    addPercentItems(probability, 101, kProbabilities, data_.probability, false);
 
     juce::PopupMenu ratchets;
-    for (int i = 1; i <= 8; ++i) ratchets.addItem(200 + i, juce::String(i));
+    for (int i = 1; i <= 8; ++i) ratchets.addItem(200 + i, juce::String(i), true, data_.ratchets == i);
 
     juce::PopupMenu offset;
-    offset.addItem(301, "-50%");
-    offset.addItem(302, "-25%");
-    offset.addItem(303, "0%");
-    offset.addItem(304, "+25%");
-    offset.addItem(305, "+50%");
+    addPercentItems(offset, 301, kOffsets, data_.timingOffset, true);
 
     juce::PopupMenu start;
-    start.addItem(401, "0%");
-    start.addItem(402, "10%");
-    start.addItem(403, "25%");
-    start.addItem(404, "50%");
+    addPercentItems(start, 401, kStarts, data_.sampleStart, false);
 
     juce::PopupMenu end;
-    end.addItem(501, "50%");
-    end.addItem(502, "75%");
-    end.addItem(503, "90%");
-    end.addItem(504, "100%");
+    addPercentItems(end, 501, kEnds, data_.sampleEnd, false);
 
     juce::PopupMenu choke;
     for (int i = 0; i <= 4; ++i)
-        choke.addItem(600 + i, i == 0 ? "Off" : juce::String(i));
+        choke.addItem(600 + i, i == 0 ? "Off" : juce::String(i), true, data_.chokeGroup == i);
 
     juce::PopupMenu menu;
     menu.addSubMenu("Probability", probability);
@@ -171,6 +218,8 @@ void CyberStepPad::showStepMenu() {
     menu.addSubMenu("Sample end", end);
     menu.addItem(700, "Reverse", true, data_.reverse);
     menu.addSubMenu("Choke group", choke);
+    menu.addSeparator();
+    menu.addItem(800, "Reset step");
     menu.setLookAndFeel(&getLookAndFeel());
         menu.showMenuAsync(juce::PopupMenu::Options().withTargetComponent(this),
         juce::ModalCallbackFunction::create([safeThis = juce::Component::SafePointer<CyberStepPad>(this)](int result) {
@@ -182,19 +231,21 @@ void CyberStepPad::showStepMenu() {
 
 void CyberStepPad::selectStepMenuItem(int itemId) {
     if (itemId >= 101 && itemId <= 105) {
-        constexpr float probabilities[] = {0.0f, 0.25f, 0.5f, 0.75f, 1.0f};
-        data_.probability = probabilities[itemId - 101];
+        data_.probability = kProbabilities[static_cast<size_t>(itemId - 101)];
     } else if (itemId >= 201 && itemId <= 208) {
         data_.ratchets = itemId - 200;
     } else if (itemId >= 301 && itemId <= 305) {
-        constexpr float offsets[] = {-0.5f, -0.25f, 0.0f, 0.25f, 0.5f};
-        data_.timingOffset = offsets[itemId - 301];
+        data_.timingOffset = kOffsets[static_cast<size_t>(itemId - 301)];
     } else if (itemId >= 401 && itemId <= 404) {
-        constexpr float starts[] = {0.0f, 0.1f, 0.25f, 0.5f};
-        data_.sampleStart = starts[itemId - 401];
+        data_.sampleStart = kStarts[static_cast<size_t>(itemId - 401)];
     } else if (itemId >= 501 && itemId <= 504) {
-        constexpr float ends[] = {0.5f, 0.75f, 0.9f, 1.0f};
-        data_.sampleEnd = ends[itemId - 501];
+        data_.sampleEnd = kEnds[static_cast<size_t>(itemId - 501)];
+    } else if (itemId == 800) {
+        // Reset step keeps the hit and its velocity and clears the other settings.
+        openfruit::core::StepData reset;
+        reset.active = data_.active;
+        reset.velocity = data_.velocity;
+        data_ = reset;
     } else if (itemId == 700) {
         data_.reverse = !data_.reverse;
     } else if (itemId >= 600 && itemId <= 604) {
