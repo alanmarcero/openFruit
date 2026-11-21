@@ -32,9 +32,12 @@ void CyberLookAndFeel::setPalette(const openfruit::theme::Palette& palette) {
 void CyberLookAndFeel::drawButtonBackground(juce::Graphics& g, juce::Button& button, const juce::Colour& colour,
                                             bool hover, bool down) {
     const auto rect = button.getLocalBounds().toFloat().reduced(1.0f);
-    g.setColour(button.getToggleState() ? palette_.accentPrimary : colour.brighter(down ? .18f : .07f));
+    const float alpha = button.isEnabled() ? 1.0f : 0.4f;
+    const auto fill = button.getToggleState() ? palette_.accentPrimary : colour.brighter(down ? .18f : .07f);
+    g.setColour(fill.withMultipliedAlpha(alpha));
     g.fillRoundedRectangle(rect, 5);
-    g.setColour(hover || button.hasKeyboardFocus(false) ? palette_.accentSecondary : palette_.panelEdge);
+    const auto edge = hover || button.hasKeyboardFocus(false) ? palette_.accentSecondary : palette_.panelEdge;
+    g.setColour(edge.withMultipliedAlpha(alpha));
     g.drawRoundedRectangle(rect, 5, 1);
 }
 
@@ -46,7 +49,8 @@ void CyberLookAndFeel::drawButtonText(juce::Graphics& g, juce::TextButton& butto
 
 void CyberLookAndFeel::drawToggleButton(juce::Graphics& g, juce::ToggleButton& button, bool hover, bool down) {
     drawButtonBackground(g,button,palette_.panel,hover,down);
-    g.setColour(button.getToggleState() ? palette_.background : palette_.text);
+    const auto text = button.getToggleState() ? palette_.background : palette_.text;
+    g.setColour(text.withMultipliedAlpha(button.isEnabled() ? 1.0f : .45f));
     g.setFont(juce::FontOptions(14.0f, juce::Font::bold));
     g.drawText(button.getButtonText(), button.getLocalBounds().reduced(3,0), juce::Justification::centred, true);
 }
@@ -55,24 +59,28 @@ void CyberLookAndFeel::drawLinearSlider(juce::Graphics& g, int x, int y, int wid
                                         float pos, float, float, juce::Slider::SliderStyle, juce::Slider& slider) {
     const float middle = static_cast<float>(y) + .5f*static_cast<float>(height);
     const auto track = juce::Rectangle<float>(static_cast<float>(x), middle-2, static_cast<float>(width), 4);
-    g.setColour(palette_.panelEdge);
+    const float alpha = slider.isEnabled() ? 1.0f : 0.4f;
+    g.setColour(palette_.panelEdge.withMultipliedAlpha(alpha));
     g.fillRoundedRectangle(track, 2);
-    g.setColour(palette_.accentPrimary);
+    g.setColour(palette_.accentPrimary.withMultipliedAlpha(alpha));
     g.fillRoundedRectangle(track.withRight(juce::jlimit(track.getX(), track.getRight(), pos)), 2);
-    g.setColour(slider.hasKeyboardFocus(true) ? palette_.accentSecondary : palette_.text);
+    const auto thumb = slider.hasKeyboardFocus(true) ? palette_.accentSecondary : palette_.text;
+    g.setColour(thumb.withMultipliedAlpha(alpha));
     g.fillEllipse(pos-4.5f, middle-4.5f, 9,9);
 }
 
 void CyberLookAndFeel::drawComboBox(juce::Graphics& g, int width, int height, bool, int, int, int, int, juce::ComboBox& box) {
     auto rect = box.getLocalBounds().toFloat().reduced(1);
-    g.setColour(palette_.panel);
+    const float alpha = box.isEnabled() ? 1.0f : 0.4f;
+    g.setColour(palette_.panel.withMultipliedAlpha(alpha));
     g.fillRoundedRectangle(rect,5);
-    g.setColour(box.hasKeyboardFocus(true) || box.isMouseOver() ? palette_.accentSecondary : palette_.panelEdge);
+    const auto edge = box.hasKeyboardFocus(true) || box.isMouseOver() ? palette_.accentSecondary : palette_.panelEdge;
+    g.setColour(edge.withMultipliedAlpha(alpha));
     g.drawRoundedRectangle(rect,5,1);
     const float x = static_cast<float>(width)-14, y = static_cast<float>(height)/2;
     juce::Path arrow;
     arrow.startNewSubPath(x-4,y-2); arrow.lineTo(x,y+2); arrow.lineTo(x+4,y-2);
-    g.setColour(palette_.textDim);
+    g.setColour(palette_.textDim.withMultipliedAlpha(alpha));
     g.strokePath(arrow, juce::PathStrokeType(1.6f));
 }
 
