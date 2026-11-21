@@ -17,7 +17,7 @@ struct SuiteColours {
 
 class SuiteBar : public juce::Component, private juce::ChangeListener {
 public:
-    SuiteBar(UndoHistory& undo, AbCompare& ab);
+    SuiteBar(std::array<UndoHistory, 2>& undo, AbCompare& ab);
     ~SuiteBar() override;
 
     void setColours(SuiteColours colours);
@@ -33,7 +33,7 @@ private:
     void refresh();
     void styleButton(juce::Button& button, const juce::String& tooltip);
 
-    UndoHistory& undo_;
+    std::array<UndoHistory, 2>& undo_;
     AbCompare& ab_;
     SuiteColours colours_ {};
     juce::TextButton undoButton_ { "Undo" };

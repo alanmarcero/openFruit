@@ -44,7 +44,8 @@ public:
     openfruit::core::ToneCache& getToneCache() noexcept { return toneCache_; }
     openfruit::core::AnalysisQueue& getAnalysisQueue() noexcept { return *analysisQueue_; }
     juce::AudioProcessorValueTreeState& getAPVTS() noexcept { return apvts_; }
-    openfruit::suite::UndoHistory& getUndo() noexcept { return undo_; }
+    openfruit::suite::UndoHistory& getUndo() noexcept { return undo_[static_cast<size_t>(ab_.active())]; }
+    std::array<openfruit::suite::UndoHistory, 2>& getUndoHistories() noexcept { return undo_; }
     openfruit::suite::AbCompare& getAb() noexcept { return ab_; }
     openfruit::suite::PresetLibrary& getPresets() noexcept { return presets_; }
 
@@ -58,8 +59,8 @@ private:
     openfruit::core::ToneCache toneCache_;
     std::unique_ptr<openfruit::core::AnalysisQueue> analysisQueue_;
     juce::AudioProcessorValueTreeState apvts_;
-    openfruit::suite::UndoHistory undo_;
     openfruit::suite::AbCompare ab_;
+    std::array<openfruit::suite::UndoHistory, 2> undo_;
     openfruit::suite::PresetLibrary presets_ { "openFruit" };
 
     bool legacyKit_ = false;

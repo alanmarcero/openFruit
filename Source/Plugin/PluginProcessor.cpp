@@ -36,7 +36,7 @@ OpenFruitAudioProcessor::OpenFruitAudioProcessor()
     syncParametersToEngine();
     buildFactoryPresets();
     ab_.seed(treeToBlock(makeStateTree()));
-    undo_.attach(*this);
+    getUndo().attach(*this);
 }
 
 void OpenFruitAudioProcessor::loadFactoryKit(bool legacy) {
@@ -257,11 +257,12 @@ void OpenFruitAudioProcessor::selectAbSlot(int index) {
     if (index == ab_.active())
         return;
     ab_.rememberActive(captureInnerState());
+    getUndo().detach();
     ab_.setActive(index);
     loadingSlot_ = true;
     restoreBlock(ab_.slot(index));
     loadingSlot_ = false;
-    undo_.clearUndoHistory();
+    getUndo().attach(*this);
 }
 
 void OpenFruitAudioProcessor::copyAbSlot(int from, int to) {
@@ -269,11 +270,11 @@ void OpenFruitAudioProcessor::copyAbSlot(int from, int to) {
         return;
     ab_.rememberActive(captureInnerState());
     ab_.copy(from, to);
+    undo_[static_cast<size_t>(to)].clearUndoHistory();
     if (ab_.active() == to) {
         loadingSlot_ = true;
         restoreBlock(ab_.slot(to));
         loadingSlot_ = false;
-        undo_.clearUndoHistory();
     }
 }
 
@@ -282,7 +283,7 @@ void OpenFruitAudioProcessor::loadPresetBlock(const juce::MemoryBlock& block) {
     restoreBlock(block);
     loadingSlot_ = false;
     ab_.rememberActive(captureInnerState());
-    undo_.clearUndoHistory();
+    getUndo().clearUndoHistory();
 }
 
 void OpenFruitAudioProcessor::getStateInformation(juce::MemoryBlock& destData) {
@@ -313,17 +314,19 @@ void OpenFruitAudioProcessor::setStateInformation(const void* data, int sizeInBy
         state.removeChild(files, nullptr);
 
     ++stateRestoreDepth_;
-    undo_.suspend(true);
+    getUndo().suspend(true);
     apvts_.replaceState(state);
     syncParametersToEngine();
     if (files.isValid())
         openfruit::plugin::restoreSampleFiles(files, engine_);
     openfruit::plugin::restorePatternStateIfPresent(patterns, engine_);
-    undo_.clearUndoHistory();
-    undo_.suspend(false);
+    getUndo().suspend(false);
     --stateRestoreDepth_;
 
     if (!loadingSlot_) {
+        for (auto& history : undo_)
+            history.clearUndoHistory();
+        getUndo().detach();
         const auto current = treeToBlock(makeStateTree());
         if (abTree.isValid()) {
             juce::MemoryBlock other;
@@ -337,6 +340,7 @@ void OpenFruitAudioProcessor::setStateInformation(const void* data, int sizeInBy
         } else {
             ab_.seed(current);
         }
+        getUndo().attach(*this);
     }
 }
 

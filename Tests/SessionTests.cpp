@@ -171,6 +171,29 @@ TEST_CASE("A/B slots keep two full sessions", "[plugin][ab]") {
     REQUIRE_THAT(swing->convertFrom0to1(swing->getValue()), Catch::Matchers::WithinAbs(0.3f, 1.0e-3));
 }
 
+TEST_CASE("Each A/B slot keeps its own undo history", "[plugin][ab][undo]") {
+    OpenFruitAudioProcessor processor;
+    auto* swing = processor.getAPVTS().getParameter(params::kSwing);
+    const auto gesture = [swing](float value) {
+        swing->beginChangeGesture();
+        swing->setValueNotifyingHost(swing->convertTo0to1(value));
+        swing->endChangeGesture();
+    };
+    gesture(0.3f);
+
+    processor.selectAbSlot(1);
+    REQUIRE_FALSE(processor.getUndo().canUndo());
+    gesture(0.1f);
+    processor.selectAbSlot(0);
+    processor.getUndo().undo();
+    REQUIRE_THAT(swing->convertFrom0to1(swing->getValue()), Catch::Matchers::WithinAbs(0.0f, 1.0e-3));
+
+    processor.selectAbSlot(1);
+    REQUIRE(processor.getUndo().canUndo());
+    processor.copyAbSlot(0, 1);
+    REQUIRE_FALSE(processor.getUndo().canUndo());
+}
+
 TEST_CASE("User presets save and factory presets stay read-only", "[plugin][presets]") {
     const auto directory = juce::File::getSpecialLocation(juce::File::tempDirectory)
         .getChildFile("openfruit-presets");

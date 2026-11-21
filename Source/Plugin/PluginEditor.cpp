@@ -17,7 +17,7 @@ OpenFruitAudioProcessorEditor::OpenFruitAudioProcessorEditor(OpenFruitAudioProce
     : AudioProcessorEditor(&ownerProcessor),
       processorRef_(ownerProcessor),
       headerPanel_(ownerProcessor.getEngine(), ownerProcessor.getAPVTS()),
-      suiteBar_(ownerProcessor.getUndo(), ownerProcessor.getAb()),
+      suiteBar_(ownerProcessor.getUndoHistories(), ownerProcessor.getAb()),
       presetBrowser_(ownerProcessor.getPresets()),
       trackerPanel_(ownerProcessor.getEngine(), ownerProcessor.getToneCache(), ownerProcessor.getAnalysisQueue(), &ownerProcessor.getAPVTS()) {
 

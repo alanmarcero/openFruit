@@ -2,7 +2,7 @@
 
 namespace openfruit::suite {
 
-SuiteBar::SuiteBar(UndoHistory& undo, AbCompare& ab)
+SuiteBar::SuiteBar(std::array<UndoHistory, 2>& undo, AbCompare& ab)
     : undo_(undo), ab_(ab) {
     colours_ = {
         juce::Colour(0xff0d1317),
@@ -12,7 +12,8 @@ SuiteBar::SuiteBar(UndoHistory& undo, AbCompare& ab)
         juce::Colour(0xff869ca8),
         juce::Colour(0xff48f0c8)
     };
-    undo_.addChangeListener(this);
+    for (auto& history : undo_)
+        history.addChangeListener(this);
     ab_.addChangeListener(this);
 
     styleButton(undoButton_, "Undo the last edit");
@@ -23,8 +24,8 @@ SuiteBar::SuiteBar(UndoHistory& undo, AbCompare& ab)
     styleButton(copyBToA_, "Copy slot B into slot A");
     styleButton(presetsButton_, "Browse factory and saved kits");
 
-    undoButton_.onClick = [this] { undo_.undo(); };
-    redoButton_.onClick = [this] { undo_.redo(); };
+    undoButton_.onClick = [this] { undo_[static_cast<size_t>(ab_.active())].undo(); };
+    redoButton_.onClick = [this] { undo_[static_cast<size_t>(ab_.active())].redo(); };
     slotA_.onClick = [this] { if (onSelectSlot) onSelectSlot(0); };
     slotB_.onClick = [this] { if (onSelectSlot) onSelectSlot(1); };
     copyAToB_.onClick = [this] { if (onCopySlot) onCopySlot(0, 1); };
@@ -37,7 +38,8 @@ SuiteBar::SuiteBar(UndoHistory& undo, AbCompare& ab)
 }
 
 SuiteBar::~SuiteBar() {
-    undo_.removeChangeListener(this);
+    for (auto& history : undo_)
+        history.removeChangeListener(this);
     ab_.removeChangeListener(this);
 }
 
@@ -56,8 +58,9 @@ void SuiteBar::changeListenerCallback(juce::ChangeBroadcaster*) {
 }
 
 void SuiteBar::refresh() {
-    undoButton_.setEnabled(undo_.canUndo());
-    redoButton_.setEnabled(undo_.canRedo());
+    const auto& active = undo_[static_cast<size_t>(ab_.active())];
+    undoButton_.setEnabled(active.canUndo());
+    redoButton_.setEnabled(active.canRedo());
     slotA_.setToggleState(ab_.active() == 0, juce::dontSendNotification);
     slotB_.setToggleState(ab_.active() == 1, juce::dontSendNotification);
 }
