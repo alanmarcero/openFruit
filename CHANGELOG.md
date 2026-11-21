@@ -1,5 +1,9 @@
 # Changelog
 
+## v1.10.1
+
+- **UI & Suite Fixes:** UI polish, sample browser search/persistence/Enter/drop, Mix view, row-paint and step markers, unit formatting and typed-value entry, per-slot A/B undo, inline confirms, and screen-reader titles.
+
 ## v1.10.0
 
 Core DSP engine upgrades across resampling, filtering, dynamics, and timing:
