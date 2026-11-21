@@ -96,7 +96,7 @@ HeaderPanel::HeaderPanel(openfruit::core::FruitEngine& engine,
     addAndMakeVisible(masterVolLabel_);
 
     masterVolSlider_.setSliderStyle(juce::Slider::LinearHorizontal);
-    masterVolSlider_.setTextBoxStyle(juce::Slider::TextBoxRight, false, 49, 26);
+    masterVolSlider_.setTextBoxStyle(juce::Slider::TextBoxRight, false, 62, 26);
     masterVolSlider_.setRange(0.0, 1.5, 0.01);
     masterVolSlider_.setValue(1.0, juce::dontSendNotification);
     masterVolAttachment_ = std::make_unique<juce::AudioProcessorValueTreeState::SliderAttachment>(
@@ -109,7 +109,6 @@ HeaderPanel::HeaderPanel(openfruit::core::FruitEngine& engine,
     addAndMakeVisible(outputDbLabel_);
     outputDbSlider_.setSliderStyle(juce::Slider::LinearHorizontal);
     outputDbSlider_.setTextBoxStyle(juce::Slider::TextBoxRight, false, 62, 26);
-    outputDbSlider_.setTextValueSuffix(" dB");
     outputDbSlider_.setRange(-24.0, 12.0, 0.1);
     outputDbSlider_.setDoubleClickReturnValue(true, 0.0);
     outputDbSlider_.setTooltip("Output gain in decibels");
@@ -190,7 +189,6 @@ HeaderPanel::HeaderPanel(openfruit::core::FruitEngine& engine,
         barsSlider.setTooltip("Number of bars in this section");
         sectionBarsAttachments_[index] = std::make_unique<juce::AudioProcessorValueTreeState::SliderAttachment>(
             apvts_, openfruit::params::songSectionBarsId(i), barsSlider);
-        barsSlider.setTextValueSuffix(" bars");
         addAndMakeVisible(barsSlider);
 
         auto& fillButton = sectionFillButtons_[index];

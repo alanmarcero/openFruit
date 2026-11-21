@@ -1,6 +1,9 @@
 #include "Parameters.h"
+#include <catch2/catch_approx.hpp>
 #include <catch2/catch_test_macros.hpp>
+#include <catch2/generators/catch_generators.hpp>
 #include <juce_audio_processors/juce_audio_processors.h>
+#include <algorithm>
 #include <cmath>
 
 namespace {
@@ -137,4 +140,77 @@ TEST_CASE("OpenFruit exposes per-track high-pass, drive, and global humanize con
     CHECK(std::abs(state.getRawParameterValue(openfruit::params::trackHpfId(0))->load() - 20.0f) < 0.01f);
     CHECK(std::abs(state.getRawParameterValue(openfruit::params::trackDriveId(0))->load()) < 0.01f);
     CHECK(std::abs(state.getRawParameterValue(openfruit::params::kHumanize)->load()) < 0.01f);
+}
+
+TEST_CASE("Every float parameter parses its own display text", "[plugin][parameters]") {
+    const float normalised = GENERATE(0.0f, 0.001f, 0.013f, 0.1f, 0.25f, 0.5f, 0.618f, 0.75f, 0.9f, 0.999f, 1.0f);
+    ParameterTestProcessor processor;
+    juce::AudioProcessorValueTreeState state(processor, nullptr, "Parameters", openfruit::params::createParameterLayout());
+
+    juce::StringArray unstable;
+    const auto& parameters = processor.getParameters();
+    std::for_each(parameters.begin(), parameters.end(), [&](juce::AudioProcessorParameter* parameter) {
+        if (dynamic_cast<juce::AudioParameterFloat*>(parameter) == nullptr)
+            return;
+        const auto text = parameter->getText(normalised, 0);
+        const auto reread = parameter->getText(parameter->getValueForText(text), 0);
+        if (reread != text)
+            unstable.add(parameter->getName(64) + ": " + text + " -> " + reread);
+    });
+
+    CHECK(unstable.joinIntoString(", ").toStdString() == "");
+}
+
+TEST_CASE("Typed values accept the units the display shows", "[plugin][parameters]") {
+    ParameterTestProcessor processor;
+    juce::AudioProcessorValueTreeState state(processor, nullptr, "Parameters", openfruit::params::createParameterLayout());
+    const auto typed = [&state](const std::string& id, const juce::String& text) {
+        auto* parameter = state.getParameter(id);
+        return parameter->convertFrom0to1(parameter->getValueForText(text));
+    };
+
+    CHECK(typed(openfruit::params::kSwing, "25") == Catch::Approx(0.25f));
+    CHECK(typed(openfruit::params::kSwing, "25%") == Catch::Approx(0.25f));
+    CHECK(typed(openfruit::params::trackFilterId(0), "6.8k") == Catch::Approx(6800.0f));
+    CHECK(typed(openfruit::params::trackFilterId(0), "6.8 kHz") == Catch::Approx(6800.0f));
+    CHECK(typed(openfruit::params::trackFilterId(0), "850 Hz") == Catch::Approx(850.0f));
+    CHECK(typed(openfruit::params::trackAttackId(0), "160") == Catch::Approx(0.16f));
+    CHECK(typed(openfruit::params::trackAttackId(0), "160 ms") == Catch::Approx(0.16f));
+    CHECK(typed(openfruit::params::trackAttackId(0), "1.2 s") == Catch::Approx(1.2f));
+    CHECK(typed(openfruit::params::kOutputDb, "-6 dB") == Catch::Approx(-6.0f));
+    CHECK(typed(openfruit::params::kOutputDb, "+3") == Catch::Approx(3.0f));
+    CHECK(typed(openfruit::params::kMasterVol, "-inf dB") == 0.0f);
+    CHECK(typed(openfruit::params::kMasterVol, "0 dB") == Catch::Approx(1.0f));
+    CHECK(typed(openfruit::params::trackPanId(0), "C") == Catch::Approx(0.0f).margin(1.0e-6));
+    CHECK(typed(openfruit::params::trackPanId(0), "40 L") == Catch::Approx(-0.4f));
+    CHECK(typed(openfruit::params::trackPanId(0), "40 R") == Catch::Approx(0.4f));
+    CHECK(typed(openfruit::params::trackNudgeId(0), "-20%") == Catch::Approx(-0.2f));
+}
+
+TEST_CASE("Parameter text uses the suite display formats", "[plugin][parameters]") {
+    ParameterTestProcessor processor;
+    juce::AudioProcessorValueTreeState state(processor, nullptr, "Parameters", openfruit::params::createParameterLayout());
+    const auto shown = [&state](const std::string& id, float value) {
+        auto* parameter = state.getParameter(id);
+        return parameter->getText(parameter->convertTo0to1(value), 0).toStdString();
+    };
+
+    CHECK(shown(openfruit::params::kMasterVol, 1.0f) == "0.0 dB");
+    CHECK(shown(openfruit::params::kMasterVol, 1.5f) == "+3.5 dB");
+    CHECK(shown(openfruit::params::kMasterVol, 0.0f) == "-inf dB");
+    CHECK(shown(openfruit::params::kOutputDb, 3.0f) == "+3.0 dB");
+    CHECK(shown(openfruit::params::kOutputDb, -0.04f) == "0.0 dB");
+    CHECK(shown(openfruit::params::trackFilterId(0), 850.0f) == "850 Hz");
+    CHECK(shown(openfruit::params::trackFilterId(0), 6800.0f) == "6.80 kHz");
+    CHECK(shown(openfruit::params::trackAttackId(0), 0.004f) == "4.0 ms");
+    CHECK(shown(openfruit::params::trackAttackId(0), 0.16f) == "160 ms");
+    CHECK(shown(openfruit::params::trackAttackId(0), 1.2f) == "1.20 s");
+    CHECK(shown(openfruit::params::trackPanId(0), 0.0f) == "C");
+    CHECK(shown(openfruit::params::trackPanId(0), -0.4f) == "40 L");
+    CHECK(shown(openfruit::params::kSwing, 0.25f) == "25%");
+    CHECK(shown(openfruit::params::trackNudgeId(0), 0.2f) == "+20%");
+    CHECK(shown(openfruit::params::kHumanize, 55.0f) == "55%");
+    CHECK(shown(openfruit::params::songSectionBarsId(0), 1.0f) == "1 bar");
+    CHECK(shown(openfruit::params::songSectionBarsId(0), 4.0f) == "4 bars");
+    CHECK(shown(openfruit::params::trackTuneId(0), 3.0f) == "+3 st");
 }

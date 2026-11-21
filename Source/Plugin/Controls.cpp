@@ -265,7 +265,6 @@ TrackVoiceSettingsPanel::TrackVoiceSettingsPanel(int trackIdx,
         params::trackHpfId(trackIdx), params::trackDriveId(trackIdx),
         params::trackAttackId(trackIdx), params::trackDecayId(trackIdx), params::trackSustainId(trackIdx), params::trackReleaseId(trackIdx)};
     const std::array<const char*, 12> names = {"Pitch", "Level", "Pan", "Low-pass", "Nudge", "Groove", "High-pass", "Drive", "Attack", "Decay", "Sustain", "Release"};
-    const std::array<const char*, 12> units = {" st", "", "", " Hz", " stp", " stp", " Hz", "%", " s", " s", "%", " s"};
     for (size_t i = 0; i < sliders_.size(); ++i) {
         labels_[i].setText(names[i], juce::dontSendNotification);
         labels_[i].setJustificationType(juce::Justification::centredLeft);
@@ -278,8 +277,6 @@ TrackVoiceSettingsPanel::TrackVoiceSettingsPanel(int trackIdx,
         addAndMakeVisible(slider);
         attachments_[i] = std::make_unique<juce::AudioProcessorValueTreeState::SliderAttachment>(
             apvts, ids[i], slider);
-        slider.setTextValueSuffix(units[i]);
-        slider.setNumDecimalPlacesToDisplay(i == 0 || i == 3 || i == 6 || i == 7 || i == 10 ? 0 : 2);
     }
 }
 
