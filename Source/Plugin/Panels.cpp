@@ -120,6 +120,13 @@ HeaderPanel::HeaderPanel(openfruit::core::FruitEngine& engine,
         apvts_, openfruit::params::kOutputDb, outputDbSlider_);
     addAndMakeVisible(outputDbSlider_);
 
+    // Value boxes show the readout, drag like a slider and accept typing.
+    const auto styleValueBox = [](juce::Slider& slider) {
+        slider.setSliderStyle(juce::Slider::LinearBar);
+        slider.setTextBoxStyle(juce::Slider::TextBoxLeft, false, 80, 36);
+        slider.setColour(juce::Slider::textBoxOutlineColourId, juce::Colours::transparentBlack);
+    };
+
     songModeAttachment_ = std::make_unique<juce::AudioProcessorValueTreeState::ButtonAttachment>(
         apvts_, openfruit::params::kSongMode, songModeToggle_);
     songModeToggle_.setButtonText("Song mode");
@@ -129,8 +136,7 @@ HeaderPanel::HeaderPanel(openfruit::core::FruitEngine& engine,
 
     swingLabel_.setFont(juce::FontOptions(14.0f, juce::Font::bold));
     addAndMakeVisible(swingLabel_);
-    swingSlider_.setSliderStyle(juce::Slider::LinearHorizontal);
-    swingSlider_.setTextBoxStyle(juce::Slider::NoTextBox, false, 0, 0);
+    styleValueBox(swingSlider_);
     swingSlider_.setRange(0.0, 0.5, 0.001);
     swingSlider_.setNumDecimalPlacesToDisplay(2);
     swingSlider_.setTooltip("Delay alternating steps by up to half a step");
@@ -142,17 +148,17 @@ HeaderPanel::HeaderPanel(openfruit::core::FruitEngine& engine,
     accentLabel_.setFont(juce::FontOptions(14.0f, juce::Font::bold));
     accentLabel_.setTooltip("Accent the first step, then repeat at the selected interval.");
     addAndMakeVisible(accentLabel_);
-    accentAmountSlider_.setSliderStyle(juce::Slider::LinearHorizontal);
-    accentAmountSlider_.setTextBoxStyle(juce::Slider::NoTextBox, false, 0, 0);
+    styleValueBox(accentAmountSlider_);
     accentAmountSlider_.setRange(0.0, 1.0, 0.01);
     accentAmountSlider_.setTooltip("Periodic accent amount. Stored step velocities remain unchanged.");
     accentAmountAttachment_ = std::make_unique<juce::AudioProcessorValueTreeState::SliderAttachment>(
         apvts_, openfruit::params::kAccentAmount, accentAmountSlider_);
     addAndMakeVisible(accentAmountSlider_);
-    accentEverySlider_.setSliderStyle(juce::Slider::LinearHorizontal);
-    accentEverySlider_.setTextBoxStyle(juce::Slider::TextBoxRight, false, 32, 26);
+    // The stepper buttons copy the tooltip when the style creates them.
+    accentEverySlider_.setTooltip("Accent every 2 to 16 steps. Raise Accent above 0% to hear it.");
+    accentEverySlider_.setSliderStyle(juce::Slider::IncDecButtons);
+    accentEverySlider_.setTextBoxStyle(juce::Slider::TextBoxLeft, false, 36, 36);
     accentEverySlider_.setRange(2.0, 16.0, 1.0);
-    accentEverySlider_.setTooltip("Accent every 2 to 16 steps.");
     accentEveryAttachment_ = std::make_unique<juce::AudioProcessorValueTreeState::SliderAttachment>(
         apvts_, openfruit::params::kAccentEvery, accentEverySlider_);
     addAndMakeVisible(accentEverySlider_);
@@ -161,8 +167,7 @@ HeaderPanel::HeaderPanel(openfruit::core::FruitEngine& engine,
     humanizeLabel_.setFont(juce::FontOptions(14.0f, juce::Font::bold));
     humanizeLabel_.setTooltip("Subtle deterministic per-step velocity humanization");
     addAndMakeVisible(humanizeLabel_);
-    humanizeSlider_.setSliderStyle(juce::Slider::LinearHorizontal);
-    humanizeSlider_.setTextBoxStyle(juce::Slider::NoTextBox, false, 0, 0);
+    styleValueBox(humanizeSlider_);
     humanizeSlider_.setRange(0.0, 100.0, 0.1);
     humanizeSlider_.setTooltip("Deterministic step velocity humanization amount");
     humanizeAttachment_ = std::make_unique<juce::AudioProcessorValueTreeState::SliderAttachment>(
@@ -187,8 +192,7 @@ HeaderPanel::HeaderPanel(openfruit::core::FruitEngine& engine,
         addAndMakeVisible(pageBox);
 
         auto& barsSlider = sectionBarsSliders_[index];
-        barsSlider.setSliderStyle(juce::Slider::LinearHorizontal);
-        barsSlider.setTextBoxStyle(juce::Slider::TextBoxRight, false, 47, 27);
+        styleValueBox(barsSlider);
         barsSlider.setRange(1.0, 32.0, 1.0);
         barsSlider.setTooltip("Number of bars in this section");
         sectionBarsAttachments_[index] = std::make_unique<juce::AudioProcessorValueTreeState::SliderAttachment>(
@@ -227,6 +231,7 @@ void HeaderPanel::updateFromParameters() {
         pageBtns_[static_cast<size_t>(i)].setToggleState(i == page, juce::dontSendNotification);
         trackCountBtns_[static_cast<size_t>(i)].setToggleState(i == count, juce::dontSendNotification);
     }
+    accentEverySlider_.setAlpha(*apvts_.getRawParameterValue(params::kAccentAmount) > 0.0f ? 1.0f : 0.4f);
     const bool song = *apvts_.getRawParameterValue(params::kSongMode) > .5f;
     for (size_t i = 0; i < 4; ++i) {
         sectionLabels_[i].setVisible(song);
@@ -312,15 +317,16 @@ void HeaderPanel::resized() {
     songModeToggle_.setBounds(row.removeFromLeft(112).reduced(1,4));
     row.removeFromLeft(8);
     swingLabel_.setBounds(row.removeFromLeft(44));
-    swingSlider_.setBounds(row.removeFromLeft(66));
+    swingSlider_.setBounds(row.removeFromLeft(64).reduced(0,4));
+    row.removeFromLeft(8);
+    accentLabel_.setBounds(row.removeFromLeft(50));
+    accentAmountSlider_.setBounds(row.removeFromLeft(64).reduced(0,4));
     row.removeFromLeft(6);
-    accentLabel_.setBounds(row.removeFromLeft(48));
-    accentAmountSlider_.setBounds(row.removeFromLeft(64));
     intervalLabel_.setBounds(row.removeFromLeft(42));
-    accentEverySlider_.setBounds(row.removeFromLeft(74));
-    row.removeFromLeft(6);
+    accentEverySlider_.setBounds(row.removeFromLeft(116).reduced(0,4));
+    row.removeFromLeft(8);
     humanizeLabel_.setBounds(row.removeFromLeft(48));
-    humanizeSlider_.setBounds(row.removeFromLeft(66));
+    humanizeSlider_.setBounds(row.removeFromLeft(64).reduced(0,4));
 
     auto sections = juce::Rectangle<int>(22, 151, getWidth()-44, 36);
     const int width = sections.getWidth()/4;

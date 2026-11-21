@@ -55,6 +55,8 @@ void click(juce::Component& target, int clicks = 1) {
 juce::String describe(juce::Component& component) {
     if (auto* button = dynamic_cast<juce::Button*>(&component))
         return "button '" + button->getButtonText() + "'";
+    if (component.getTitle().isNotEmpty())
+        return component.getTitle();
     return component.getName().isNotEmpty() ? component.getName() : juce::String(typeid(component).name());
 }
 
@@ -86,6 +88,10 @@ void checkLayout(juce::Component& parent, juce::StringArray& problems) {
             if (button->getTooltip().isEmpty())
                 problems.add(describe(*button) + " has no tooltip");
         }
+        if (auto* slider = dynamic_cast<juce::Slider*>(child);
+            slider != nullptr && slider->getSliderStyle() == juce::Slider::LinearHorizontal
+            && slider->getWidth() - slider->getTextBoxWidth() < 48)
+            problems.add(describe(*slider) + " has a short track");
         if (!floatsAbove(*child)) {
             for (auto* other : placed)
                 if (other->getBounds().intersects(child->getBounds()))
@@ -227,4 +233,21 @@ TEST_CASE("The editor reopens at its saved size", "[editor][session]") {
     auto editor = openEditor(restored);
     CHECK(editor->getWidth() == 1400);
     CHECK(editor->getHeight() == 900);
+}
+
+TEST_CASE("Envelope sliders give short times more travel", "[editor][layout]") {
+    juce::ScopedJuceInitialiser_GUI gui;
+    OpenFruitAudioProcessor processor;
+    juce::Slider attack;
+    juce::AudioProcessorValueTreeState::SliderAttachment attachment(processor.getAPVTS(), openfruit::params::trackAttackId(0), attack);
+    openfruit::ui::TrackVoiceSettingsPanel panel(0, processor.getAPVTS());
+    const auto children = panel.getChildren();
+    const auto found = std::find_if(children.begin(), children.end(), [](juce::Component* child) {
+        auto* slider = dynamic_cast<juce::Slider*>(child);
+        return slider != nullptr && slider->getTooltip().startsWith("Attack");
+    });
+    REQUIRE(found != children.end());
+
+    CHECK(dynamic_cast<juce::Slider*>(*found)->valueToProportionOfLength(0.2) > 0.3);
+    CHECK(attack.valueToProportionOfLength(0.2) < 0.05);
 }

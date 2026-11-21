@@ -287,6 +287,12 @@ TrackVoiceSettingsPanel::TrackVoiceSettingsPanel(int trackIdx,
         addAndMakeVisible(slider);
         attachments_[i] = std::make_unique<juce::AudioProcessorValueTreeState::SliderAttachment>(
             apvts, ids[i], slider);
+        // Attack, decay and release spend more travel on short times. The parameter range stays linear.
+        if (i == 8 || i == 9 || i == 11) {
+            juce::NormalisableRange<double> travel(slider.getMinimum(), slider.getMaximum(), slider.getInterval());
+            travel.setSkewForCentre(slider.getMaximum() / 20.0);
+            slider.setNormalisableRange(travel);
+        }
     }
 }
 

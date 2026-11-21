@@ -56,10 +56,20 @@ void CyberLookAndFeel::drawToggleButton(juce::Graphics& g, juce::ToggleButton& b
 }
 
 void CyberLookAndFeel::drawLinearSlider(juce::Graphics& g, int x, int y, int width, int height,
-                                        float pos, float, float, juce::Slider::SliderStyle, juce::Slider& slider) {
+                                        float pos, float, float, juce::Slider::SliderStyle style, juce::Slider& slider) {
+    const float alpha = slider.isEnabled() ? 1.0f : 0.4f;
+    if (style == juce::Slider::LinearBar) {
+        const auto bar = juce::Rectangle<int>(x, y, width, height).toFloat().reduced(0.5f);
+        g.setColour(palette_.background.withMultipliedAlpha(alpha));
+        g.fillRoundedRectangle(bar, 5);
+        g.setColour(palette_.accentPrimary.withAlpha(0.3f * alpha));
+        g.fillRoundedRectangle(bar.withRight(juce::jlimit(bar.getX(), bar.getRight(), pos)), 5);
+        g.setColour(palette_.panelEdge.withMultipliedAlpha(alpha));
+        g.drawRoundedRectangle(bar, 5, 1);
+        return;
+    }
     const float middle = static_cast<float>(y) + .5f*static_cast<float>(height);
     const auto track = juce::Rectangle<float>(static_cast<float>(x), middle-2, static_cast<float>(width), 4);
-    const float alpha = slider.isEnabled() ? 1.0f : 0.4f;
     g.setColour(palette_.panelEdge.withMultipliedAlpha(alpha));
     g.fillRoundedRectangle(track, 2);
     g.setColour(palette_.accentPrimary.withMultipliedAlpha(alpha));
