@@ -36,7 +36,7 @@ The Citrus kit has 16 synthesized one-shots. A swept kick, layered snare, retrig
 
 The browser handles WAV/BWF, AIFF/AIFC, MP3, FLAC, Ogg Vorbis and additional formats supplied by the operating system. A saved song stores each loaded sample in the session as FLAC and keeps the original file path as a hint, so the song still opens on another computer. The same audio on more than one track is stored once. Short drum hits add little to the project. Long loops and large kits make the file bigger, because the audio travels with the song. An older session that only stored paths still opens from those files, and the next save stores the audio in the session. Projects saved by an earlier version reopen with the original factory kit and their stored patterns.
 
-Undo and Redo (or Cmd/Ctrl+Z and Shift+Cmd/Ctrl+Z) step back through knob moves and step edits. A and B keep two copies of the whole song. A>B and B>A copy one into the other. Presets saves a kit in Documents/Alan Marcero/openFruit/Presets. The list shows the factory kits and your kits, with search and favorites. Factory kits stay read-only. The four editor themes use dark backgrounds.
+Undo and Redo (or Cmd/Ctrl+Z and Shift+Cmd/Ctrl+Z) step back through knob moves, step edits and kit loads. A and B keep two copies of the whole song, each with its own undo history. A>B and B>A copy one into the other. Presets saves a kit in Documents/Alan Marcero/openFruit/Presets. The list shows the factory kits and your kits, with search and favorites. Double-click a kit or press Enter to load it, or step through the list with the arrows beside the kit name. A star after the name marks edits since the last load or save. Factory kits stay read-only. The four editor themes use dark backgrounds.
 
 ## Formats
 

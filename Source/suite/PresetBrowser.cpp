@@ -1,4 +1,5 @@
 #include "PresetBrowser.h"
+#include <algorithm>
 
 namespace openfruit::suite {
 
@@ -21,7 +22,7 @@ PresetBrowser::PresetBrowser(PresetLibrary& library)
     addAndMakeVisible(name_);
 
     list_.setRowHeight(28);
-    list_.setTooltip("Factory kits and kits you saved");
+    list_.setTooltip("Factory kits and kits you saved. Double-click or press Enter to load one.");
     addAndMakeVisible(list_);
 
     save_.setTooltip("Save the current song as a kit");
@@ -35,6 +36,8 @@ PresetBrowser::PresetBrowser(PresetLibrary& library)
             showError(error);
         else
             showError({});
+        if (error.isEmpty() && onSaved)
+            onSaved(name_.getText());
         refreshList();
     };
     rename_.onClick = [this] {
@@ -102,7 +105,21 @@ void PresetBrowser::apply(const PresetEntry& entry) {
         return;
     }
     showError({});
-    restoreState(state);
+    restoreState(state, entry.name);
+}
+
+void PresetBrowser::stepPreset(const juce::String& currentName, int delta) {
+    if (entries_.empty())
+        return;
+    const auto found = std::find_if(entries_.begin(), entries_.end(),
+        [&currentName](const PresetEntry& entry) { return entry.name == currentName; });
+    const int count = static_cast<int>(entries_.size());
+    const int current = static_cast<int>(std::distance(entries_.begin(), found));
+    // A kit that is not in the list steps to the first entry, or back to the last.
+    const int next = found == entries_.end() && delta > 0 ? 0 : (current + delta + count) % count;
+    list_.selectRow(next);
+    name_.setText(entries_[static_cast<size_t>(next)].name, juce::dontSendNotification);
+    apply(entries_[static_cast<size_t>(next)]);
 }
 
 int PresetBrowser::getNumRows() {
@@ -134,7 +151,16 @@ void PresetBrowser::listBoxItemClicked(int row, const juce::MouseEvent& event) {
         return;
     }
     name_.setText(entry.name, juce::dontSendNotification);
-    apply(entry);
+}
+
+void PresetBrowser::listBoxItemDoubleClicked(int row, const juce::MouseEvent& event) {
+    if (row >= 0 && row < static_cast<int>(entries_.size()) && event.x >= 22)
+        apply(entries_[static_cast<size_t>(row)]);
+}
+
+void PresetBrowser::returnKeyPressed(int lastRow) {
+    if (lastRow >= 0 && lastRow < static_cast<int>(entries_.size()))
+        apply(entries_[static_cast<size_t>(lastRow)]);
 }
 
 void PresetBrowser::selectedRowsChanged(int) {}

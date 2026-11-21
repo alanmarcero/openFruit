@@ -79,6 +79,8 @@ void UndoHistory::parameterGestureChanged(int parameterIndex, bool gestureIsStar
         return;
     beginNewTransaction();
     perform(new ParameterEditAction(*parameter, before, now));
+    if (onEdit)
+        onEdit();
 }
 
 }

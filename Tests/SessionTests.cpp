@@ -194,6 +194,62 @@ TEST_CASE("Each A/B slot keeps its own undo history", "[plugin][ab][undo]") {
     REQUIRE_FALSE(processor.getUndo().canUndo());
 }
 
+TEST_CASE("A kit load is one undo step that keeps earlier edits", "[plugin][presets][undo]") {
+    OpenFruitAudioProcessor processor;
+    auto* swing = processor.getAPVTS().getParameter(params::kSwing);
+    swing->beginChangeGesture();
+    swing->setValueNotifyingHost(swing->convertTo0to1(0.3f));
+    swing->endChangeGesture();
+    const auto kits = processor.getPresets().list();
+    const auto blank = std::find_if(kits.begin(), kits.end(), [](const suite::PresetEntry& kit) { return kit.name == "Blank"; });
+    REQUIRE(blank != kits.end());
+    juce::MemoryBlock block;
+    juce::String error;
+    REQUIRE(processor.getPresets().load(*blank, block, error));
+
+    processor.loadPresetBlock(block, blank->name);
+    REQUIRE_FALSE(processor.getEngine().getStep(0, core::PageIndex::PageA, 0).active);
+    REQUIRE(processor.getPresetName() == "Blank");
+    REQUIRE_FALSE(processor.isPresetEdited());
+
+    processor.getUndo().undo();
+    REQUIRE(processor.getEngine().getStep(0, core::PageIndex::PageA, 0).active);
+    REQUIRE_THAT(swing->convertFrom0to1(swing->getValue()), Catch::Matchers::WithinAbs(0.3f, 1.0e-3));
+    REQUIRE(processor.getPresetName() == "Citrus");
+    REQUIRE(processor.isPresetEdited());
+    processor.getUndo().undo();
+    REQUIRE_THAT(swing->convertFrom0to1(swing->getValue()), Catch::Matchers::WithinAbs(0.0f, 1.0e-3));
+}
+
+TEST_CASE("The kit name and edit mark travel with each slot and the session", "[plugin][presets][ab]") {
+    OpenFruitAudioProcessor processor;
+    REQUIRE(processor.getPresetName() == "Citrus");
+    REQUIRE_FALSE(processor.isPresetEdited());
+    auto* swing = processor.getAPVTS().getParameter(params::kSwing);
+    swing->beginChangeGesture();
+    swing->setValueNotifyingHost(swing->convertTo0to1(0.2f));
+    swing->endChangeGesture();
+    REQUIRE(processor.isPresetEdited());
+    processor.presetSaved("Room Kit");
+    REQUIRE(processor.getPresetName() == "Room Kit");
+    REQUIRE_FALSE(processor.isPresetEdited());
+    processor.markEdited();
+
+    processor.selectAbSlot(1);
+    REQUIRE(processor.getPresetName() == "Citrus");
+    REQUIRE_FALSE(processor.isPresetEdited());
+    processor.selectAbSlot(0);
+    REQUIRE(processor.getPresetName() == "Room Kit");
+    REQUIRE(processor.isPresetEdited());
+
+    juce::MemoryBlock session;
+    processor.getStateInformation(session);
+    OpenFruitAudioProcessor restored;
+    restored.setStateInformation(session.getData(), static_cast<int>(session.getSize()));
+    REQUIRE(restored.getPresetName() == "Room Kit");
+    REQUIRE(restored.isPresetEdited());
+}
+
 TEST_CASE("User presets save and factory presets stay read-only", "[plugin][presets]") {
     const auto directory = juce::File::getSpecialLocation(juce::File::tempDirectory)
         .getChildFile("openfruit-presets");
@@ -227,7 +283,7 @@ TEST_CASE("User presets save and factory presets stay read-only", "[plugin][pres
     juce::MemoryBlock block;
     REQUIRE(processor.getPresets().load(saved, block, error));
     swing->setValueNotifyingHost(swing->convertTo0to1(0.0f));
-    processor.loadPresetBlock(block);
+    processor.loadPresetBlock(block, saved.name);
     REQUIRE_THAT(swing->convertFrom0to1(swing->getValue()), Catch::Matchers::WithinAbs(0.22f, 1.0e-3));
 
     REQUIRE(processor.getPresets().rename(saved, "Closer Kit", error));
@@ -238,8 +294,4 @@ TEST_CASE("User presets save and factory presets stay read-only", "[plugin][pres
     REQUIRE(processor.getPresets().remove(renamed, error));
     REQUIRE(processor.getPresets().list("Closer").empty());
     directory.deleteRecursively();
-}
-
-juce::AudioProcessorEditor* OpenFruitAudioProcessor::createEditor() {
-    return nullptr;
 }

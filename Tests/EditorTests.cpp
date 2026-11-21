@@ -1,0 +1,159 @@
+#include <catch2/catch_test_macros.hpp>
+#include <catch2/generators/catch_generators.hpp>
+#include "PluginEditor.h"
+#include "PluginProcessor.h"
+
+namespace {
+
+std::unique_ptr<OpenFruitAudioProcessorEditor> openEditor(OpenFruitAudioProcessor& processor) {
+    auto editor = std::unique_ptr<OpenFruitAudioProcessorEditor>(
+        static_cast<OpenFruitAudioProcessorEditor*>(processor.createEditor()));
+    editor->refresh();
+    return editor;
+}
+
+juce::Button* findButton(juce::Component& parent, const juce::String& text) {
+    for (auto* child : parent.getChildren()) {
+        if (!child->isVisible())
+            continue;
+        if (auto* button = dynamic_cast<juce::Button*>(child); button != nullptr && button->getButtonText() == text)
+            return button;
+        if (auto* found = findButton(*child, text))
+            return found;
+    }
+    return nullptr;
+}
+
+template <typename Type>
+Type* findVisible(juce::Component& parent) {
+    for (auto* child : parent.getChildren()) {
+        if (!child->isVisible())
+            continue;
+        if (auto* match = dynamic_cast<Type*>(child))
+            return match;
+        if (auto* found = findVisible<Type>(*child))
+            return found;
+    }
+    return nullptr;
+}
+
+void click(juce::Component& target, int clicks = 1) {
+    const auto position = target.getLocalBounds().getCentre().toFloat();
+    const auto now = juce::Time::getCurrentTime();
+    const juce::MouseEvent event(juce::Desktop::getInstance().getMainMouseSource(), position,
+                                 juce::ModifierKeys::leftButtonModifier, 1.0f, 0.0f, 0.0f, 0.0f, 0.0f,
+                                 &target, &target, now, position, now, clicks, false);
+    target.mouseDown(event);
+    target.mouseUp(event);
+    if (clicks == 2)
+        target.mouseDoubleClick(event);
+}
+
+juce::String describe(juce::Component& component) {
+    if (auto* button = dynamic_cast<juce::Button*>(&component))
+        return "button '" + button->getButtonText() + "'";
+    return component.getName().isNotEmpty() ? component.getName() : juce::String(typeid(component).name());
+}
+
+// Overlays and the resize corner may cover their siblings by design.
+bool floatsAbove(juce::Component& component) {
+    return dynamic_cast<juce::ResizableCornerComponent*>(&component) != nullptr
+        || dynamic_cast<juce::TooltipWindow*>(&component) != nullptr
+        || dynamic_cast<openfruit::suite::PresetBrowser*>(&component) != nullptr;
+}
+
+// JUCE widgets lay out their own parts.
+bool ownsItsParts(juce::Component& component) {
+    return dynamic_cast<juce::Button*>(&component) != nullptr || dynamic_cast<juce::Slider*>(&component) != nullptr
+        || dynamic_cast<juce::ComboBox*>(&component) != nullptr || dynamic_cast<juce::Label*>(&component) != nullptr
+        || dynamic_cast<juce::ListBox*>(&component) != nullptr || dynamic_cast<juce::TextEditor*>(&component) != nullptr;
+}
+
+void checkLayout(juce::Component& parent, juce::StringArray& problems) {
+    juce::Array<juce::Component*> placed;
+    for (auto* child : parent.getChildren()) {
+        if (!child->isVisible())
+            continue;
+        if (auto* button = dynamic_cast<juce::Button*>(child)) {
+            const bool icon = button->getButtonText().length() == 1 && !button->getButtonText().containsAnyOf("ABCD0123456789");
+            if (button->getHeight() < 36)
+                problems.add(describe(*button) + " is " + juce::String(button->getHeight()) + " px tall");
+            if (icon && button->getWidth() < 40)
+                problems.add(describe(*button) + " is " + juce::String(button->getWidth()) + " px wide");
+            if (button->getTooltip().isEmpty())
+                problems.add(describe(*button) + " has no tooltip");
+        }
+        if (!floatsAbove(*child)) {
+            for (auto* other : placed)
+                if (other->getBounds().intersects(child->getBounds()))
+                    problems.add(describe(*child) + " overlaps " + describe(*other));
+            placed.add(child);
+        }
+        if (auto* viewport = dynamic_cast<juce::Viewport*>(child)) {
+            if (auto* viewed = viewport->getViewedComponent())
+                checkLayout(*viewed, problems);
+            continue;
+        }
+        if (!ownsItsParts(*child))
+            checkLayout(*child, problems);
+    }
+}
+
+} // namespace
+
+TEST_CASE("Editor controls stay apart and buttons stay large enough", "[editor][layout]") {
+    juce::ScopedJuceInitialiser_GUI gui;
+    const auto [width, height, songMode] = GENERATE(table<int, int, bool>({
+        {1200, 792, false}, {1120, 680, true}, {1920, 1200, true} }));
+    OpenFruitAudioProcessor processor;
+    processor.getAPVTS().getParameter(openfruit::params::kSongMode)->setValueNotifyingHost(songMode ? 1.0f : 0.0f);
+    auto editor = openEditor(processor);
+    editor->setSize(width, height);
+    editor->refresh();
+
+    juce::StringArray problems;
+    checkLayout(*editor, problems);
+    CHECK(problems.joinIntoString("\n").toStdString() == "");
+}
+
+TEST_CASE("Previous and next step through the kit list and wrap", "[editor][presets]") {
+    juce::ScopedJuceInitialiser_GUI gui;
+    const auto directory = juce::File::getSpecialLocation(juce::File::tempDirectory).getChildFile("openfruit-step-kits");
+    directory.deleteRecursively();
+    OpenFruitAudioProcessor processor;
+    processor.getPresets().setDirectory(directory);
+    auto editor = openEditor(processor);
+    const auto kits = processor.getPresets().list();
+    REQUIRE(kits[1].name == processor.getPresetName());
+
+    click(*findButton(*editor, ">"));
+    CHECK(processor.getPresetName() == kits[2].name);
+    click(*findButton(*editor, "<"));
+    click(*findButton(*editor, "<"));
+    click(*findButton(*editor, "<"));
+    CHECK(processor.getPresetName() == kits.back().name);
+    auto* previous = findButton(*editor, "<");
+    CHECK(previous->getWidth() >= 40);
+    CHECK(previous->getHeight() >= 40);
+    CHECK(previous->getTooltip() == "Previous preset");
+}
+
+TEST_CASE("A click selects a kit and a double-click loads it", "[editor][presets]") {
+    juce::ScopedJuceInitialiser_GUI gui;
+    const auto directory = juce::File::getSpecialLocation(juce::File::tempDirectory).getChildFile("openfruit-click-kits");
+    directory.deleteRecursively();
+    OpenFruitAudioProcessor processor;
+    processor.getPresets().setDirectory(directory);
+    auto editor = openEditor(processor);
+    click(*findButton(*editor, "Presets"));
+    auto* list = findVisible<juce::ListBox>(*editor);
+    REQUIRE(list != nullptr);
+    auto* firstRow = list->getComponentAt(list->getRowPosition(0, true).getCentre());
+    REQUIRE(firstRow != nullptr);
+
+    click(*firstRow);
+    CHECK(list->getSelectedRow() == 0);
+    CHECK(processor.getPresetName() == "Citrus");
+    click(*firstRow, 2);
+    CHECK(processor.getPresetName() == processor.getPresets().list().front().name);
+}

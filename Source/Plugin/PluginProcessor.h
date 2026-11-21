@@ -51,7 +51,12 @@ public:
 
     void selectAbSlot(int index);
     void copyAbSlot(int from, int to);
-    void loadPresetBlock(const juce::MemoryBlock& block);
+    void loadPresetBlock(const juce::MemoryBlock& block, const juce::String& name);
+    void presetSaved(const juce::String& name);
+    void performEdit(juce::UndoableAction* action);
+    void markEdited() noexcept { presetEdited_ = true; }
+    [[nodiscard]] const juce::String& getPresetName() const noexcept { return presetName_; }
+    [[nodiscard]] bool isPresetEdited() const noexcept { return presetEdited_; }
     [[nodiscard]] juce::MemoryBlock captureInnerState();
 
 private:
@@ -63,6 +68,8 @@ private:
     std::array<openfruit::suite::UndoHistory, 2> undo_;
     openfruit::suite::PresetLibrary presets_ { "openFruit" };
 
+    juce::String presetName_ { "Citrus" };
+    bool presetEdited_ = false;
     bool legacyKit_ = false;
     int stateRestoreDepth_ = 0;
     bool loadingSlot_ = false;
@@ -72,6 +79,7 @@ private:
     [[nodiscard]] juce::ValueTree makeStateTree();
     [[nodiscard]] juce::MemoryBlock treeToBlock(const juce::ValueTree& tree);
     void restoreBlock(const juce::MemoryBlock& block);
+    class PresetLoadAction;
 
     JUCE_DECLARE_NON_COPYABLE_WITH_LEAK_DETECTOR(OpenFruitAudioProcessor)
 };

@@ -4,6 +4,34 @@
 #include "PatternState.h"
 #include "SampleState.h"
 
+// One kit load is one undo step. Both states belong to the active A/B slot.
+class OpenFruitAudioProcessor::PresetLoadAction : public juce::UndoableAction {
+public:
+    PresetLoadAction(OpenFruitAudioProcessor& owner, juce::MemoryBlock before, juce::MemoryBlock after, juce::String name)
+        : owner_(owner), before_(std::move(before)), after_(std::move(after)), name_(std::move(name)) {}
+
+    bool perform() override {
+        owner_.restoreBlock(after_);
+        owner_.presetName_ = name_;
+        owner_.presetEdited_ = false;
+        return true;
+    }
+
+    bool undo() override {
+        owner_.restoreBlock(before_);
+        return true;
+    }
+
+    // Kits can embed audio, so the history counts them in kilobytes.
+    int getSizeInUnits() override { return static_cast<int>((before_.getSize() + after_.getSize()) / 1024) + 1; }
+
+private:
+    OpenFruitAudioProcessor& owner_;
+    juce::MemoryBlock before_;
+    juce::MemoryBlock after_;
+    juce::String name_;
+};
+
 OpenFruitAudioProcessor::OpenFruitAudioProcessor()
     : AudioProcessor(BusesProperties().withOutput("Output", juce::AudioChannelSet::stereo(), true)),
       apvts_(*this, nullptr, "Parameters", openfruit::params::createParameterLayout()) {
@@ -36,6 +64,8 @@ OpenFruitAudioProcessor::OpenFruitAudioProcessor()
     syncParametersToEngine();
     buildFactoryPresets();
     ab_.seed(treeToBlock(makeStateTree()));
+    for (auto& history : undo_)
+        history.onEdit = [this] { markEdited(); };
     getUndo().attach(*this);
 }
 
@@ -208,6 +238,8 @@ juce::ValueTree OpenFruitAudioProcessor::makeStateTree() {
             state.removeChild(child, nullptr);
     }
     state.setProperty("factoryKit", legacyKit_ ? 1 : 2, nullptr);
+    state.setProperty("presetName", presetName_, nullptr);
+    state.setProperty("presetEdited", presetEdited_, nullptr);
     state.addChild(openfruit::plugin::makeSampleFiles(engine_), -1, nullptr);
     state.addChild(openfruit::plugin::makePatternState(engine_), -1, nullptr);
     return state;
@@ -225,6 +257,7 @@ juce::MemoryBlock OpenFruitAudioProcessor::captureInnerState() {
 }
 
 void OpenFruitAudioProcessor::restoreBlock(const juce::MemoryBlock& block) {
+    const juce::ScopedValueSetter<bool> loadingSlot(loadingSlot_, true);
     setStateInformation(block.getData(), static_cast<int>(block.getSize()));
 }
 
@@ -259,9 +292,7 @@ void OpenFruitAudioProcessor::selectAbSlot(int index) {
     ab_.rememberActive(captureInnerState());
     getUndo().detach();
     ab_.setActive(index);
-    loadingSlot_ = true;
     restoreBlock(ab_.slot(index));
-    loadingSlot_ = false;
     getUndo().attach(*this);
 }
 
@@ -271,19 +302,24 @@ void OpenFruitAudioProcessor::copyAbSlot(int from, int to) {
     ab_.rememberActive(captureInnerState());
     ab_.copy(from, to);
     undo_[static_cast<size_t>(to)].clearUndoHistory();
-    if (ab_.active() == to) {
-        loadingSlot_ = true;
+    if (ab_.active() == to)
         restoreBlock(ab_.slot(to));
-        loadingSlot_ = false;
-    }
 }
 
-void OpenFruitAudioProcessor::loadPresetBlock(const juce::MemoryBlock& block) {
-    loadingSlot_ = true;
-    restoreBlock(block);
-    loadingSlot_ = false;
-    ab_.rememberActive(captureInnerState());
-    getUndo().clearUndoHistory();
+void OpenFruitAudioProcessor::loadPresetBlock(const juce::MemoryBlock& block, const juce::String& name) {
+    getUndo().beginNewTransaction();
+    getUndo().perform(new PresetLoadAction(*this, captureInnerState(), block, name));
+}
+
+void OpenFruitAudioProcessor::presetSaved(const juce::String& name) {
+    presetName_ = openfruit::suite::PresetLibrary::sanitiseName(name);
+    presetEdited_ = false;
+}
+
+void OpenFruitAudioProcessor::performEdit(juce::UndoableAction* action) {
+    getUndo().beginNewTransaction();
+    getUndo().perform(action);
+    markEdited();
 }
 
 void OpenFruitAudioProcessor::getStateInformation(juce::MemoryBlock& destData) {
@@ -320,6 +356,8 @@ void OpenFruitAudioProcessor::setStateInformation(const void* data, int sizeInBy
     if (files.isValid())
         openfruit::plugin::restoreSampleFiles(files, engine_);
     openfruit::plugin::restorePatternStateIfPresent(patterns, engine_);
+    presetName_ = state.getProperty("presetName").toString();
+    presetEdited_ = state.getProperty("presetEdited", false);
     getUndo().suspend(false);
     --stateRestoreDepth_;
 

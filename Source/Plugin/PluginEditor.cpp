@@ -63,15 +63,16 @@ OpenFruitAudioProcessorEditor::OpenFruitAudioProcessorEditor(OpenFruitAudioProce
         resized();
     };
     presetBrowser_.captureState = [this] { return processorRef_.captureInnerState(); };
-    presetBrowser_.restoreState = [this](const juce::MemoryBlock& state) {
-        processorRef_.loadPresetBlock(state);
+    presetBrowser_.restoreState = [this](const juce::MemoryBlock& state, const juce::String& name) {
+        processorRef_.loadPresetBlock(state, name);
         headerPanel_.updateFromParameters();
         trackerPanel_.updateFromEngine();
     };
+    presetBrowser_.onSaved = [this](const juce::String& name) { processorRef_.presetSaved(name); };
+    suiteBar_.onStepPreset = [this](int delta) { presetBrowser_.stepPreset(processorRef_.getPresetName(), delta); };
     trackerPanel_.onStepEdited = [this](int track, openfruit::core::PageIndex page, int step,
                                         openfruit::core::StepData before, openfruit::core::StepData after) {
-        processorRef_.getUndo().beginNewTransaction();
-        processorRef_.getUndo().perform(new openfruit::plugin::StepEditAction(
+        processorRef_.performEdit(new openfruit::plugin::StepEditAction(
             processorRef_.getEngine(), track, static_cast<int>(page), step, before, after));
     };
 
@@ -103,6 +104,7 @@ void OpenFruitAudioProcessorEditor::timerCallback() {
     headerPanel_.updateFromParameters();
     trackerPanel_.updateFromEngine();
     trackerPanel_.updatePlayhead();
+    suiteBar_.setPreset(processorRef_.getPresetName(), processorRef_.isPresetEdited());
 }
 
 void OpenFruitAudioProcessorEditor::paint(juce::Graphics& g) {
@@ -124,7 +126,7 @@ bool OpenFruitAudioProcessorEditor::keyPressed(const juce::KeyPress& key) {
 void OpenFruitAudioProcessorEditor::resized() {
     auto bounds = getLocalBounds();
     headerPanel_.setBounds(bounds.removeFromTop(headerPanel_.arrangementVisible() ? 206 : 142));
-    suiteBar_.setBounds(bounds.removeFromTop(48).reduced(10, 4));
+    suiteBar_.setBounds(bounds.removeFromTop(56).reduced(10, 4));
     trackerPanel_.setBounds(bounds);
     if (presetBrowser_.isVisible())
         presetBrowser_.setBounds(getWidth() - 360, suiteBar_.getBottom() + 8, 340, 300);

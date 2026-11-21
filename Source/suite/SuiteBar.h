@@ -24,6 +24,8 @@ public:
     std::function<void(int slot)> onSelectSlot;
     std::function<void(int from, int to)> onCopySlot;
     std::function<void()> onShowPresets;
+    std::function<void(int delta)> onStepPreset;
+    void setPreset(const juce::String& name, bool edited);
 
     void paint(juce::Graphics& g) override;
     void resized() override;
@@ -31,7 +33,7 @@ public:
 private:
     void changeListenerCallback(juce::ChangeBroadcaster*) override;
     void refresh();
-    void styleButton(juce::Button& button, const juce::String& tooltip);
+    void styleButton(juce::Button& button, const juce::String& title, const juce::String& tooltip);
 
     std::array<UndoHistory, 2>& undo_;
     AbCompare& ab_;
@@ -43,6 +45,9 @@ private:
     juce::TextButton copyAToB_ { "A>B" };
     juce::TextButton copyBToA_ { "B>A" };
     juce::TextButton presetsButton_ { "Presets" };
+    juce::TextButton previousPreset_ { "<" };
+    juce::TextButton nextPreset_ { ">" };
+    juce::Label presetName_;
 };
 
 }

@@ -28,6 +28,7 @@ public:
     void attach(juce::AudioProcessor& processor);
     void detach();
     void suspend(bool shouldSuspend) noexcept { suspended_ = shouldSuspend; }
+    std::function<void()> onEdit;
     [[nodiscard]] bool keyPressed(const juce::KeyPress& key);
 
 private:

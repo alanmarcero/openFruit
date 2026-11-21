@@ -48,11 +48,11 @@ target_link_libraries(openfruit_core PUBLIC
     juce::juce_audio_basics
     juce::juce_core)
 
-if(OF_BUILD_PLUGIN)
-    juce_add_binary_data(FruitAssets SOURCES
-        assets/citrus-clock.svg)
-    set_target_properties(FruitAssets PROPERTIES POSITION_INDEPENDENT_CODE ON)
+juce_add_binary_data(FruitAssets SOURCES
+    assets/citrus-clock.svg)
+set_target_properties(FruitAssets PROPERTIES POSITION_INDEPENDENT_CODE ON)
 
+if(OF_BUILD_PLUGIN)
     juce_add_plugin(OpenFruit
         COMPANY_NAME "Alan Marcero"
         BUNDLE_ID "com.alanmarcero.openfruit"
@@ -171,6 +171,14 @@ if(OF_BUILD_TESTS)
         Tests/PluginStateTests.cpp
         Tests/PluginMidiTests.cpp
         Tests/SessionTests.cpp
+        Tests/EditorTests.cpp
+        Source/Plugin/CyberLookAndFeel.cpp
+        Source/Plugin/Controls.cpp
+        Source/Plugin/SampleBrowserModal.cpp
+        Source/Plugin/Panels.cpp
+        Source/Plugin/PluginEditor.cpp
+        Source/suite/SuiteBar.cpp
+        Source/suite/PresetBrowser.cpp
         Source/Plugin/PatternState.cpp
         Source/Plugin/SampleState.cpp
         Source/Plugin/MidiEventProcessor.cpp
@@ -182,7 +190,8 @@ if(OF_BUILD_TESTS)
         Source/suite/PresetLibrary.cpp)
 
     target_include_directories(openfruit_tests PRIVATE Tests Source Source/Plugin Source/Core)
-    target_link_libraries(openfruit_tests PRIVATE openfruit_core juce::juce_audio_processors Catch2::Catch2WithMain)
+    target_compile_definitions(openfruit_tests PRIVATE JucePlugin_VersionString="${PROJECT_VERSION}")
+    target_link_libraries(openfruit_tests PRIVATE openfruit_core FruitAssets juce::juce_audio_processors Catch2::Catch2WithMain)
 
     enable_testing()
     include(Catch)
