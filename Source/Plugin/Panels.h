@@ -42,6 +42,7 @@ private:
 
     // Transport Play / Pause Toggle
     juce::TextButton playBtn_{ "Play" };
+    juce::Label transportState_;
 
     // Theme selector
     juce::ComboBox themeBox_;

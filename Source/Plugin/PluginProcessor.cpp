@@ -327,7 +327,9 @@ void OpenFruitAudioProcessor::getStateInformation(juce::MemoryBlock& destData) {
     if (stateRestoreDepth_ == 0)
         ab_.rememberActive(treeToBlock(tree));
     tree.addChild(ab_.toTree(), -1, nullptr);
-    tree.addChild(session_.createCopy(), -1, nullptr);
+    auto session = session_.createCopy();
+    session.setProperty("hostSyncArmed", engine_.isHostSyncArmed(), nullptr);
+    tree.addChild(session, -1, nullptr);
     if (auto xml = tree.createXml())
         copyXmlToBinary(*xml, destData);
 }
@@ -366,6 +368,7 @@ void OpenFruitAudioProcessor::setStateInformation(const void* data, int sizeInBy
 
     if (!loadingSlot_) {
         session_.copyPropertiesFrom(session, nullptr);
+        engine_.setHostSyncArmed(session_.getProperty("hostSyncArmed", false));
         for (auto& history : undo_)
             history.clearUndoHistory();
         getUndo().detach();

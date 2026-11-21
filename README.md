@@ -12,7 +12,7 @@ All of these plugins are in beta. The macOS and Linux builds are not up to date,
 
 ## Play a pattern
 
-Press **Play** to start the sequencer and arm host sync. The citrus wheel turns once per four quarter notes and follows tempo changes and seeks. In standalone it follows the sequencer’s internal clock. Select **A**, **B**, **C**, or **D** to edit a page. Their startup phrases cover a straight floor groove, syncopated hats, halftime and a tom fill.
+Press **Play** to start the sequencer and arm host sync. The label beside it reads Stopped, Armed or Playing. Armed means the sequencer starts with the host transport, and a saved session stays armed. The citrus wheel turns once per four quarter notes and follows tempo changes and seeks. In standalone it follows the sequencer’s internal clock. Select **A**, **B**, **C**, or **D** to edit a page. Their startup phrases cover a straight floor groove, syncopated hats, halftime and a tom fill.
 
 Click a sample name to audition it. Click any of its 16 pads to toggle a hit, drag vertically for velocity, or right-drag or hold Alt and scroll for pitch. Right-click for probability, 1–8 ratchets, timing offset, sample start and end, reverse playback, and choke group. Mute and Solo are beside the sample. Select 4, 8, 12 or 16 tracks. Larger patterns scroll vertically at compact sizes, and the editor reopens at the size you left it.
 

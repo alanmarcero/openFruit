@@ -153,6 +153,9 @@ public:
     // Sequencer Transport Control (Play / Pause with host sync)
     void setPlaying(bool playing) noexcept;
     [[nodiscard]] bool isPlaying() const noexcept { return isPlaying_.load(); }
+    // Armed: the next host transport start starts the sequencer.
+    void setHostSyncArmed(bool armed) noexcept { hostSyncArmed_.store(armed, std::memory_order_release); }
+    [[nodiscard]] bool isHostSyncArmed() const noexcept { return hostSyncArmed_.load(std::memory_order_acquire); }
 
     [[nodiscard]] float displayBarPhase() const noexcept { return displayBarPhase_.load(std::memory_order_relaxed); }
 

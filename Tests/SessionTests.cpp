@@ -250,6 +250,28 @@ TEST_CASE("The kit name and edit mark travel with each slot and the session", "[
     REQUIRE(restored.isPresetEdited());
 }
 
+TEST_CASE("An armed sequencer is still armed when the session reopens", "[plugin][transport]") {
+    OpenFruitAudioProcessor processor;
+    auto& engine = processor.getEngine();
+    engine.prepare(48000.0, 480);
+    std::vector<float> left(480), right(480);
+    engine.setPlaying(true);
+    engine.process(left.data(), right.data(), 480, 120.0, 0.0, true);
+    engine.process(left.data(), right.data(), 480, 120.0, 0.1, false);
+    REQUIRE_FALSE(engine.isPlaying());
+    REQUIRE(engine.isHostSyncArmed());
+
+    juce::MemoryBlock session;
+    processor.getStateInformation(session);
+    OpenFruitAudioProcessor restored;
+    restored.setStateInformation(session.getData(), static_cast<int>(session.getSize()));
+    auto& reopened = restored.getEngine();
+    reopened.prepare(48000.0, 480);
+    REQUIRE(reopened.isHostSyncArmed());
+    reopened.process(left.data(), right.data(), 480, 120.0, 0.0, true);
+    REQUIRE(reopened.isPlaying());
+}
+
 TEST_CASE("User presets save and factory presets stay read-only", "[plugin][presets]") {
     const auto directory = juce::File::getSpecialLocation(juce::File::tempDirectory)
         .getChildFile("openfruit-presets");

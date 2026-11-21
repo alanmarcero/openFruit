@@ -16,6 +16,10 @@ HeaderPanel::HeaderPanel(openfruit::core::FruitEngine& engine,
     masterVolLabel_.setText("Master", juce::dontSendNotification);
     masterVolSlider_.setTooltip("Master mix level");
     playBtn_.setTooltip("Start or pause the sequencer; play arms host transport sync");
+    transportState_.setTooltip("Stopped, Armed or Playing. Armed starts the sequencer when the host starts.");
+    transportState_.setFont(juce::FontOptions(14.0f, juce::Font::bold));
+    transportState_.setJustificationType(juce::Justification::centredRight);
+    addAndMakeVisible(transportState_);
     // Track Count Toggle: 4, 8, 12, 16
     trackCountLabel_.setFont(juce::FontOptions(14.0f, juce::Font::bold));
     addAndMakeVisible(trackCountLabel_);
@@ -244,6 +248,11 @@ void HeaderPanel::updateFromParameters() {
     const bool playing = engine_.isPlaying();
     playBtn_.setButtonText(playing ? "Pause" : "Play");
     playBtn_.setToggleState(playing, juce::dontSendNotification);
+    const int transport = playing ? 2 : static_cast<int>(engine_.isHostSyncArmed());
+    const std::array<const char*, 3> transportNames = { "Stopped", "Armed", "Playing" };
+    const std::array<juce::Colour, 3> transportColours = { palette_.textDim, palette_.accentSecondary, palette_.accentPrimary };
+    transportState_.setText(transportNames[static_cast<size_t>(transport)], juce::dontSendNotification);
+    transportState_.setColour(juce::Label::textColourId, transportColours[static_cast<size_t>(transport)]);
     const float phase = engine_.displayBarPhase();
     if (std::abs(phase - lastPhase_) > 1.0e-6f) { lastPhase_ = phase; repaint(8, 6, 75, 75); }
 }
@@ -290,6 +299,8 @@ void HeaderPanel::resized() {
     themeBox_.setBounds(top.removeFromRight(172).withSizeKeepingCentre(172,36));
     top.removeFromRight(12);
     playBtn_.setBounds(top.removeFromRight(92).withSizeKeepingCentre(92,36));
+    top.removeFromRight(6);
+    transportState_.setBounds(top.removeFromRight(76).withSizeKeepingCentre(76,36));
 
     auto row = juce::Rectangle<int>(20, 88, getWidth()-40, 44);
     pageLabel_.setBounds(row.removeFromLeft(54));
