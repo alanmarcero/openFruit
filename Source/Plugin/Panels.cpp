@@ -52,7 +52,10 @@ HeaderPanel::HeaderPanel(openfruit::core::FruitEngine& engine,
 
     const std::array<const char*, 4> pageNames = { "A", "B", "C", "D" };
     for (size_t i = 0; i < 4; ++i) {
-        pageBtns_[i].setTooltip("Edit and play pattern " + juce::String(pageNames[i]));
+        pageBtns_[i].setTooltip("Edit and play pattern " + juce::String(pageNames[i]) + ". Right-click to copy, paste, clear or shift it.");
+        pageBtns_[i].onPopupMenu = [this, i] {
+            if (onPatternMenu) onPatternMenu(pageBtns_[i], static_cast<openfruit::core::PageIndex>(i));
+        };
         pageBtns_[i].setButtonText(pageNames[i]);
         pageBtns_[i].setClickingTogglesState(false);
         pageBtns_[i].onClick = [this, pageIdx = static_cast<openfruit::core::PageIndex>(i)] {
@@ -360,9 +363,11 @@ TrackerPanel::TrackerPanel(openfruit::core::FruitEngine& engine,
         auto* row = rows_[static_cast<size_t>(i)].get();
         row->onOpenBrowser = [this](int trackIdx) { openSampleBrowser(trackIdx); };
         row->onOpenSettings = [this](int track) { openTrackSettings(track); };
-        row->onStepEdited = [this, row](openfruit::core::PageIndex page, int step,
-                                        openfruit::core::StepData before, openfruit::core::StepData after) {
-            if (onStepEdited) onStepEdited(row->getTrackIndex(), page, step, before, after);
+        row->onStepsEdited = [this](std::vector<openfruit::plugin::StepChange> changes) {
+            if (onStepsEdited) onStepsEdited(std::move(changes));
+        };
+        row->onRowMenu = [this](juce::Component& target, openfruit::core::PageIndex page, int track) {
+            if (onRowMenu) onRowMenu(target, page, track);
         };
         grid_.addAndMakeVisible(row);
     }

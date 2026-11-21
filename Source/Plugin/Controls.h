@@ -5,11 +5,26 @@
 #include "Theme.h"
 #include "FruitEngine.h"
 #include "SequencerTypes.h"
+#include "PatternState.h"
 #include <functional>
 
 namespace openfruit::ui {
 
 inline constexpr int kLaneWidth = 382;
+
+// A button whose right-click opens a menu instead of clicking it.
+class MenuTextButton : public juce::TextButton {
+public:
+    std::function<void()> onPopupMenu;
+
+    void mouseDown(const juce::MouseEvent& e) override {
+        if (e.mods.isPopupMenu() && onPopupMenu) {
+            onPopupMenu();
+            return;
+        }
+        juce::TextButton::mouseDown(e);
+    }
+};
 
 class CyberStepPad : public juce::Component, public juce::SettableTooltipClient, private juce::Timer {
 public:
@@ -24,6 +39,7 @@ public:
     std::function<void(int newTune)> onTuneChange;
     std::function<void(float newVelocity)> onVelocityChange;
     std::function<void(openfruit::core::StepData)> onStepDataChange;
+    std::function<void(int rowX, bool active)> onPaint;
     std::function<void()> onEditBegan;
     std::function<void()> onEditEnded;
 
@@ -41,6 +57,8 @@ private:
     bool isPlayhead_ = false;
     bool wasActive_ = false;
     bool velocityDragged_ = false;
+    bool painting_ = false;
+    bool paintActive_ = false;
     int dragStartTune_ = 0;
     bool tuneDragged_ = false;
     bool tuneGesture_ = false;
@@ -73,7 +91,7 @@ public:
     std::function<void()> onClose;
 };
 
-class TrackRowComponent : public juce::Component {
+class TrackRowComponent : public juce::Component, public juce::SettableTooltipClient {
 public:
     TrackRowComponent(int trackIdx,
                       openfruit::core::FruitEngine& engine,
@@ -86,11 +104,12 @@ public:
 
     std::function<void(int trackIdx)> onOpenBrowser, onOpenSettings;
     std::function<void(int trackIdx)> onSampleAudition;
-    std::function<void(openfruit::core::PageIndex page, int step,
-                       openfruit::core::StepData before, openfruit::core::StepData after)> onStepEdited;
+    std::function<void(std::vector<openfruit::plugin::StepChange>)> onStepsEdited;
+    std::function<void(juce::Component& target, openfruit::core::PageIndex page, int trackIdx)> onRowMenu;
 
     void paint(juce::Graphics& g) override;
     void resized() override;
+    void mouseDown(const juce::MouseEvent& e) override;
 
     [[nodiscard]] int getTrackIndex() const noexcept { return trackIdx_; }
 
@@ -107,9 +126,9 @@ private:
 
     std::array<std::unique_ptr<CyberStepPad>, openfruit::core::kStepsPerPage> stepPads_;
     bool editOpen_ = false;
-    int editStep_ = -1;
+    int paintStep_ = 0;
     openfruit::core::PageIndex editPage_ = openfruit::core::PageIndex::PageA;
-    openfruit::core::StepData editBefore_ {};
+    openfruit::plugin::StepRow editBefore_ {};
 };
 
 } // namespace openfruit::ui

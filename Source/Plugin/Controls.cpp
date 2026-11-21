@@ -72,6 +72,7 @@ void CyberStepPad::mouseDown(const juce::MouseEvent& e) {
     tuneGesture_ = false;
     wasActive_ = data_.active;
     velocityDragged_ = false;
+    painting_ = false;
 }
 
 void CyberStepPad::mouseDrag(const juce::MouseEvent& e) {
@@ -87,6 +88,12 @@ void CyberStepPad::mouseDrag(const juce::MouseEvent& e) {
                 onTuneChange(semitones);
             }
         }
+    } else if (e.mods.isLeftButtonDown() && !velocityDragged_ && (painting_ || e.x < 0 || e.x >= getWidth())) {
+        // Dragging across pads paints them with the first pad's new state.
+        if (!painting_)
+            paintActive_ = !wasActive_;
+        painting_ = true;
+        if (onPaint) onPaint(getParentComponent()->getLocalPoint(this, e.getPosition()).x, paintActive_);
     } else if (e.mods.isLeftButtonDown() && std::abs(dragStartPos_.y - e.y) >= 3) {
         velocityDragged_ = true;
         if (!data_.active) {
@@ -114,7 +121,7 @@ void CyberStepPad::mouseUp(const juce::MouseEvent& e) {
             return;
         }
         tuneGesture_ = false;
-    } else if (!velocityDragged_) {
+    } else if (!velocityDragged_ && !painting_) {
         data_.active = !wasActive_;
         if (onToggle) onToggle(data_.active);
         repaint();
@@ -370,6 +377,7 @@ TrackRowComponent::TrackRowComponent(int trackIdx,
     soloBtn_.setTooltip("Solo this track");
     addAndMakeVisible(soloBtn_);
 
+    setTooltip("Right-click the track number to copy, paste, clear or shift this row.");
     voiceSettingsBtn_.setButtonText("Edit");
     voiceSettingsBtn_.setTooltip("Edit tuning, level, MIDI, timing, filter and amplitude envelope");
     voiceSettingsBtn_.onClick = [this] { if (onOpenSettings) onOpenSettings(trackIdx_); };
@@ -393,18 +401,32 @@ TrackRowComponent::TrackRowComponent(int trackIdx,
         pad->onStepDataChange = [this, s](openfruit::core::StepData data) {
             engine_.setStepData(trackIdx_, engine_.getActivePage(), s, data);
         };
-        pad->onEditBegan = [this, s] {
-            editOpen_ = true;
-            editStep_ = s;
-            editPage_ = engine_.getActivePage();
-            editBefore_ = engine_.getStep(trackIdx_, editPage_, s);
+        pad->onPaint = [this](int x, bool active) {
+            const int step = std::clamp((x - kLaneWidth) * core::kStepsPerPage / std::max(1, getWidth() - kLaneWidth),
+                                        0, core::kStepsPerPage - 1);
+            // Fill the steps a fast drag skipped.
+            for (int index = std::min(paintStep_, step); index <= std::max(paintStep_, step); ++index)
+                engine_.setStepActive(trackIdx_, editPage_, index, active);
+            paintStep_ = step;
+            updateFromEngine();
         };
-        pad->onEditEnded = [this, s] {
-            if (!editOpen_ || editStep_ != s) return;
+        // One gesture on the row, on any of its pads, is one undo step.
+        pad->onEditBegan = [this, s] {
+            paintStep_ = s;
+            if (editOpen_) return;
+            editOpen_ = true;
+            editPage_ = engine_.getActivePage();
+            editBefore_ = plugin::copyRows(engine_, editPage_, trackIdx_, 1).front();
+        };
+        pad->onEditEnded = [this] {
+            if (!editOpen_) return;
             editOpen_ = false;
-            const auto after = engine_.getStep(trackIdx_, editPage_, s);
-            if (after == editBefore_) return;
-            if (onStepEdited) onStepEdited(editPage_, s, editBefore_, after);
+            const auto after = plugin::copyRows(engine_, editPage_, trackIdx_, 1).front();
+            std::vector<plugin::StepChange> changes;
+            for (int step = 0; step < core::kStepsPerPage; ++step)
+                if (after[static_cast<size_t>(step)] != editBefore_[static_cast<size_t>(step)])
+                    changes.push_back({ trackIdx_, editPage_, step, editBefore_[static_cast<size_t>(step)], after[static_cast<size_t>(step)] });
+            if (!changes.empty() && onStepsEdited) onStepsEdited(std::move(changes));
         };
 
         addAndMakeVisible(pad);
@@ -455,6 +477,11 @@ void TrackRowComponent::paint(juce::Graphics& g) {
     g.setColour(palette_.textDim);
     g.setFont(juce::FontOptions(14.0f, juce::Font::bold));
     g.drawText(juce::String(trackIdx_+1).paddedLeft('0',2), 1, 0, 29, getHeight(), juce::Justification::centred);
+}
+
+void TrackRowComponent::mouseDown(const juce::MouseEvent& e) {
+    if (e.x < 31 && e.mods.isPopupMenu() && onRowMenu)
+        onRowMenu(*this, engine_.getActivePage(), trackIdx_);
 }
 
 void TrackRowComponent::resized() {

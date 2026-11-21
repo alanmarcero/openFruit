@@ -1,4 +1,5 @@
 #include "PatternState.h"
+#include <algorithm>
 
 namespace openfruit::plugin {
 
@@ -53,6 +54,36 @@ void restorePatternState(const juce::ValueTree& patterns, core::FruitEngine& eng
             child.getProperty("index", -1), step);
     }
     engine.endPatternBatch();
+}
+
+std::vector<StepRow> copyRows(const core::FruitEngine& engine, core::PageIndex page, int firstTrack, int count) {
+    std::vector<StepRow> rows(static_cast<size_t>(count));
+    for (int row = 0; row < count; ++row)
+        for (int step = 0; step < core::kStepsPerPage; ++step)
+            rows[static_cast<size_t>(row)][static_cast<size_t>(step)] = engine.getStep(firstTrack + row, page, step);
+    return rows;
+}
+
+std::vector<StepChange> rowsCommandChanges(const core::FruitEngine& engine, core::PageIndex page, int firstTrack,
+                                           int count, RowsCommand command, const std::vector<StepRow>& clipboard) {
+    const auto rows = copyRows(engine, page, firstTrack, count);
+    std::vector<StepChange> changes;
+    for (int row = 0; row < count; ++row) {
+        const auto& before = rows[static_cast<size_t>(row)];
+        auto after = before;
+        if (command == RowsCommand::Paste)
+            after = clipboard.at(static_cast<size_t>(row));
+        if (command == RowsCommand::Clear)
+            after.fill({});
+        if (command == RowsCommand::ShiftLeft)
+            std::rotate(after.begin(), after.begin() + 1, after.end());
+        if (command == RowsCommand::ShiftRight)
+            std::rotate(after.rbegin(), after.rbegin() + 1, after.rend());
+        for (int step = 0; step < core::kStepsPerPage; ++step)
+            if (before[static_cast<size_t>(step)] != after[static_cast<size_t>(step)])
+                changes.push_back({ firstTrack + row, page, step, before[static_cast<size_t>(step)], after[static_cast<size_t>(step)] });
+    }
+    return changes;
 }
 
 void restorePatternStateIfPresent(const juce::ValueTree& patterns, core::FruitEngine& engine) {

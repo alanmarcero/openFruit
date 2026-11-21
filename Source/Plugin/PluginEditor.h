@@ -25,6 +25,7 @@ public:
 
 private:
     void timerCallback() override;
+    void showPatternMenu(juce::Component& target, openfruit::core::PageIndex page, int firstTrack, int count);
 
     OpenFruitAudioProcessor& processorRef_;
     openfruit::ui::CyberLookAndFeel cyberLookAndFeel_;
@@ -34,6 +35,7 @@ private:
     openfruit::ui::TrackerPanel trackerPanel_;
     juce::TooltipWindow tooltips_ {this, 550};
     int displayedPage_ = -1;
+    std::vector<openfruit::plugin::StepRow> clipboard_;
 
     JUCE_DECLARE_NON_COPYABLE_WITH_LEAK_DETECTOR(OpenFruitAudioProcessorEditor)
 };

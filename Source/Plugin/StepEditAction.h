@@ -2,32 +2,42 @@
 
 #include <juce_data_structures/juce_data_structures.h>
 #include "FruitEngine.h"
+#include <vector>
 
 namespace openfruit::plugin {
 
+struct StepChange {
+    int track = 0;
+    core::PageIndex page = core::PageIndex::PageA;
+    int step = 0;
+    core::StepData before;
+    core::StepData after;
+};
+
 class StepEditAction : public juce::UndoableAction {
 public:
-    StepEditAction(core::FruitEngine& engine, int track, int page, int step,
-                   core::StepData before, core::StepData after)
-        : engine_(engine), track_(track), page_(page), step_(step), before_(before), after_(after) {}
+    StepEditAction(core::FruitEngine& engine, std::vector<StepChange> changes)
+        : engine_(engine), changes_(std::move(changes)) {}
 
     bool perform() override {
-        engine_.setStepData(track_, static_cast<core::PageIndex>(page_), step_, after_);
+        engine_.beginPatternBatch();
+        for (const auto& change : changes_)
+            engine_.setStepData(change.track, change.page, change.step, change.after);
+        engine_.endPatternBatch();
         return true;
     }
 
     bool undo() override {
-        engine_.setStepData(track_, static_cast<core::PageIndex>(page_), step_, before_);
+        engine_.beginPatternBatch();
+        for (const auto& change : changes_)
+            engine_.setStepData(change.track, change.page, change.step, change.before);
+        engine_.endPatternBatch();
         return true;
     }
 
 private:
     core::FruitEngine& engine_;
-    int track_ = 0;
-    int page_ = 0;
-    int step_ = 0;
-    core::StepData before_;
-    core::StepData after_;
+    std::vector<StepChange> changes_;
 };
 
 }

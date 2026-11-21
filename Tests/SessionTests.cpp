@@ -138,7 +138,7 @@ TEST_CASE("Parameter gestures and step edits undo as one step", "[plugin][undo]"
     after.ratchets = 3;
     engine.setStepData(1, core::PageIndex::PageA, 4, after);
     processor.getUndo().beginNewTransaction();
-    processor.getUndo().perform(new plugin::StepEditAction(engine, 1, 0, 4, before, after));
+    processor.getUndo().perform(new plugin::StepEditAction(engine, { { 1, core::PageIndex::PageA, 4, before, after } }));
     processor.getUndo().undo();
     REQUIRE(engine.getStep(1, core::PageIndex::PageA, 4) == before);
     processor.getUndo().redo();

@@ -70,10 +70,14 @@ OpenFruitAudioProcessorEditor::OpenFruitAudioProcessorEditor(OpenFruitAudioProce
     };
     presetBrowser_.onSaved = [this](const juce::String& name) { processorRef_.presetSaved(name); };
     suiteBar_.onStepPreset = [this](int delta) { presetBrowser_.stepPreset(processorRef_.getPresetName(), delta); };
-    trackerPanel_.onStepEdited = [this](int track, openfruit::core::PageIndex page, int step,
-                                        openfruit::core::StepData before, openfruit::core::StepData after) {
-        processorRef_.performEdit(new openfruit::plugin::StepEditAction(
-            processorRef_.getEngine(), track, static_cast<int>(page), step, before, after));
+    trackerPanel_.onStepsEdited = [this](std::vector<openfruit::plugin::StepChange> changes) {
+        processorRef_.performEdit(new openfruit::plugin::StepEditAction(processorRef_.getEngine(), std::move(changes)));
+    };
+    trackerPanel_.onRowMenu = [this](juce::Component& target, openfruit::core::PageIndex page, int track) {
+        showPatternMenu(target, page, track, 1);
+    };
+    headerPanel_.onPatternMenu = [this](juce::Component& target, openfruit::core::PageIndex page) {
+        showPatternMenu(target, page, 0, openfruit::core::kMaxTracks);
     };
 
     setWantsKeyboardFocus(true);
@@ -121,6 +125,35 @@ void OpenFruitAudioProcessorEditor::paint(juce::Graphics& g) {
     // Outer hardware bezel border
     g.setColour(palette.panelEdge);
     g.drawRect(bounds, 1.0f);
+}
+
+void OpenFruitAudioProcessorEditor::showPatternMenu(juce::Component& target, openfruit::core::PageIndex page,
+                                                    int firstTrack, int count) {
+    const bool row = count == 1;
+    juce::PopupMenu menu;
+    menu.addItem(1, row ? "Copy row" : "Copy pattern");
+    menu.addItem(2, row ? "Paste row" : "Paste pattern", static_cast<int>(clipboard_.size()) == count);
+    menu.addItem(3, row ? "Clear row" : "Clear pattern");
+    menu.addItem(4, "Shift left");
+    menu.addItem(5, "Shift right");
+    menu.setLookAndFeel(&cyberLookAndFeel_);
+    menu.showMenuAsync(juce::PopupMenu::Options().withTargetComponent(&target),
+        [safeThis = juce::Component::SafePointer<OpenFruitAudioProcessorEditor>(this), page, firstTrack, count](int result) {
+            if (safeThis == nullptr || result == 0)
+                return;
+            auto& engine = safeThis->processorRef_.getEngine();
+            if (result == 1) {
+                safeThis->clipboard_ = openfruit::plugin::copyRows(engine, page, firstTrack, count);
+                return;
+            }
+            constexpr openfruit::plugin::RowsCommand commands[] = {
+                openfruit::plugin::RowsCommand::Paste, openfruit::plugin::RowsCommand::Clear,
+                openfruit::plugin::RowsCommand::ShiftLeft, openfruit::plugin::RowsCommand::ShiftRight };
+            auto changes = openfruit::plugin::rowsCommandChanges(engine, page, firstTrack, count,
+                                                                 commands[result - 2], safeThis->clipboard_);
+            if (!changes.empty())
+                safeThis->processorRef_.performEdit(new openfruit::plugin::StepEditAction(engine, std::move(changes)));
+        });
 }
 
 bool OpenFruitAudioProcessorEditor::keyPressed(const juce::KeyPress& key) {

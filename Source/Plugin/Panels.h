@@ -21,6 +21,7 @@ public:
     void updateFromParameters();
 
     std::function<void()> onTrackCountChanged;
+    std::function<void(juce::Component& target, openfruit::core::PageIndex page)> onPatternMenu;
     std::function<void()> onThemeChanged, onArrangementChanged;
     bool arrangementVisible() const noexcept { return arrangementVisible_; }
 
@@ -38,7 +39,7 @@ private:
 
     // Automatable Pages: A, B, C, D
     juce::Label pageLabel_{ "Pages:", "Page:" };
-    std::array<juce::TextButton, 4> pageBtns_;
+    std::array<MenuTextButton, 4> pageBtns_;
 
     // Transport Play / Pause Toggle
     juce::TextButton playBtn_{ "Play" };
@@ -94,8 +95,8 @@ public:
     void updateFromEngine();
     void updatePlayhead();
     void setVisibleTrackCount(int count);
-    std::function<void(int track, openfruit::core::PageIndex page, int step,
-                       openfruit::core::StepData before, openfruit::core::StepData after)> onStepEdited;
+    std::function<void(std::vector<openfruit::plugin::StepChange>)> onStepsEdited;
+    std::function<void(juce::Component& target, openfruit::core::PageIndex page, int trackIdx)> onRowMenu;
 
     void paint(juce::Graphics& g) override;
     void resized() override;

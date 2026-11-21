@@ -25,13 +25,13 @@ juce::Button* findButton(juce::Component& parent, const juce::String& text) {
 }
 
 template <typename Type>
-Type* findVisible(juce::Component& parent) {
+Type* findVisible(juce::Component& parent, const juce::String& name = {}) {
     for (auto* child : parent.getChildren()) {
         if (!child->isVisible())
             continue;
-        if (auto* match = dynamic_cast<Type*>(child))
+        if (auto* match = dynamic_cast<Type*>(child); match != nullptr && (name.isEmpty() || child->getName() == name))
             return match;
-        if (auto* found = findVisible<Type>(*child))
+        if (auto* found = findVisible<Type>(*child, name))
             return found;
     }
     return nullptr;
@@ -250,4 +250,26 @@ TEST_CASE("Envelope sliders give short times more travel", "[editor][layout]") {
 
     CHECK(dynamic_cast<juce::Slider*>(*found)->valueToProportionOfLength(0.2) > 0.3);
     CHECK(attack.valueToProportionOfLength(0.2) < 0.05);
+}
+
+TEST_CASE("Dragging across a row paints pads as one undo step", "[editor][paint]") {
+    juce::ScopedJuceInitialiser_GUI gui;
+    OpenFruitAudioProcessor processor;
+    auto editor = openEditor(processor);
+    auto* pad = findVisible<openfruit::ui::CyberStepPad>(*editor, "Track 7 step 1");
+    REQUIRE(pad != nullptr);
+    const auto down = mouseAt(*pad, juce::ModifierKeys::leftButtonModifier);
+    const auto across = down.withNewPosition(juce::Point<float>(static_cast<float>(pad->getWidth()) * 3.5f, down.position.y));
+
+    pad->mouseDown(down);
+    pad->mouseDrag(across);
+    pad->mouseUp(across);
+    const auto& engine = processor.getEngine();
+    CHECK(engine.getStep(6, openfruit::core::PageIndex::PageA, 0).active);
+    CHECK(engine.getStep(6, openfruit::core::PageIndex::PageA, 3).active);
+    CHECK_FALSE(engine.getStep(6, openfruit::core::PageIndex::PageA, 4).active);
+
+    processor.getUndo().undo();
+    CHECK_FALSE(engine.getStep(6, openfruit::core::PageIndex::PageA, 0).active);
+    CHECK_FALSE(engine.getStep(6, openfruit::core::PageIndex::PageA, 3).active);
 }

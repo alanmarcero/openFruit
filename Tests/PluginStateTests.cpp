@@ -73,3 +73,29 @@ TEST_CASE("OpenFruit invalid pattern data leaves existing pages intact", "[plugi
 
     REQUIRE(engine.getStep(0, PageIndex::PageB, 4) == existing);
 }
+
+TEST_CASE("Row commands shift, clear and paste as undoable change sets", "[plugin][state]") {
+    using namespace openfruit::plugin;
+    FruitEngine engine;
+    StepData hit;
+    hit.active = true;
+    engine.setStepData(2, PageIndex::PageB, 15, hit);
+    engine.setStepData(3, PageIndex::PageB, 0, hit);
+
+    StepEditAction shift(engine, rowsCommandChanges(engine, PageIndex::PageB, 2, 1, RowsCommand::ShiftRight, {}));
+    shift.perform();
+    REQUIRE(engine.getStep(2, PageIndex::PageB, 0).active);
+    REQUIRE_FALSE(engine.getStep(2, PageIndex::PageB, 15).active);
+
+    const auto copied = copyRows(engine, PageIndex::PageB, 0, kMaxTracks);
+    StepEditAction clear(engine, rowsCommandChanges(engine, PageIndex::PageB, 0, kMaxTracks, RowsCommand::Clear, {}));
+    clear.perform();
+    REQUIRE_FALSE(engine.getStep(3, PageIndex::PageB, 0).active);
+    StepEditAction paste(engine, rowsCommandChanges(engine, PageIndex::PageC, 0, kMaxTracks, RowsCommand::Paste, copied));
+    paste.perform();
+    REQUIRE(engine.getStep(2, PageIndex::PageC, 0).active);
+    REQUIRE(engine.getStep(3, PageIndex::PageC, 0).active);
+
+    clear.undo();
+    REQUIRE(engine.getStep(3, PageIndex::PageB, 0).active);
+}
