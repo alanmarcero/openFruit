@@ -135,11 +135,24 @@ void OpenFruitAudioProcessorEditor::showPatternMenu(juce::Component& target, ope
     menu.addItem(3, row ? "Clear row" : "Clear pattern");
     menu.addItem(4, "Shift left");
     menu.addItem(5, "Shift right");
+    const bool isPageButton = !row;
+    if (isPageButton) {
+        menu.addSeparator();
+        openfruit::ui::addParamLockMenuItems(menu, processorRef_.getAPVTS(), openfruit::params::kPage, 100, 101);
+    }
     menu.setLookAndFeel(&cyberLookAndFeel_);
     menu.showMenuAsync(juce::PopupMenu::Options().withTargetComponent(&target),
-        [safeThis = juce::Component::SafePointer<OpenFruitAudioProcessorEditor>(this), page, firstTrack, count](int result) {
+        [safeThis = juce::Component::SafePointer<OpenFruitAudioProcessorEditor>(this),
+         safeTarget = juce::Component::SafePointer<juce::Component>(&target),
+         page, firstTrack, count, isPageButton](int result) {
             if (safeThis == nullptr || result == 0)
                 return;
+            if (isPageButton && (result == 100 || result == 101)) {
+                if (safeTarget != nullptr)
+                    openfruit::ui::handleParamLockMenuResult(*safeTarget, safeThis->processorRef_.getAPVTS(),
+                                                             openfruit::params::kPage, result, 100, 101);
+                return;
+            }
             auto& engine = safeThis->processorRef_.getEngine();
             if (result == 1) {
                 safeThis->clipboard_ = openfruit::plugin::copyRows(engine, page, firstTrack, count);

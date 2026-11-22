@@ -48,6 +48,7 @@ HeaderPanel::HeaderPanel(openfruit::core::FruitEngine& engine,
             updateFromParameters();
             if (onTrackCountChanged) onTrackCountChanged();
         };
+        bindParamLock(trackCountBtns_[i], apvts_, openfruit::params::kTrackCount);
         addAndMakeVisible(trackCountBtns_[i]);
     }
 
@@ -73,6 +74,7 @@ HeaderPanel::HeaderPanel(openfruit::core::FruitEngine& engine,
             session_.setProperty("followSong", false, nullptr);
             updateFromParameters();
         };
+        bindParamLock(pageBtns_[i], apvts_, openfruit::params::kPage, false);
         addAndMakeVisible(pageBtns_[i]);
     }
 
@@ -103,6 +105,7 @@ HeaderPanel::HeaderPanel(openfruit::core::FruitEngine& engine,
         setTheme(openfruit::theme::getPalette(th));
         if (onThemeChanged) onThemeChanged();
     };
+    bindParamLock(themeBox_, apvts_, openfruit::params::kTheme);
     addAndMakeVisible(themeBox_);
 
     // 5. Master Volume
@@ -115,6 +118,7 @@ HeaderPanel::HeaderPanel(openfruit::core::FruitEngine& engine,
     masterVolSlider_.setValue(1.0, juce::dontSendNotification);
     masterVolAttachment_ = std::make_unique<juce::AudioProcessorValueTreeState::SliderAttachment>(
         apvts_, openfruit::params::kMasterVol, masterVolSlider_);
+    bindParamLock(masterVolSlider_, apvts_, openfruit::params::kMasterVol);
     addAndMakeVisible(masterVolSlider_);
 
     outputDbLabel_.setText("Output", juce::dontSendNotification);
@@ -129,6 +133,7 @@ HeaderPanel::HeaderPanel(openfruit::core::FruitEngine& engine,
     outputDbSlider_.setTitle("Output");
     outputDbAttachment_ = std::make_unique<juce::AudioProcessorValueTreeState::SliderAttachment>(
         apvts_, openfruit::params::kOutputDb, outputDbSlider_);
+    bindParamLock(outputDbSlider_, apvts_, openfruit::params::kOutputDb);
     addAndMakeVisible(outputDbSlider_);
 
     // Value boxes show the readout, drag like a slider and accept typing.
@@ -143,6 +148,7 @@ HeaderPanel::HeaderPanel(openfruit::core::FruitEngine& engine,
     songModeToggle_.setButtonText("Song mode");
     songModeToggle_.setTitle("Song mode");
     songModeToggle_.setTooltip("Chain the four sections in Song Mode");
+    bindParamLock(songModeToggle_, apvts_, openfruit::params::kSongMode);
     addAndMakeVisible(songModeToggle_);
     followToggle_.setTitle("Follow");
     followToggle_.setTooltip("Show the pattern the song is playing. Picking a pattern turns this off.");
@@ -159,6 +165,7 @@ HeaderPanel::HeaderPanel(openfruit::core::FruitEngine& engine,
     swingSlider_.setTitle("Swing");
     swingAttachment_ = std::make_unique<juce::AudioProcessorValueTreeState::SliderAttachment>(
         apvts_, openfruit::params::kSwing, swingSlider_);
+    bindParamLock(swingSlider_, apvts_, openfruit::params::kSwing);
     addAndMakeVisible(swingSlider_);
 
     accentLabel_.setText("Accent", juce::dontSendNotification);
@@ -171,6 +178,7 @@ HeaderPanel::HeaderPanel(openfruit::core::FruitEngine& engine,
     accentAmountSlider_.setTitle("Accent");
     accentAmountAttachment_ = std::make_unique<juce::AudioProcessorValueTreeState::SliderAttachment>(
         apvts_, openfruit::params::kAccentAmount, accentAmountSlider_);
+    bindParamLock(accentAmountSlider_, apvts_, openfruit::params::kAccentAmount);
     addAndMakeVisible(accentAmountSlider_);
     // The stepper buttons copy the tooltip when the style creates them.
     accentEverySlider_.setTooltip("Accent every 2 to 16 steps. Raise Accent above 0% to hear it.");
@@ -180,6 +188,7 @@ HeaderPanel::HeaderPanel(openfruit::core::FruitEngine& engine,
     accentEverySlider_.setRange(2.0, 16.0, 1.0);
     accentEveryAttachment_ = std::make_unique<juce::AudioProcessorValueTreeState::SliderAttachment>(
         apvts_, openfruit::params::kAccentEvery, accentEverySlider_);
+    bindParamLock(accentEverySlider_, apvts_, openfruit::params::kAccentEvery);
     addAndMakeVisible(accentEverySlider_);
 
     humanizeLabel_.setText("Human", juce::dontSendNotification);
@@ -192,6 +201,7 @@ HeaderPanel::HeaderPanel(openfruit::core::FruitEngine& engine,
     humanizeSlider_.setTitle("Human");
     humanizeAttachment_ = std::make_unique<juce::AudioProcessorValueTreeState::SliderAttachment>(
         apvts_, openfruit::params::kHumanize, humanizeSlider_);
+    bindParamLock(humanizeSlider_, apvts_, openfruit::params::kHumanize);
     addAndMakeVisible(humanizeSlider_);
 
     for (int i = 0; i < openfruit::core::kNumPages; ++i) {
@@ -210,6 +220,7 @@ HeaderPanel::HeaderPanel(openfruit::core::FruitEngine& engine,
         pageBox.setTitle("Section " + juce::String(i + 1) + " pattern");
         sectionPageAttachments_[index] = std::make_unique<juce::AudioProcessorValueTreeState::ComboBoxAttachment>(
             apvts_, openfruit::params::songSectionPageId(i), pageBox);
+        bindParamLock(pageBox, apvts_, openfruit::params::songSectionPageId(i));
         addAndMakeVisible(pageBox);
 
         auto& barsSlider = sectionBarsSliders_[index];
@@ -219,6 +230,7 @@ HeaderPanel::HeaderPanel(openfruit::core::FruitEngine& engine,
         barsSlider.setTitle("Section " + juce::String(i + 1) + " bars");
         sectionBarsAttachments_[index] = std::make_unique<juce::AudioProcessorValueTreeState::SliderAttachment>(
             apvts_, openfruit::params::songSectionBarsId(i), barsSlider);
+        bindParamLock(barsSlider, apvts_, openfruit::params::songSectionBarsId(i));
         addAndMakeVisible(barsSlider);
 
         auto& fillButton = sectionFillButtons_[index];
@@ -228,6 +240,7 @@ HeaderPanel::HeaderPanel(openfruit::core::FruitEngine& engine,
         fillButton.setTooltip("Use Page D as a one-bar fill at this section's end");
         sectionFillAttachments_[index] = std::make_unique<juce::AudioProcessorValueTreeState::ButtonAttachment>(
             apvts_, openfruit::params::songSectionFillId(i), fillButton);
+        bindParamLock(fillButton, apvts_, openfruit::params::songSectionFillId(i));
         addAndMakeVisible(fillButton);
     }
 

@@ -40,7 +40,7 @@ private:
 
     // Track Count Toggle: 4, 8, 12, 16
     juce::Label trackCountLabel_{ "Tracks:", "Tracks:" };
-    std::array<juce::TextButton, 4> trackCountBtns_;
+    std::array<MenuTextButton, 4> trackCountBtns_;
 
     // Automatable Pages: A, B, C, D
     juce::Label pageLabel_{ "Pages:", "Page:" };
@@ -51,29 +51,29 @@ private:
     juce::Label transportState_;
 
     // Theme selector
-    juce::ComboBox themeBox_;
+    LockableComboBox themeBox_;
 
     // Master Volume
-    juce::Slider masterVolSlider_;
+    LockableSlider masterVolSlider_;
     juce::Label masterVolLabel_{ "Master", "Master volume" };
     std::unique_ptr<juce::AudioProcessorValueTreeState::SliderAttachment> masterVolAttachment_;
-    juce::Slider outputDbSlider_;
+    LockableSlider outputDbSlider_;
     juce::Label outputDbLabel_{ "Output", "Output level in decibels" };
     std::unique_ptr<juce::AudioProcessorValueTreeState::SliderAttachment> outputDbAttachment_;
 
-    juce::ToggleButton songModeToggle_ { "SONG MODE" };
+    LockableToggleButton songModeToggle_ { "SONG MODE" };
     juce::Label intervalLabel_ {"Interval", "Every"};
     std::unique_ptr<juce::AudioProcessorValueTreeState::ButtonAttachment> songModeAttachment_;
     juce::Label swingLabel_ { "Swing", "Swing" };
-    juce::Slider swingSlider_;
+    LockableSlider swingSlider_;
     std::unique_ptr<juce::AudioProcessorValueTreeState::SliderAttachment> swingAttachment_;
     juce::Label accentLabel_ { "Accent", "ACC" };
-    juce::Slider accentAmountSlider_;
-    juce::Slider accentEverySlider_;
+    LockableSlider accentAmountSlider_;
+    LockableSlider accentEverySlider_;
     std::unique_ptr<juce::AudioProcessorValueTreeState::SliderAttachment> accentAmountAttachment_;
     std::unique_ptr<juce::AudioProcessorValueTreeState::SliderAttachment> accentEveryAttachment_;
     juce::Label humanizeLabel_ { "Humanize", "Human" };
-    juce::Slider humanizeSlider_;
+    LockableSlider humanizeSlider_;
     std::unique_ptr<juce::AudioProcessorValueTreeState::SliderAttachment> humanizeAttachment_;
     juce::ToggleButton followToggle_ { "Follow" };
     std::array<juce::Label, openfruit::core::kNumPages> sectionLabels_;
@@ -81,9 +81,9 @@ private:
     int playingSection_ = -1;
     openfruit::core::PageIndex shownPage_ = openfruit::core::PageIndex::PageA;
     bool playheadLive_ = true;
-    std::array<juce::ComboBox, openfruit::core::kNumPages> sectionPageBoxes_;
-    std::array<juce::Slider, openfruit::core::kNumPages> sectionBarsSliders_;
-    std::array<juce::TextButton, openfruit::core::kNumPages> sectionFillButtons_;
+    std::array<LockableComboBox, openfruit::core::kNumPages> sectionPageBoxes_;
+    std::array<LockableSlider, openfruit::core::kNumPages> sectionBarsSliders_;
+    std::array<MenuTextButton, openfruit::core::kNumPages> sectionFillButtons_;
     std::array<std::unique_ptr<juce::AudioProcessorValueTreeState::ComboBoxAttachment>, openfruit::core::kNumPages> sectionPageAttachments_;
     std::array<std::unique_ptr<juce::AudioProcessorValueTreeState::SliderAttachment>, openfruit::core::kNumPages> sectionBarsAttachments_;
     std::array<std::unique_ptr<juce::AudioProcessorValueTreeState::ButtonAttachment>, openfruit::core::kNumPages> sectionFillAttachments_;

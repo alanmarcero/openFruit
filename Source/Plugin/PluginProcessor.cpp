@@ -232,7 +232,7 @@ void OpenFruitAudioProcessor::processBlock(juce::AudioBuffer<float>& buffer, juc
 
 juce::ValueTree OpenFruitAudioProcessor::makeStateTree() {
     auto state = apvts_.copyState();
-    for (const char* childName : { "StepPatterns", "SampleFiles", "AbSlots" }) {
+    for (const char* childName : { "StepPatterns", "SampleFiles", "AbSlots", "LockedParams" }) {
         auto child = state.getChildWithName(childName);
         if (child.isValid())
             state.removeChild(child, nullptr);
@@ -322,6 +322,56 @@ void OpenFruitAudioProcessor::performEdit(juce::UndoableAction* action) {
     markEdited();
 }
 
+bool OpenFruitAudioProcessor::isParamLocked(const juce::String& paramId) const {
+    std::lock_guard<std::mutex> lock(lockMutex_);
+    return lockedParams_.count(paramId) > 0;
+}
+
+void OpenFruitAudioProcessor::setParamLocked(const juce::String& paramId, bool locked) {
+    std::lock_guard<std::mutex> lock(lockMutex_);
+    if (locked) {
+        if (apvts_.getParameter(paramId) != nullptr)
+            lockedParams_.insert(paramId);
+    } else {
+        lockedParams_.erase(paramId);
+    }
+}
+
+void OpenFruitAudioProcessor::unlockAllParams() {
+    std::lock_guard<std::mutex> lock(lockMutex_);
+    lockedParams_.clear();
+}
+
+bool OpenFruitAudioProcessor::hasAnyLockedParam() const {
+    std::lock_guard<std::mutex> lock(lockMutex_);
+    return !lockedParams_.empty();
+}
+
+juce::ValueTree OpenFruitAudioProcessor::makeLockedParamsTree() const {
+    std::lock_guard<std::mutex> lock(lockMutex_);
+    if (lockedParams_.empty())
+        return {};
+    juce::ValueTree tree("LockedParams");
+    for (const auto& id : lockedParams_) {
+        juce::ValueTree item("Param");
+        item.setProperty("id", id, nullptr);
+        tree.addChild(item, -1, nullptr);
+    }
+    return tree;
+}
+
+void OpenFruitAudioProcessor::restoreLockedParamsTree(const juce::ValueTree& tree) {
+    std::lock_guard<std::mutex> lock(lockMutex_);
+    lockedParams_.clear();
+    if (!tree.isValid())
+        return;
+    for (int i = 0; i < tree.getNumChildren(); ++i) {
+        const auto id = tree.getChild(i).getProperty("id").toString();
+        if (id.isNotEmpty() && apvts_.getParameter(id) != nullptr)
+            lockedParams_.insert(id);
+    }
+}
+
 void OpenFruitAudioProcessor::getStateInformation(juce::MemoryBlock& destData) {
     auto tree = makeStateTree();
     if (stateRestoreDepth_ == 0)
@@ -330,6 +380,8 @@ void OpenFruitAudioProcessor::getStateInformation(juce::MemoryBlock& destData) {
     auto session = session_.createCopy();
     session.setProperty("hostSyncArmed", engine_.isHostSyncArmed(), nullptr);
     tree.addChild(session, -1, nullptr);
+    if (auto locked = makeLockedParamsTree(); locked.isValid())
+        tree.addChild(locked, -1, nullptr);
     if (auto xml = tree.createXml())
         copyXmlToBinary(*xml, destData);
 }
@@ -348,15 +400,33 @@ void OpenFruitAudioProcessor::setStateInformation(const void* data, int sizeInBy
         state.removeChild(abTree, nullptr);
     const auto session = state.getChildWithName("Session");
     state.removeChild(session, nullptr);
+    const auto lockedTree = state.getChildWithName("LockedParams");
+    if (lockedTree.isValid())
+        state.removeChild(lockedTree, nullptr);
+
+    if (!loadingSlot_)
+        restoreLockedParamsTree(lockedTree);
 
     loadFactoryKit(static_cast<int>(state.getProperty("factoryKit", 1)) < 2);
     auto files = state.getChildWithName("SampleFiles");
     if (files.isValid())
         state.removeChild(files, nullptr);
 
+    std::vector<std::pair<juce::RangedAudioParameter*, float>> preserved;
+    if (loadingSlot_) {
+        for (auto* param : getParameters()) {
+            if (auto* ranged = dynamic_cast<juce::RangedAudioParameter*>(param)) {
+                if (isParamLocked(ranged->getParameterID()))
+                    preserved.emplace_back(ranged, ranged->getValue());
+            }
+        }
+    }
+
     ++stateRestoreDepth_;
     getUndo().suspend(true);
     apvts_.replaceState(state);
+    for (const auto& [ranged, value] : preserved)
+        ranged->setValueNotifyingHost(value);
     syncParametersToEngine();
     if (files.isValid())
         openfruit::plugin::restoreSampleFiles(files, engine_);

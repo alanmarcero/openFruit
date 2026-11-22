@@ -1,10 +1,75 @@
 #include "Controls.h"
 #include "Parameters.h"
+#include "PluginProcessor.h"
 #include "WavReader.h"
 #include <iomanip>
 #include <sstream>
 
 namespace openfruit::ui {
+
+void drawPadlockIndicator(juce::Graphics& g, juce::Rectangle<float> bounds, juce::Colour accent, juce::Colour background) {
+    g.setColour(background.withAlpha(0.85f));
+    g.fillRoundedRectangle(bounds.expanded(1.0f), 2.5f);
+
+    const auto body = bounds.withTrimmedTop(bounds.getHeight() * 0.42f).reduced(1.0f, 0.5f);
+    const float shackleWidth = body.getWidth() * 0.62f;
+    const float shackleLeft = body.getCentreX() - shackleWidth * 0.5f;
+    const float shackleTop = bounds.getY() + 0.5f;
+    juce::Path shackle;
+    shackle.addArc(shackleLeft, shackleTop, shackleWidth, body.getY() - shackleTop + shackleWidth * 0.45f,
+                   juce::MathConstants<float>::pi * 1.5f, juce::MathConstants<float>::pi * 2.5f, true);
+    g.setColour(accent);
+    g.strokePath(shackle, juce::PathStrokeType(1.3f));
+    g.fillRoundedRectangle(body, 1.5f);
+}
+
+bool isParamLockedInApvts(juce::AudioProcessorValueTreeState& apvts, const juce::String& paramId) {
+    if (auto* processor = dynamic_cast<OpenFruitAudioProcessor*>(&apvts.processor))
+        return processor->isParamLocked(paramId);
+    return false;
+}
+
+void addParamLockMenuItems(juce::PopupMenu& menu, juce::AudioProcessorValueTreeState& apvts,
+                           const juce::String& paramId, int lockItemId, int unlockAllItemId) {
+    auto* processor = dynamic_cast<OpenFruitAudioProcessor*>(&apvts.processor);
+    auto* param = apvts.getParameter(paramId);
+    if (processor == nullptr || param == nullptr)
+        return;
+    const bool locked = processor->isParamLocked(paramId);
+    menu.addItem(lockItemId, (locked ? "Unlock " : "Lock ") + param->getName(64));
+    if (processor->hasAnyLockedParam())
+        menu.addItem(unlockAllItemId, "Unlock all parameters");
+}
+
+void handleParamLockMenuResult(juce::Component& target, juce::AudioProcessorValueTreeState& apvts,
+                               const juce::String& paramId, int result, int lockItemId, int unlockAllItemId) {
+    auto* processor = dynamic_cast<OpenFruitAudioProcessor*>(&apvts.processor);
+    if (processor == nullptr)
+        return;
+    if (result == lockItemId) {
+        processor->setParamLocked(paramId, !processor->isParamLocked(paramId));
+        if (auto* top = target.getTopLevelComponent())
+            top->repaint();
+    } else if (result == unlockAllItemId) {
+        processor->unlockAllParams();
+        if (auto* top = target.getTopLevelComponent())
+            top->repaint();
+    }
+}
+
+void showParamLockMenu(juce::Component& target, juce::AudioProcessorValueTreeState& apvts, const juce::String& paramId) {
+    juce::PopupMenu menu;
+    addParamLockMenuItems(menu, apvts, paramId, 1, 2);
+    if (menu.getNumItems() == 0)
+        return;
+    menu.setLookAndFeel(&target.getLookAndFeel());
+    menu.showMenuAsync(juce::PopupMenu::Options().withTargetComponent(&target),
+        [safeTarget = juce::Component::SafePointer<juce::Component>(&target), &apvts, paramId](int result) {
+            if (safeTarget != nullptr && result != 0)
+                handleParamLockMenuResult(*safeTarget, apvts, paramId, result, 1, 2);
+        });
+}
+
 namespace {
 
 constexpr std::array<float, 5> kProbabilities { 0.0f, 0.25f, 0.5f, 0.75f, 1.0f };
@@ -346,6 +411,8 @@ TrackVoiceSettingsPanel::TrackVoiceSettingsPanel(int trackIdx,
     timing_.setTooltip("Duration of one step for this track");
     timing_.setTitle("Step rate");
     timingAttachment_ = std::make_unique<juce::AudioProcessorValueTreeState::ComboBoxAttachment>(apvts, params::trackTimingId(trackIdx), timing_);
+    bindParamLock(midi_, apvts, params::trackMidiChId(trackIdx));
+    bindParamLock(timing_, apvts, params::trackTimingId(trackIdx));
     addAndMakeVisible(midi_);
     addAndMakeVisible(timing_);
     routingLabels_[0].setText("MIDI input", juce::dontSendNotification);
@@ -370,6 +437,7 @@ TrackVoiceSettingsPanel::TrackVoiceSettingsPanel(int trackIdx,
         addAndMakeVisible(slider);
         attachments_[i] = std::make_unique<juce::AudioProcessorValueTreeState::SliderAttachment>(
             apvts, ids[i], slider);
+        bindParamLock(slider, apvts, ids[i]);
         // Attack, decay and release spend more travel on short times. The parameter range stays linear.
         if (i == 8 || i == 9 || i == 11) {
             juce::NormalisableRange<double> travel(slider.getMinimum(), slider.getMaximum(), slider.getInterval());
@@ -461,6 +529,10 @@ TrackRowComponent::TrackRowComponent(int trackIdx,
             *apvts_, openfruit::params::trackVolId(trackIdx_), levelSlider_);
         panAttachment_ = std::make_unique<juce::AudioProcessorValueTreeState::SliderAttachment>(
             *apvts_, openfruit::params::trackPanId(trackIdx_), panSlider_);
+        bindParamLock(levelSlider_, *apvts_, openfruit::params::trackVolId(trackIdx_));
+        bindParamLock(panSlider_, *apvts_, openfruit::params::trackPanId(trackIdx_));
+        bindParamLock(muteBtn_, *apvts_, openfruit::params::trackMuteId(trackIdx_));
+        bindParamLock(soloBtn_, *apvts_, openfruit::params::trackSoloId(trackIdx_));
     }
     muteBtn_.setTooltip("Mute this track");
     muteBtn_.setTitle("Mute");

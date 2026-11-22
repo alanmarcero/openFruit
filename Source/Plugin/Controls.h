@@ -7,24 +7,104 @@
 #include "SequencerTypes.h"
 #include "PatternState.h"
 #include <functional>
+#include <type_traits>
 
 namespace openfruit::ui {
 
 inline constexpr int kLaneWidth = 382;
 
-// A button whose right-click opens a menu instead of clicking it.
-class MenuTextButton : public juce::TextButton {
+void drawPadlockIndicator(juce::Graphics& g, juce::Rectangle<float> bounds, juce::Colour accent, juce::Colour background);
+bool isParamLockedInApvts(juce::AudioProcessorValueTreeState& apvts, const juce::String& paramId);
+void addParamLockMenuItems(juce::PopupMenu& menu, juce::AudioProcessorValueTreeState& apvts,
+                           const juce::String& paramId, int lockItemId, int unlockAllItemId);
+void handleParamLockMenuResult(juce::Component& target, juce::AudioProcessorValueTreeState& apvts,
+                               const juce::String& paramId, int result, int lockItemId, int unlockAllItemId);
+void showParamLockMenu(juce::Component& target, juce::AudioProcessorValueTreeState& apvts, const juce::String& paramId);
+
+// Wraps a JUCE widget so right-clicks open a popup menu and locked parameters show a padlock badge.
+template <typename Base>
+class PopupComponent : public Base {
 public:
+    template <typename... Args>
+    explicit PopupComponent(Args&&... args) : Base(std::forward<Args>(args)...) {
+        if constexpr (std::is_base_of_v<juce::Slider, Base>)
+            Base::addMouseListener(&childListener_, true);
+    }
+
+    ~PopupComponent() override {
+        if constexpr (std::is_base_of_v<juce::Slider, Base>)
+            Base::removeMouseListener(&childListener_);
+    }
+
     std::function<void()> onPopupMenu;
+    std::function<bool()> isLocked;
 
     void mouseDown(const juce::MouseEvent& e) override {
         if (e.mods.isPopupMenu() && onPopupMenu) {
             onPopupMenu();
             return;
         }
-        juce::TextButton::mouseDown(e);
+        Base::mouseDown(e);
     }
+
+    void mouseUp(const juce::MouseEvent& e) override {
+        if (e.mods.isPopupMenu() && onPopupMenu)
+            return;
+        Base::mouseUp(e);
+    }
+
+    void paintOverChildren(juce::Graphics& g) override {
+        Base::paintOverChildren(g);
+        if (!isLocked || !isLocked())
+            return;
+        auto area = padlockBounds();
+        drawPadlockIndicator(g, area,
+                             Base::findColour(juce::Slider::thumbColourId, true),
+                             Base::findColour(juce::ResizableWindow::backgroundColourId, true));
+    }
+
+private:
+    struct ChildPopupListener : public juce::MouseListener {
+        explicit ChildPopupListener(PopupComponent& owner) : owner_(owner) {}
+        void mouseDown(const juce::MouseEvent& e) override {
+            if (e.eventComponent != &owner_ && e.mods.isPopupMenu() && owner_.onPopupMenu)
+                owner_.onPopupMenu();
+        }
+        PopupComponent& owner_;
+    };
+
+    juce::Rectangle<float> padlockBounds() const {
+        const float w = static_cast<float>(Base::getWidth());
+        if constexpr (std::is_base_of_v<juce::Slider, Base>) {
+            const auto style = Base::getSliderStyle();
+            if (style == juce::Slider::IncDecButtons
+                || (style == juce::Slider::LinearHorizontal && Base::getTextBoxPosition() == juce::Slider::TextBoxRight)) {
+                return { 2.0f, 2.0f, 10.0f, 11.0f };
+            }
+        }
+        return { w - 12.0f, 2.0f, 10.0f, 11.0f };
+    }
+
+    ChildPopupListener childListener_ { *this };
 };
+
+using MenuTextButton = PopupComponent<juce::TextButton>;
+using LockableToggleButton = PopupComponent<juce::ToggleButton>;
+using LockableSlider = PopupComponent<juce::Slider>;
+using LockableComboBox = PopupComponent<juce::ComboBox>;
+
+template <typename Control>
+void bindParamLock(Control& control, juce::AudioProcessorValueTreeState& apvts,
+                   const juce::String& paramId, bool bindPopup = true) {
+    if (bindPopup) {
+        control.onPopupMenu = [&control, &apvts, paramId] {
+            showParamLockMenu(control, apvts, paramId);
+        };
+    }
+    control.isLocked = [&apvts, paramId] {
+        return isParamLockedInApvts(apvts, paramId);
+    };
+}
 
 class CyberStepPad : public juce::Component, public juce::SettableTooltipClient, private juce::Timer {
 public:
@@ -86,11 +166,11 @@ private:
     juce::TextButton close_ {"Done"};
     juce::TextButton previous_ {"<"};
     juce::TextButton next_ {">"};
-    juce::ComboBox midi_, timing_;
+    LockableComboBox midi_, timing_;
     std::array<juce::Label, 2> routingLabels_;
     std::unique_ptr<juce::AudioProcessorValueTreeState::ComboBoxAttachment> timingAttachment_;
     std::unique_ptr<juce::ParameterAttachment> midiAttachment_;
-    std::array<juce::Slider, 12> sliders_;
+    std::array<LockableSlider, 12> sliders_;
     std::array<juce::Label, 12> labels_;
     std::array<std::unique_ptr<juce::AudioProcessorValueTreeState::SliderAttachment>, 12> attachments_;
 public:
@@ -140,9 +220,9 @@ private:
 
     juce::TextButton samplePadBtn_, loadBtn_;
     juce::TextButton voiceSettingsBtn_ {"Settings"};
-    juce::ToggleButton muteBtn_{ "Mute" };
-    juce::ToggleButton soloBtn_{ "Solo" };
-    juce::Slider levelSlider_, panSlider_;
+    LockableToggleButton muteBtn_{ "Mute" };
+    LockableToggleButton soloBtn_{ "Solo" };
+    LockableSlider levelSlider_, panSlider_;
     std::unique_ptr<juce::AudioProcessorValueTreeState::SliderAttachment> levelAttachment_, panAttachment_;
 
     std::array<std::unique_ptr<CyberStepPad>, openfruit::core::kStepsPerPage> stepPads_;

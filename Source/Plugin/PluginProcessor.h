@@ -8,6 +8,8 @@
 #include "suite/AbCompare.h"
 #include "suite/PresetLibrary.h"
 #include "suite/UndoHistory.h"
+#include <mutex>
+#include <set>
 
 class OpenFruitAudioProcessor : public juce::AudioProcessor {
 public:
@@ -61,6 +63,11 @@ public:
     [[nodiscard]] bool isPresetEdited() const noexcept { return presetEdited_; }
     [[nodiscard]] juce::MemoryBlock captureInnerState();
 
+    [[nodiscard]] bool isParamLocked(const juce::String& paramId) const;
+    void setParamLocked(const juce::String& paramId, bool locked);
+    void unlockAllParams();
+    [[nodiscard]] bool hasAnyLockedParam() const;
+
 private:
     openfruit::core::FruitEngine engine_;
     openfruit::core::ToneCache toneCache_;
@@ -83,6 +90,11 @@ private:
     [[nodiscard]] juce::MemoryBlock treeToBlock(const juce::ValueTree& tree);
     void restoreBlock(const juce::MemoryBlock& block);
     class PresetLoadAction;
+
+    mutable std::mutex lockMutex_;
+    std::set<juce::String> lockedParams_;
+    [[nodiscard]] juce::ValueTree makeLockedParamsTree() const;
+    void restoreLockedParamsTree(const juce::ValueTree& tree);
 
     JUCE_DECLARE_NON_COPYABLE_WITH_LEAK_DETECTOR(OpenFruitAudioProcessor)
 };

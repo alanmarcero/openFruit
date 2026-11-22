@@ -317,3 +317,54 @@ TEST_CASE("User presets save and factory presets stay read-only", "[plugin][pres
     REQUIRE(processor.getPresets().list("Closer").empty());
     directory.deleteRecursively();
 }
+
+TEST_CASE("Every RangedAudioParameter can be locked, survives state roundtrip, and is preserved across preset loads", "[plugin][locks]") {
+    OpenFruitAudioProcessor processor;
+    const auto baselinePreset = processor.captureInnerState();
+
+    std::vector<std::pair<juce::String, float>> expectedValues;
+    for (auto* param : processor.getParameters()) {
+        auto* ranged = dynamic_cast<juce::RangedAudioParameter*>(param);
+        REQUIRE(ranged != nullptr);
+        const auto id = ranged->getParameterID();
+        processor.setParamLocked(id, true);
+        REQUIRE(processor.isParamLocked(id));
+
+        const float target = ranged->getDefaultValue() < 0.5f ? 0.85f : 0.15f;
+        const float snapped = ranged->convertTo0to1(ranged->convertFrom0to1(target));
+        ranged->setValueNotifyingHost(snapped);
+        expectedValues.emplace_back(id, ranged->getValue());
+    }
+    REQUIRE(processor.hasAnyLockedParam());
+
+    juce::MemoryBlock savedState;
+    processor.getStateInformation(savedState);
+
+    OpenFruitAudioProcessor restored;
+    restored.setStateInformation(savedState.getData(), static_cast<int>(savedState.getSize()));
+    REQUIRE(restored.hasAnyLockedParam());
+    for (const auto& [id, expected] : expectedValues) {
+        REQUIRE(restored.isParamLocked(id));
+        auto* ranged = dynamic_cast<juce::RangedAudioParameter*>(restored.getAPVTS().getParameter(id));
+        REQUIRE(ranged != nullptr);
+        REQUIRE_THAT(ranged->getValue(), Catch::Matchers::WithinAbs(expected, 1.0e-4f));
+    }
+
+    restored.loadPresetBlock(baselinePreset, "Baseline");
+    for (const auto& [id, expected] : expectedValues) {
+        REQUIRE(restored.isParamLocked(id));
+        auto* ranged = dynamic_cast<juce::RangedAudioParameter*>(restored.getAPVTS().getParameter(id));
+        REQUIRE(ranged != nullptr);
+        REQUIRE_THAT(ranged->getValue(), Catch::Matchers::WithinAbs(expected, 1.0e-4f));
+    }
+
+    restored.unlockAllParams();
+    REQUIRE_FALSE(restored.hasAnyLockedParam());
+    for (const auto& [id, _] : expectedValues)
+        REQUIRE_FALSE(restored.isParamLocked(id));
+
+    restored.loadPresetBlock(baselinePreset, "Baseline");
+    auto* swing = restored.getAPVTS().getParameter(params::kSwing);
+    REQUIRE(swing != nullptr);
+    REQUIRE_THAT(swing->getValue(), Catch::Matchers::WithinAbs(swing->getDefaultValue(), 1.0e-4f));
+}
