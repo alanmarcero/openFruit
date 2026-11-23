@@ -152,7 +152,7 @@ void CyberStepPad::paint(juce::Graphics& g) {
         g.setColour(ink.withAlpha(.34f));
         auto inner = cell.reduced(4.0f);
         auto velocity = inner.removeFromBottom(3.0f);
-        inner.removeFromBottom(2.0f);
+        inner.removeFromBottom(3.0f);
         g.fillRoundedRectangle(velocity, 1.5f);
         g.setColour(ink);
         g.fillRoundedRectangle(velocity.withWidth(velocity.getWidth() * data_.velocity), 1.5f);
@@ -163,7 +163,7 @@ void CyberStepPad::paint(juce::Graphics& g) {
             g.drawText("x" + juce::String(data_.ratchets), top, juce::Justification::topLeft);
         if (data_.semitoneOffset != 0)
             g.drawText((data_.semitoneOffset > 0 ? "+" : "") + juce::String(data_.semitoneOffset), top, juce::Justification::topRight);
-        auto marks = inner.removeFromBottom(14.0f);
+        auto marks = inner.removeFromBottom(14.0f).reduced(2.0f, 0.0f);
         if (data_.probability < 1.0f)
             g.drawText(percentText(data_.probability, false), inner, juce::Justification::centred);
         if (data_.timingOffset != 0.0f) {
@@ -428,7 +428,11 @@ TrackVoiceSettingsPanel::TrackVoiceSettingsPanel(int trackIdx,
     addAndMakeVisible(timing_);
     routingLabels_[0].setText("MIDI input", juce::dontSendNotification);
     routingLabels_[1].setText("Step rate", juce::dontSendNotification);
-    for (auto& label : routingLabels_) addAndMakeVisible(label);
+    for (auto& label : routingLabels_) {
+        label.setFont(juce::FontOptions(14.0f, juce::Font::bold));
+        label.setJustificationType(juce::Justification::centredLeft);
+        addAndMakeVisible(label);
+    }
     const std::array<std::string, 12> ids = {
         params::trackTuneId(trackIdx), params::trackVolId(trackIdx), params::trackPanId(trackIdx),
         params::trackDriveId(trackIdx), params::trackNudgeId(trackIdx), params::trackGrooveId(trackIdx),
@@ -467,10 +471,15 @@ void TrackVoiceSettingsPanel::paint(juce::Graphics& g) {
     g.setFont(juce::FontOptions(28.0f, juce::Font::bold));
     g.drawText("Track " + juce::String(track_ + 1).paddedLeft('0', 2) + " / Voice settings",
                area.removeFromTop(48), juce::Justification::centredLeft);
-    area.removeFromTop(70);
     const int column = area.getWidth() / 2;
     const auto panelFill = findColour(juce::TextButton::buttonColourId, true);
     const auto panelEdge = findColour(juce::Slider::textBoxOutlineColourId, true);
+    const auto routeBar = area.removeFromTop(54).withWidth(column * 2 - 6).toFloat().translated(0.0f, 6.0f);
+    g.setColour(panelFill.withAlpha(0.55f));
+    g.fillRoundedRectangle(routeBar, 8.0f);
+    g.setColour(panelEdge);
+    g.drawRoundedRectangle(routeBar.reduced(0.5f), 8.0f, 1.0f);
+    area.removeFromTop(16);
     const int headerHeight = 32;
     const auto bodyArea = area.withTrimmedTop(headerHeight);
     const int rowStep = juce::jlimit(44, 60, bodyArea.getHeight() / 6);
@@ -499,14 +508,16 @@ void TrackVoiceSettingsPanel::resized() {
     title.removeFromRight(8);
     next_.setBounds(title.removeFromRight(44).reduced(2, 6));
     previous_.setBounds(title.removeFromRight(44).reduced(2, 6));
-    auto route = area.removeFromTop(70).reduced(0, 17);
-    for (size_t i = 0; i < 2; ++i) {
-        routingLabels_[i].setBounds(route.removeFromLeft(82));
-        (i == 0 ? midi_ : timing_).setBounds(route.removeFromLeft(138));
-        route.removeFromLeft(28);
-    }
-    area.removeFromTop(32);
     const int w = area.getWidth() / 2;
+    auto route = area.removeFromTop(54).translated(0, 6).reduced(0, 9);
+    for (size_t i = 0; i < 2; ++i) {
+        const int colX = area.getX() + (i == 0 ? 14 : w + 22);
+        auto slot = juce::Rectangle<int>(colX, route.getY(), w - 42, route.getHeight());
+        routingLabels_[i].setBounds(slot.removeFromLeft(80));
+        (i == 0 ? midi_ : timing_).setBounds(slot.removeFromLeft(160));
+    }
+    area.removeFromTop(16);
+    area.removeFromTop(32);
     const int rowStep = juce::jlimit(44, 60, area.getHeight() / 6);
     const int rowHeight = std::min(46, rowStep - 6);
     for (size_t i = 0; i < sliders_.size(); ++i) {

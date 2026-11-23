@@ -112,7 +112,7 @@ SampleBrowserModal::SampleBrowserModal(int targetTrackIdx,
     commitBtn_.setButtonText("Load sample");
     table_.setRowHeight(34);
     // 1. Title Label
-    titleLabel_.setText("Sample library    /    Track " + juce::String(targetTrackIdx + 1).paddedLeft('0', 2),
+    titleLabel_.setText("Sample library / Track " + juce::String(targetTrackIdx + 1).paddedLeft('0', 2),
                         juce::dontSendNotification);
     titleLabel_.setFont(juce::FontOptions(26.0f, juce::Font::bold));
     addAndMakeVisible(titleLabel_);
@@ -121,7 +121,10 @@ SampleBrowserModal::SampleBrowserModal(int targetTrackIdx,
     folderLabel_.setText("Folder: (none)", juce::dontSendNotification);
     addAndMakeVisible(folderLabel_);
 
-    searchBox_.setTextToShowWhenEmpty("Search samples...", palette_.textDim);
+    searchBox_.setFont(juce::FontOptions(14.0f));
+    searchBox_.setJustification(juce::Justification::centredLeft);
+    searchBox_.setIndents(8, 0);
+    searchBox_.setTextToShowWhenEmpty("Search samples...", palette_.text.withAlpha(0.55f));
     searchBox_.setTooltip("Filter samples by name");
     searchBox_.setTitle("Search samples");
     searchBox_.onTextChange = [this] { applyFilter(); };
@@ -201,7 +204,8 @@ SampleBrowserModal::SampleBrowserModal(int targetTrackIdx,
 
     midiLiveNoteLabel_.setText("MIDI channel " + juce::String(midiCh) + " plays the selected sample in the mix.",
                                juce::dontSendNotification);
-    midiLiveNoteLabel_.setFont(juce::FontOptions(11.0f));
+    midiLiveNoteLabel_.setFont(juce::FontOptions(13.0f));
+    midiLiveNoteLabel_.setColour(juce::Label::textColourId, palette_.text.withAlpha(0.85f));
     addAndMakeVisible(midiLiveNoteLabel_);
 
     commitBtn_.onClick = [this] { commitSelection(); };
@@ -231,7 +235,8 @@ void SampleBrowserModal::setTheme(const openfruit::theme::Palette& palette) {
     searchBox_.setColour(juce::TextEditor::textColourId, palette_.text);
     searchBox_.setColour(juce::TextEditor::outlineColourId, palette_.panelEdge);
     searchBox_.setColour(juce::TextEditor::focusedOutlineColourId, palette_.accentPrimary);
-    searchBox_.setTextToShowWhenEmpty("Search samples...", palette_.textDim);
+    searchBox_.setTextToShowWhenEmpty("Search samples...", palette_.text.withAlpha(0.55f));
+    midiLiveNoteLabel_.setColour(juce::Label::textColourId, palette_.text.withAlpha(0.85f));
     repaint();
     table_.repaint();
 }
@@ -240,7 +245,7 @@ void SampleBrowserModal::setFolder(const juce::File& folder) {
     if (!folder.isDirectory()) return;
     currentFolder_ = folder;
     folderLabel_.setTooltip(currentFolder_.getFullPathName());
-    folderLabel_.setText("Folder   /   " + currentFolder_.getFileName(), juce::dontSendNotification);
+    folderLabel_.setText("Folder / " + currentFolder_.getFileName(), juce::dontSendNotification);
     if (onFolderChanged) {
         onFolderChanged(currentFolder_);
     }

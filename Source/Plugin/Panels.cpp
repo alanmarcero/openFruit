@@ -21,7 +21,7 @@ HeaderPanel::HeaderPanel(openfruit::core::FruitEngine& engine,
     playBtn_.setTooltip("Start or pause the sequencer; play arms host transport sync");
     playBtn_.setTitle("Play");
     transportState_.setTooltip("Stopped, Armed or Playing. Armed starts the sequencer when the host starts.");
-    transportState_.setFont(juce::FontOptions(14.0f, juce::Font::bold));
+    transportState_.setFont(juce::FontOptions(15.0f, juce::Font::bold));
     transportState_.setJustificationType(juce::Justification::centredRight);
     addAndMakeVisible(transportState_);
     // Track Count Toggle: 4, 8, 12, 16
@@ -156,6 +156,7 @@ HeaderPanel::HeaderPanel(openfruit::core::FruitEngine& engine,
     followToggle_.setTooltip("Show the pattern the song is playing. Picking a pattern turns this off.");
     followToggle_.onClick = [this] { session_.setProperty("followSong", followToggle_.getToggleState(), nullptr); };
     addChildComponent(followToggle_);
+    intervalLabel_.setFont(juce::FontOptions(14.0f, juce::Font::bold));
     addAndMakeVisible(intervalLabel_);
 
     swingLabel_.setFont(juce::FontOptions(14.0f, juce::Font::bold));
@@ -305,7 +306,6 @@ void HeaderPanel::updateFromParameters() {
     }
     const float everyAlpha = *apvts_.getRawParameterValue(params::kAccentAmount) > 0.0f ? 1.0f : 0.4f;
     accentEverySlider_.setAlpha(everyAlpha);
-    intervalLabel_.setAlpha(everyAlpha);
     followToggle_.setVisible(song);
     for (size_t i = 0; i < 4; ++i) {
         sectionLabels_[i].setVisible(song);
@@ -328,7 +328,7 @@ void HeaderPanel::updateFromParameters() {
     playBtn_.setToggleState(playing, juce::dontSendNotification);
     const int transport = playing ? 2 : static_cast<int>(engine_.isHostSyncArmed());
     const std::array<const char*, 3> transportNames = { "Stopped", "Armed", "Playing" };
-    const std::array<juce::Colour, 3> transportColours = { palette_.textDim, palette_.accentSecondary, palette_.accentPrimary };
+    const std::array<juce::Colour, 3> transportColours = { palette_.text.withAlpha(0.85f), palette_.accentSecondary, palette_.accentPrimary };
     transportState_.setText(transportNames[static_cast<size_t>(transport)], juce::dontSendNotification);
     transportState_.setColour(juce::Label::textColourId, transportColours[static_cast<size_t>(transport)]);
     const float phase = engine_.displayBarPhase();
@@ -351,9 +351,10 @@ void HeaderPanel::paint(juce::Graphics& g) {
     g.setColour(palette_.text);
     g.setFont(juce::FontOptions(32.0f, juce::Font::bold));
     g.drawText("openFruit", 86, 12, 160, 40, juce::Justification::centredLeft);
+    g.setColour(palette_.text.withAlpha(0.85f));
+    g.setFont(juce::FontOptions(14.5f, juce::Font::bold));
+    g.drawText("v" JucePlugin_VersionString, 246, 19, 56, 24, juce::Justification::centredLeft);
     g.setColour(palette_.textDim);
-    g.setFont(juce::FontOptions(13.0f, juce::Font::bold));
-    g.drawText("v" JucePlugin_VersionString, 246, 20, 48, 24, juce::Justification::centredLeft);
     g.setFont(juce::FontOptions(14.0f));
     g.drawText("Drum sampler / Step sequencer", 88, 47, 252, 23, juce::Justification::centredLeft);
     if (arrangementVisible_) {
@@ -631,13 +632,13 @@ void TrackerPanel::paint(juce::Graphics& g) {
     g.setFont(juce::FontOptions(14.0f));
     g.setColour(palette_.text.withAlpha(0.78f));
     g.drawText("Click a pad to toggle / Drag for velocity / Right-click to edit", 344, 2, getWidth()-364, 34, juce::Justification::centredRight);
-    g.setFont(juce::FontOptions(13.0f, juce::Font::bold));
-    g.setColour(palette_.textDim);
+    g.setFont(juce::FontOptions(14.5f, juce::Font::bold));
+    g.setColour(palette_.text.withAlpha(0.85f));
     g.drawText("Track / Sample", 23, 41, 206, 24, juce::Justification::centredLeft);
     const int start = 12 + kLaneWidth;
     const int width = grid_.getWidth() - kLaneWidth;
     if (mixView_) {
-        g.setColour(palette_.textDim);
+        g.setColour(palette_.text.withAlpha(0.75f));
         g.drawText("Level", start, 41, width / 2, 24, juce::Justification::centred);
         g.drawText("Pan", start + width / 2, 41, width / 2, 24, juce::Justification::centred);
         return;
@@ -649,7 +650,7 @@ void TrackerPanel::paint(juce::Graphics& g) {
             g.setColour(palette_.text.withAlpha(playheadLive_ ? 1.0f : 0.35f));
             g.fillRoundedRectangle(number.reduced(6, 2).toFloat(), 4.0f);
         }
-        const auto numberColour = i % 4 == 0 ? palette_.accentSecondary : palette_.textDim;
+        const auto numberColour = i % 4 == 0 ? palette_.accentSecondary : palette_.text.withAlpha(0.75f);
         g.setColour(playing ? palette_.background : numberColour);
         g.drawText(juce::String(i+1), number, juce::Justification::centred);
     }

@@ -64,8 +64,12 @@ void CyberLookAndFeel::drawLinearSlider(juce::Graphics& g, int x, int y, int wid
         const auto bar = juce::Rectangle<int>(x, y, width, height).toFloat().reduced(0.5f);
         g.setColour(palette_.background.withMultipliedAlpha(alpha));
         g.fillRoundedRectangle(bar, 5);
-        g.setColour(palette_.accentPrimary.withAlpha(0.3f * alpha));
-        g.fillRoundedRectangle(bar.withRight(juce::jlimit(bar.getX(), bar.getRight(), pos)), 5);
+        const float proportion = juce::jlimit(0.0f, 1.0f, (pos - static_cast<float>(x)) / std::max(1.0f, static_cast<float>(width)));
+        if (proportion > 0.0f) {
+            const auto meter = bar.reduced(5.0f, 3.0f).removeFromBottom(2.5f);
+            g.setColour(palette_.accentPrimary.withAlpha(0.75f * alpha));
+            g.fillRoundedRectangle(meter.withWidth(meter.getWidth() * proportion), 1.25f);
+        }
         g.setColour(palette_.panelEdge.withMultipliedAlpha(alpha));
         g.drawRoundedRectangle(bar, 5, 1);
         return;
