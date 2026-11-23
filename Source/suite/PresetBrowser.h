@@ -13,11 +13,15 @@ public:
     std::function<juce::MemoryBlock()> captureState;
     std::function<void(const juce::MemoryBlock&, const juce::String& name)> restoreState;
     std::function<void(const juce::String& name)> onSaved;
+    std::function<void()> onDismiss;
 
     void refreshList();
+    void selectPreset(const juce::String& name);
     void stepPreset(const juce::String& currentName, int delta);
     void paint(juce::Graphics& g) override;
     void resized() override;
+    void visibilityChanged() override;
+    bool keyPressed(const juce::KeyPress& key) override;
 
 private:
     int getNumRows() override;

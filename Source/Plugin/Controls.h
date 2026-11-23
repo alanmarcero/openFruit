@@ -75,10 +75,11 @@ private:
 
     juce::Rectangle<float> padlockBounds() const {
         const float w = static_cast<float>(Base::getWidth());
+        if constexpr (std::is_base_of_v<juce::ComboBox, Base>) {
+            return { w - 28.0f, 2.0f, 10.0f, 11.0f };
+        }
         if constexpr (std::is_base_of_v<juce::Slider, Base>) {
-            const auto style = Base::getSliderStyle();
-            if (style == juce::Slider::IncDecButtons
-                || (style == juce::Slider::LinearHorizontal && Base::getTextBoxPosition() == juce::Slider::TextBoxRight)) {
+            if (Base::getSliderStyle() == juce::Slider::IncDecButtons) {
                 return { 2.0f, 2.0f, 10.0f, 11.0f };
             }
         }
@@ -160,6 +161,8 @@ public:
                             juce::AudioProcessorValueTreeState& apvts);
     void paint(juce::Graphics& g) override;
     void resized() override;
+    bool keyPressed(const juce::KeyPress& key) override;
+    [[nodiscard]] int getTrackIndex() const noexcept { return track_; }
 
 private:
     int track_;

@@ -35,6 +35,9 @@ OpenFruitAudioProcessorEditor::OpenFruitAudioProcessorEditor(OpenFruitAudioProce
     headerPanel_.onTrackCountChanged = [this] {
         trackerPanel_.setVisibleTrackCount(processorRef_.getEngine().getActiveTrackCount());
     };
+    headerPanel_.onPageChanged = [this] {
+        trackerPanel_.setShownPage(headerPanel_.shownPage(), headerPanel_.playheadLive());
+    };
 
     headerPanel_.onThemeChanged = [this] {
         const auto newTheme = processorRef_.getEngine().getColorTheme();
@@ -59,8 +62,14 @@ OpenFruitAudioProcessorEditor::OpenFruitAudioProcessorEditor(OpenFruitAudioProce
         presetBrowser_.setVisible(!presetBrowser_.isVisible());
         if (presetBrowser_.isVisible()) {
             presetBrowser_.refreshList();
+            presetBrowser_.selectPreset(processorRef_.getPresetName());
             presetBrowser_.toFront(false);
         }
+        resized();
+    };
+    presetBrowser_.onDismiss = [this] {
+        if (!presetBrowser_.isVisible()) return;
+        presetBrowser_.setVisible(false);
         resized();
     };
     presetBrowser_.captureState = [this] { return processorRef_.captureInnerState(); };
@@ -169,6 +178,11 @@ void OpenFruitAudioProcessorEditor::showPatternMenu(juce::Component& target, ope
 }
 
 bool OpenFruitAudioProcessorEditor::keyPressed(const juce::KeyPress& key) {
+    if (key == juce::KeyPress::escapeKey && presetBrowser_.isVisible()) {
+        presetBrowser_.setVisible(false);
+        resized();
+        return true;
+    }
     return processorRef_.getUndo().keyPressed(key);
 }
 

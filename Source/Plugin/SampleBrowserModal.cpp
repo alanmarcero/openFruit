@@ -178,6 +178,7 @@ SampleBrowserModal::SampleBrowserModal(int targetTrackIdx,
     sortBox_.setSelectedId(1, juce::dontSendNotification);
     sortBox_.onChange = [this] {
         sortMode_ = sortBox_.getSelectedId();
+        syncHeaderToSortMode();
         sortItems();
     };
     addAndMakeVisible(sortBox_);
@@ -187,6 +188,7 @@ SampleBrowserModal::SampleBrowserModal(int targetTrackIdx,
     table_.getHeader().addColumn("File", 1, 310, 150, 1100);
     table_.getHeader().addColumn("Estimated Tone / Pitch", 2, 230, 140, 800);
     table_.getHeader().addColumn("Length", 3, 110, 80, 600);
+    syncHeaderToSortMode();
     table_.setMultipleSelectionEnabled(false);
     addAndMakeVisible(table_);
 
@@ -485,7 +487,23 @@ void SampleBrowserModal::returnKeyPressed(int row) {
     commitRow(row);
 }
 
+void SampleBrowserModal::syncHeaderToSortMode() {
+    syncingSort_ = true;
+    auto& header = table_.getHeader();
+    if (sortMode_ == 1)
+        header.setSortColumnId(3, true);
+    else if (sortMode_ == 2)
+        header.setSortColumnId(3, false);
+    else if (sortMode_ == 3)
+        header.setSortColumnId(1, true);
+    else if (sortMode_ == 4)
+        header.setSortColumnId(2, true);
+    syncingSort_ = false;
+}
+
 void SampleBrowserModal::sortOrderChanged(int newSortColumnId, bool isForwards) {
+    if (syncingSort_)
+        return;
     if (newSortColumnId == 3) {
         sortMode_ = isForwards ? 1 : 2;
     }
@@ -613,9 +631,11 @@ void SampleBrowserModal::resized() {
     midiLiveNoteLabel_.setBounds(actions.reduced(12,0));
     table_.setBounds(area.reduced(0,4));
     auto& header = table_.getHeader();
-    header.setColumnWidth(1, table_.getWidth()*48/100);
-    header.setColumnWidth(2, table_.getWidth()*33/100);
-    header.setColumnWidth(3, table_.getWidth()*18/100);
+    const int w1 = table_.getWidth() * 48 / 100;
+    const int w2 = table_.getWidth() * 33 / 100;
+    header.setColumnWidth(1, w1);
+    header.setColumnWidth(2, w2);
+    header.setColumnWidth(3, std::max(0, table_.getWidth() - w1 - w2));
 }
 
 bool SampleBrowserModal::keyPressed(const juce::KeyPress& key) {

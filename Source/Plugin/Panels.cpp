@@ -73,6 +73,7 @@ HeaderPanel::HeaderPanel(openfruit::core::FruitEngine& engine,
             engine_.setActivePage(pageIdx);
             session_.setProperty("followSong", false, nullptr);
             updateFromParameters();
+            if (onPageChanged) onPageChanged();
         };
         bindParamLock(pageBtns_[i], apvts_, openfruit::params::kPage, false);
         addAndMakeVisible(pageBtns_[i]);
@@ -113,11 +114,12 @@ HeaderPanel::HeaderPanel(openfruit::core::FruitEngine& engine,
     addAndMakeVisible(masterVolLabel_);
 
     masterVolSlider_.setSliderStyle(juce::Slider::LinearHorizontal);
-    masterVolSlider_.setTextBoxStyle(juce::Slider::TextBoxRight, false, 62, 26);
+    masterVolSlider_.setTextBoxStyle(juce::Slider::TextBoxRight, false, 68, 26);
     masterVolSlider_.setRange(0.0, 1.5, 0.01);
     masterVolSlider_.setValue(1.0, juce::dontSendNotification);
     masterVolAttachment_ = std::make_unique<juce::AudioProcessorValueTreeState::SliderAttachment>(
         apvts_, openfruit::params::kMasterVol, masterVolSlider_);
+    masterVolSlider_.setDoubleClickReturnValue(true, 1.0);
     bindParamLock(masterVolSlider_, apvts_, openfruit::params::kMasterVol);
     addAndMakeVisible(masterVolSlider_);
 
@@ -126,13 +128,13 @@ HeaderPanel::HeaderPanel(openfruit::core::FruitEngine& engine,
     outputDbLabel_.setJustificationType(juce::Justification::centredLeft);
     addAndMakeVisible(outputDbLabel_);
     outputDbSlider_.setSliderStyle(juce::Slider::LinearHorizontal);
-    outputDbSlider_.setTextBoxStyle(juce::Slider::TextBoxRight, false, 62, 26);
+    outputDbSlider_.setTextBoxStyle(juce::Slider::TextBoxRight, false, 68, 26);
     outputDbSlider_.setRange(-24.0, 12.0, 0.1);
-    outputDbSlider_.setDoubleClickReturnValue(true, 0.0);
     outputDbSlider_.setTooltip("Output gain in decibels");
     outputDbSlider_.setTitle("Output");
     outputDbAttachment_ = std::make_unique<juce::AudioProcessorValueTreeState::SliderAttachment>(
         apvts_, openfruit::params::kOutputDb, outputDbSlider_);
+    outputDbSlider_.setDoubleClickReturnValue(true, 0.0);
     bindParamLock(outputDbSlider_, apvts_, openfruit::params::kOutputDb);
     addAndMakeVisible(outputDbSlider_);
 
@@ -209,6 +211,7 @@ HeaderPanel::HeaderPanel(openfruit::core::FruitEngine& engine,
         sectionLabels_[index].setText("Section " + juce::String(i + 1),
                                       juce::dontSendNotification);
         sectionLabels_[index].setFont(juce::FontOptions(14.0f, juce::Font::bold));
+        sectionLabels_[index].setBorderSize(juce::BorderSize<int>(0, 4, 0, 2));
         addAndMakeVisible(sectionLabels_[index]);
 
         auto& pageBox = sectionPageBoxes_[index];
@@ -280,9 +283,11 @@ void HeaderPanel::updateFromParameters() {
     playheadLive_ = !song || position.page == shownPage_;
     const int playingSection = song && playing ? position.section : -1;
     for (size_t i = 0; i < sectionLabels_.size(); ++i) {
+        const bool isPlayingSection = static_cast<int>(i) == playingSection;
         juce::String label = "Section " + juce::String(i + 1);
-        if (static_cast<int>(i) == playingSection)
+        if (isPlayingSection)
             label << "\nbar " << (position.bar + 1) << " of " << sections[i].bars;
+        sectionLabels_[i].setFont(juce::FontOptions(isPlayingSection ? 12.5f : 14.0f, juce::Font::bold));
         sectionLabels_[i].setText(label, juce::dontSendNotification);
     }
     if (playingSection != playingSection_) {
@@ -298,7 +303,9 @@ void HeaderPanel::updateFromParameters() {
         pageBtns_[static_cast<size_t>(i)].setToggleState(i == static_cast<int>(shownPage_), juce::dontSendNotification);
         trackCountBtns_[static_cast<size_t>(i)].setToggleState(i == count, juce::dontSendNotification);
     }
-    accentEverySlider_.setAlpha(*apvts_.getRawParameterValue(params::kAccentAmount) > 0.0f ? 1.0f : 0.4f);
+    const float everyAlpha = *apvts_.getRawParameterValue(params::kAccentAmount) > 0.0f ? 1.0f : 0.4f;
+    accentEverySlider_.setAlpha(everyAlpha);
+    intervalLabel_.setAlpha(everyAlpha);
     followToggle_.setVisible(song);
     for (size_t i = 0; i < 4; ++i) {
         sectionLabels_[i].setVisible(song);
@@ -483,11 +490,18 @@ void TrackerPanel::setTheme(const openfruit::theme::Palette& palette) {
     if (activeBrowser_) {
         activeBrowser_->setTheme(palette);
     }
+    if (settings_) {
+        settings_->repaint();
+    }
     repaint();
 }
 
 void TrackerPanel::setVisibleTrackCount(int count) {
     visibleTrackCount_ = std::clamp(count, 4, 16);
+    if (activeBrowser_ && activeBrowser_->getTargetTrackIndex() >= visibleTrackCount_)
+        closeSampleBrowser();
+    if (settings_ && settings_->getTrackIndex() >= visibleTrackCount_)
+        closeTrackSettings();
     for (int i = 0; i < openfruit::core::kMaxTracks; ++i) {
         rows_[static_cast<size_t>(i)]->setVisible(i < visibleTrackCount_);
         if (i < visibleTrackCount_) rows_[static_cast<size_t>(i)]->updateFromEngine();
@@ -516,6 +530,8 @@ void TrackerPanel::setShownPage(core::PageIndex page, bool playheadLive) {
     if (page == shownPage_)
         return;
     shownPage_ = page;
+    closeSampleBrowser();
+    closeTrackSettings();
     for (auto& row : rows_)
         row->setShownPage(page);
     repaint();
@@ -581,13 +597,22 @@ void TrackerPanel::openTrackSettings(int track) {
     closeSampleBrowser();
     showGrid(false);
     settings_ = std::make_unique<TrackVoiceSettingsPanel>(track, *apvts_);
-    settings_->onClose = [this] { settings_.reset(); showGrid(true); repaint(); };
+    settings_->onClose = [this] { closeTrackSettings(); };
     settings_->onStepTrack = [this, track](int delta) {
         const int count = visibleTrackCount_;
         openTrackSettings((track + delta + count) % count);
     };
     addAndMakeVisible(*settings_);
     resized();
+    settings_->grabKeyboardFocus();
+}
+
+void TrackerPanel::closeTrackSettings() {
+    if (!settings_) return;
+    removeChildComponent(settings_.get());
+    settings_.reset();
+    showGrid(true);
+    repaint();
 }
 
 void TrackerPanel::paint(juce::Graphics& g) {

@@ -152,6 +152,7 @@ void CyberStepPad::paint(juce::Graphics& g) {
         g.setColour(ink.withAlpha(.34f));
         auto inner = cell.reduced(5.0f);
         auto velocity = inner.removeFromBottom(3.0f);
+        inner.removeFromBottom(2.0f);
         g.fillRoundedRectangle(velocity, 1.5f);
         g.setColour(ink);
         g.fillRoundedRectangle(velocity.withWidth(velocity.getWidth() * data_.velocity), 1.5f);
@@ -382,12 +383,22 @@ void setApvtsParamValue(juce::AudioProcessorValueTreeState* apvts,
     }
 }
 
+void enableDoubleClickDefault(juce::Slider& slider,
+                              juce::AudioProcessorValueTreeState& apvts,
+                              const juce::String& paramId) {
+    if (auto* param = apvts.getParameter(paramId)) {
+        slider.setDoubleClickReturnValue(
+            true, static_cast<double>(param->convertFrom0to1(param->getDefaultValue())));
+    }
+}
+
 } // namespace
 
 TrackVoiceSettingsPanel::TrackVoiceSettingsPanel(int trackIdx,
                                                  juce::AudioProcessorValueTreeState& apvts)
 {
     track_ = trackIdx;
+    setWantsKeyboardFocus(true);
     close_.onClick = [this] { if (onClose) onClose(); };
     close_.setTooltip("Return to the pattern grid");
     close_.setTitle("Done");
@@ -444,6 +455,7 @@ TrackVoiceSettingsPanel::TrackVoiceSettingsPanel(int trackIdx,
             travel.setSkewForCentre(slider.getMaximum() / 20.0);
             slider.setNormalisableRange(travel);
         }
+        enableDoubleClickDefault(slider, apvts, ids[i]);
     }
 }
 
@@ -482,6 +494,14 @@ void TrackVoiceSettingsPanel::resized() {
         labels_[i].setBounds(row.removeFromLeft(72));
         sliders_[i].setBounds(row);
     }
+}
+
+bool TrackVoiceSettingsPanel::keyPressed(const juce::KeyPress& key) {
+    if (key == juce::KeyPress::escapeKey) {
+        if (onClose) onClose();
+        return true;
+    }
+    return false;
 }
 
 TrackRowComponent::TrackRowComponent(int trackIdx,
@@ -529,6 +549,8 @@ TrackRowComponent::TrackRowComponent(int trackIdx,
             *apvts_, openfruit::params::trackVolId(trackIdx_), levelSlider_);
         panAttachment_ = std::make_unique<juce::AudioProcessorValueTreeState::SliderAttachment>(
             *apvts_, openfruit::params::trackPanId(trackIdx_), panSlider_);
+        enableDoubleClickDefault(levelSlider_, *apvts_, openfruit::params::trackVolId(trackIdx_));
+        enableDoubleClickDefault(panSlider_, *apvts_, openfruit::params::trackPanId(trackIdx_));
         bindParamLock(levelSlider_, *apvts_, openfruit::params::trackVolId(trackIdx_));
         bindParamLock(panSlider_, *apvts_, openfruit::params::trackPanId(trackIdx_));
         bindParamLock(muteBtn_, *apvts_, openfruit::params::trackMuteId(trackIdx_));

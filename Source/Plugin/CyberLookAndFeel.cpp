@@ -80,6 +80,64 @@ void CyberLookAndFeel::drawLinearSlider(juce::Graphics& g, int x, int y, int wid
     g.fillEllipse(pos-4.5f, middle-4.5f, 9,9);
 }
 
+juce::Label* CyberLookAndFeel::createSliderTextBox(juce::Slider& slider) {
+    struct SliderTextBoxLabel final : public juce::Label {
+        void mouseDown(const juce::MouseEvent& e) override {
+            if (e.mods.isPopupMenu())
+                return;
+            juce::Label::mouseDown(e);
+        }
+        void mouseUp(const juce::MouseEvent& e) override {
+            if (e.mods.isPopupMenu())
+                return;
+            juce::Label::mouseUp(e);
+        }
+    };
+    auto* label = new SliderTextBoxLabel();
+    label->setJustificationType(juce::Justification::centred);
+    label->setKeyboardType(juce::TextInputTarget::decimalKeyboard);
+    label->setColour(juce::Label::textColourId, slider.findColour(juce::Slider::textBoxTextColourId));
+    label->setColour(juce::Label::backgroundColourId, slider.findColour(juce::Slider::textBoxBackgroundColourId));
+    label->setColour(juce::Label::outlineColourId, slider.findColour(juce::Slider::textBoxOutlineColourId));
+    label->setColour(juce::TextEditor::textColourId, slider.findColour(juce::Slider::textBoxTextColourId));
+    label->setColour(juce::TextEditor::backgroundColourId, slider.findColour(juce::Slider::textBoxBackgroundColourId));
+    label->setColour(juce::TextEditor::highlightColourId, slider.findColour(juce::Slider::textBoxHighlightColourId));
+    return label;
+}
+
+void CyberLookAndFeel::drawLabel(juce::Graphics& g, juce::Label& label) {
+    const auto bounds = label.getLocalBounds().toFloat();
+    const bool isSliderBox = dynamic_cast<juce::Slider*>(label.getParentComponent()) != nullptr;
+    const auto bg = label.findColour(juce::Label::backgroundColourId);
+    if (!bg.isTransparent()) {
+        g.setColour(bg);
+        if (isSliderBox)
+            g.fillRoundedRectangle(bounds.reduced(0.5f), 5.0f);
+        else
+            g.fillRect(bounds);
+    }
+    if (!label.isBeingEdited()) {
+        const float alpha = label.isEnabled() ? 1.0f : 0.45f;
+        const auto font = getLabelFont(label);
+        g.setColour(label.findColour(juce::Label::textColourId).withMultipliedAlpha(alpha));
+        g.setFont(font);
+        const auto textArea = getLabelBorderSize(label).subtractedFrom(label.getLocalBounds());
+        g.drawFittedText(label.getText(), textArea, label.getJustificationType(),
+                         juce::jmax(1, static_cast<int>(static_cast<float>(textArea.getHeight()) / font.getHeight())),
+                         label.getMinimumHorizontalScale());
+        g.setColour(label.findColour(juce::Label::outlineColourId).withMultipliedAlpha(alpha));
+    } else if (label.isEnabled()) {
+        g.setColour(label.findColour(juce::Label::outlineColourId));
+    }
+    const auto outline = label.findColour(juce::Label::outlineColourId);
+    if (!outline.isTransparent()) {
+        if (isSliderBox)
+            g.drawRoundedRectangle(bounds.reduced(0.5f), 5.0f, 1.0f);
+        else
+            g.drawRect(label.getLocalBounds());
+    }
+}
+
 void CyberLookAndFeel::drawComboBox(juce::Graphics& g, int width, int height, bool, int, int, int, int, juce::ComboBox& box) {
     auto rect = box.getLocalBounds().toFloat().reduced(1);
     const float alpha = box.isEnabled() ? 1.0f : 0.4f;
@@ -112,15 +170,31 @@ void CyberLookAndFeel::drawTableHeaderBackground(juce::Graphics& g, juce::TableH
 void CyberLookAndFeel::drawTableHeaderColumn(juce::Graphics& g, juce::TableHeaderComponent& /*header*/,
                                              const juce::String& columnName, int /*columnId*/,
                                              int width, int height, bool isMouseOver, bool /*isMouseDown*/,
-                                             int /*columnFlags*/) {
+                                             int columnFlags) {
     const auto bounds = juce::Rectangle<int>(0, 0, width, height);
     if (isMouseOver) {
         g.setColour(palette_.accentSecondary.withAlpha(0.12f));
         g.fillRect(bounds);
     }
+    const bool sortedForwards = (columnFlags & juce::TableHeaderComponent::sortedForwards) != 0;
+    const bool sortedBackwards = (columnFlags & juce::TableHeaderComponent::sortedBackwards) != 0;
+    const bool isSorted = sortedForwards || sortedBackwards;
+
     g.setFont(juce::FontOptions(11.0f, juce::Font::bold));
     g.setColour(palette_.accentSecondary);
-    g.drawText(columnName, bounds.reduced(4, 0), juce::Justification::centredLeft, true);
+    g.drawText(columnName, bounds.reduced(4, 0).withTrimmedRight(isSorted ? 16 : 0),
+               juce::Justification::centredLeft, true);
+
+    if (isSorted) {
+        const float cx = static_cast<float>(width) - 12.0f;
+        const float cy = static_cast<float>(height) * 0.5f;
+        const float dy = sortedForwards ? 2.0f : -2.0f;
+        juce::Path chevron;
+        chevron.startNewSubPath(cx - 4.0f, cy + dy);
+        chevron.lineTo(cx, cy - dy);
+        chevron.lineTo(cx + 4.0f, cy + dy);
+        g.strokePath(chevron, juce::PathStrokeType(1.6f));
+    }
 
     g.setColour(palette_.panelEdge.withAlpha(0.5f));
     g.drawVerticalLine(width - 1, 3.0f, static_cast<float>(height - 3));

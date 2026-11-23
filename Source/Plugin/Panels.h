@@ -22,6 +22,7 @@ public:
     void updateFromParameters();
 
     std::function<void()> onTrackCountChanged;
+    std::function<void()> onPageChanged;
     std::function<void(juce::Component& target, openfruit::core::PageIndex page)> onPatternMenu;
     std::function<void()> onThemeChanged, onArrangementChanged;
     bool arrangementVisible() const noexcept { return arrangementVisible_; }
@@ -117,6 +118,7 @@ public:
     SampleBrowserModal* openSampleBrowser(int trackIdx, const juce::File& folder = {});
     void closeSampleBrowser();
     void openTrackSettings(int track);
+    void closeTrackSettings();
     SampleBrowserModal* getActiveBrowser() noexcept { return activeBrowser_.get(); }
 
 private:

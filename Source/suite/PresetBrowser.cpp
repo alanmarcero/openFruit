@@ -16,14 +16,18 @@ PresetBrowser::PresetBrowser(PresetLibrary& library)
     search_.setTextToShowWhenEmpty("Search kits", colours_.textDim);
     search_.setTooltip("Filter factory and saved kits");
     search_.onTextChange = [this] { refreshList(); };
+    search_.onEscapeKey = [this] { if (onDismiss) onDismiss(); };
     name_.setTextToShowWhenEmpty("Kit name", colours_.textDim);
     name_.setTooltip("Name used when saving or renaming a kit");
+    name_.onTextChange = [this] { timerCallback(); };
+    name_.onEscapeKey = [this] { if (onDismiss) onDismiss(); };
     addAndMakeVisible(search_);
     addAndMakeVisible(name_);
 
     list_.setRowHeight(28);
-    list_.setTooltip("Factory kits and kits you saved. Double-click or press Enter to load one.");
+    list_.setTooltip("Factory kits and kits you saved. Click the star to favorite, double-click or press Enter to load.");
     addAndMakeVisible(list_);
+    setWantsKeyboardFocus(true);
 
     save_.setTooltip("Save the current song as a kit");
     save_.setTitle("Save");
@@ -103,6 +107,7 @@ void PresetBrowser::setColours(SuiteColours colours) {
 }
 
 void PresetBrowser::refreshList() {
+    timerCallback();
     const auto selected = list_.getSelectedRow() >= 0 && list_.getSelectedRow() < static_cast<int>(entries_.size())
         ? entries_[static_cast<size_t>(list_.getSelectedRow())].name
         : juce::String();
@@ -116,6 +121,30 @@ void PresetBrowser::refreshList() {
     }
     selectedRowsChanged(list_.getSelectedRow());
     repaint();
+}
+
+void PresetBrowser::selectPreset(const juce::String& name) {
+    for (int i = 0; i < static_cast<int>(entries_.size()); ++i) {
+        if (entries_[static_cast<size_t>(i)].name == name) {
+            list_.selectRow(i, false, true);
+            list_.scrollToEnsureRowIsOnscreen(i);
+            name_.setText(entries_[static_cast<size_t>(i)].name, juce::dontSendNotification);
+            return;
+        }
+    }
+    list_.deselectAllRows();
+}
+
+void PresetBrowser::visibilityChanged() {
+    timerCallback();
+}
+
+bool PresetBrowser::keyPressed(const juce::KeyPress& key) {
+    if (key == juce::KeyPress::escapeKey) {
+        if (onDismiss) onDismiss();
+        return true;
+    }
+    return false;
 }
 
 void PresetBrowser::showError(const juce::String& message) {
@@ -158,9 +187,15 @@ void PresetBrowser::paintListBoxItem(int row, juce::Graphics& g, int width, int 
         return;
     const auto& entry = entries_[static_cast<size_t>(row)];
     g.fillAll(selected ? colours_.accent.withAlpha(0.22f) : colours_.panel);
-    g.setColour(entry.favorite ? colours_.accent : colours_.textDim);
-    g.setFont(juce::FontOptions(14.0f, juce::Font::bold));
-    g.drawText(entry.favorite ? "*" : ".", 6, 0, 16, height, juce::Justification::centredLeft);
+    juce::Path star;
+    star.addStar({ 13.0f, static_cast<float>(height) * 0.5f }, 5, 2.5f, 5.8f, 0.0f);
+    if (entry.favorite) {
+        g.setColour(colours_.accent);
+        g.fillPath(star);
+    } else {
+        g.setColour(colours_.textDim.withAlpha(0.65f));
+        g.strokePath(star, juce::PathStrokeType(1.2f));
+    }
     g.setColour(colours_.text);
     g.setFont(juce::FontOptions(14.0f));
     g.drawText(entry.name, 26, 0, width - 110, height, juce::Justification::centredLeft);
@@ -172,7 +207,7 @@ void PresetBrowser::listBoxItemClicked(int row, const juce::MouseEvent& event) {
     if (row < 0 || row >= static_cast<int>(entries_.size()))
         return;
     auto entry = entries_[static_cast<size_t>(row)];
-    if (event.x < 22) {
+    if (event.x < 26) {
         library_.setFavorite(entry, !entry.favorite);
         refreshList();
         return;
@@ -181,7 +216,7 @@ void PresetBrowser::listBoxItemClicked(int row, const juce::MouseEvent& event) {
 }
 
 void PresetBrowser::listBoxItemDoubleClicked(int row, const juce::MouseEvent& event) {
-    if (row >= 0 && row < static_cast<int>(entries_.size()) && event.x >= 22)
+    if (row >= 0 && row < static_cast<int>(entries_.size()) && event.x >= 26)
         apply(entries_[static_cast<size_t>(row)]);
 }
 

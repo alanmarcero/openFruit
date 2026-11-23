@@ -32,6 +32,7 @@ public:
 
     void setTheme(const openfruit::theme::Palette& palette);
     void setFolder(const juce::File& folder);
+    [[nodiscard]] int getTargetTrackIndex() const noexcept { return targetTrackIdx_; }
 
     std::function<void()> onClose;
     std::function<void()> onSampleLoaded;
@@ -65,8 +66,10 @@ private:
     void commitRow(int row);
     void commitSelection();
     void cancelAndClose();
+    void syncHeaderToSortMode();
 
     const int targetTrackIdx_;
+    bool syncingSort_ = false;
     openfruit::core::FruitEngine& engine_;
     openfruit::core::ToneCache& cache_;
     openfruit::core::AnalysisQueue& queue_;
