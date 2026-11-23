@@ -114,7 +114,7 @@ HeaderPanel::HeaderPanel(openfruit::core::FruitEngine& engine,
     addAndMakeVisible(masterVolLabel_);
 
     masterVolSlider_.setSliderStyle(juce::Slider::LinearHorizontal);
-    masterVolSlider_.setTextBoxStyle(juce::Slider::TextBoxRight, false, 68, 26);
+    masterVolSlider_.setTextBoxStyle(juce::Slider::TextBoxRight, false, 64, 26);
     masterVolSlider_.setRange(0.0, 1.5, 0.01);
     masterVolSlider_.setValue(1.0, juce::dontSendNotification);
     masterVolAttachment_ = std::make_unique<juce::AudioProcessorValueTreeState::SliderAttachment>(
@@ -128,7 +128,7 @@ HeaderPanel::HeaderPanel(openfruit::core::FruitEngine& engine,
     outputDbLabel_.setJustificationType(juce::Justification::centredLeft);
     addAndMakeVisible(outputDbLabel_);
     outputDbSlider_.setSliderStyle(juce::Slider::LinearHorizontal);
-    outputDbSlider_.setTextBoxStyle(juce::Slider::TextBoxRight, false, 68, 26);
+    outputDbSlider_.setTextBoxStyle(juce::Slider::TextBoxRight, false, 64, 26);
     outputDbSlider_.setRange(-24.0, 12.0, 0.1);
     outputDbSlider_.setTooltip("Output gain in decibels");
     outputDbSlider_.setTitle("Output");
@@ -141,7 +141,7 @@ HeaderPanel::HeaderPanel(openfruit::core::FruitEngine& engine,
     // Value boxes show the readout, drag like a slider and accept typing.
     const auto styleValueBox = [](juce::Slider& slider) {
         slider.setSliderStyle(juce::Slider::LinearBar);
-        slider.setTextBoxStyle(juce::Slider::TextBoxLeft, false, 80, 36);
+        slider.setTextBoxStyle(juce::Slider::TextBoxLeft, false, 80, 40);
         slider.setColour(juce::Slider::textBoxOutlineColourId, juce::Colours::transparentBlack);
     };
 
@@ -211,7 +211,7 @@ HeaderPanel::HeaderPanel(openfruit::core::FruitEngine& engine,
         sectionLabels_[index].setText("Section " + juce::String(i + 1),
                                       juce::dontSendNotification);
         sectionLabels_[index].setFont(juce::FontOptions(14.0f, juce::Font::bold));
-        sectionLabels_[index].setBorderSize(juce::BorderSize<int>(0, 4, 0, 2));
+        sectionLabels_[index].setBorderSize(juce::BorderSize<int>(0, 2, 0, 2));
         addAndMakeVisible(sectionLabels_[index]);
 
         auto& pageBox = sectionPageBoxes_[index];
@@ -355,34 +355,38 @@ void HeaderPanel::paint(juce::Graphics& g) {
     g.setFont(juce::FontOptions(13.0f, juce::Font::bold));
     g.drawText("v" JucePlugin_VersionString, 246, 20, 48, 24, juce::Justification::centredLeft);
     g.setFont(juce::FontOptions(14.0f));
-    g.drawText("Drum sampler  /  Step sequencer", 88, 47, 252, 23, juce::Justification::centredLeft);
+    g.drawText("Drum sampler / Step sequencer", 88, 47, 252, 23, juce::Justification::centredLeft);
     if (arrangementVisible_) {
         g.setColour(palette_.panel);
         g.fillRoundedRectangle(10, 142, static_cast<float>(getWidth()-20), 54, 8);
         g.setColour(palette_.panelEdge);
         g.drawRoundedRectangle(10.5f, 142.5f, static_cast<float>(getWidth()-21), 53.0f, 8.0f, 1.0f);
-        if (playingSection_ >= 0) {
-            g.setColour(palette_.accentPrimary.withAlpha(0.18f));
-            g.fillRoundedRectangle(sectionBounds_[static_cast<size_t>(playingSection_)].expanded(3).toFloat(), 6.0f);
+        for (size_t i = 0; i < sectionBounds_.size(); ++i) {
+            const auto card = sectionBounds_[i].toFloat();
+            const bool isPlaying = static_cast<int>(i) == playingSection_;
+            g.setColour(isPlaying ? palette_.accentPrimary.withAlpha(0.18f) : palette_.background.withAlpha(0.45f));
+            g.fillRoundedRectangle(card, 6.0f);
+            g.setColour(isPlaying ? palette_.accentPrimary.withAlpha(0.85f) : palette_.panelEdge.withAlpha(0.75f));
+            g.drawRoundedRectangle(card.reduced(0.5f), 6.0f, isPlaying ? 1.5f : 1.0f);
         }
     }
 }
 
 void HeaderPanel::resized() {
     auto top = juce::Rectangle<int>(24, 19, getWidth()-48, 48);
-    auto output = top.removeFromRight(156);
+    auto output = top.removeFromRight(180);
     outputDbLabel_.setBounds(output.removeFromTop(18));
     outputDbSlider_.setBounds(output.reduced(3,0));
     top.removeFromRight(10);
-    auto master = top.removeFromRight(156);
+    auto master = top.removeFromRight(180);
     masterVolLabel_.setBounds(master.removeFromTop(18));
     masterVolSlider_.setBounds(master.reduced(3,0));
-    top.removeFromRight(22);
-    themeBox_.setBounds(top.removeFromRight(172).withSizeKeepingCentre(172,36));
+    top.removeFromRight(18);
+    themeBox_.setBounds(top.removeFromRight(168).withSizeKeepingCentre(168,36));
     top.removeFromRight(12);
-    playBtn_.setBounds(top.removeFromRight(92).withSizeKeepingCentre(92,36));
+    playBtn_.setBounds(top.removeFromRight(88).withSizeKeepingCentre(88,36));
     top.removeFromRight(6);
-    transportState_.setBounds(top.removeFromRight(76).withSizeKeepingCentre(76,36));
+    transportState_.setBounds(top.removeFromRight(72).withSizeKeepingCentre(72,36));
 
     auto row = juce::Rectangle<int>(20, 88, getWidth()-40, 44);
     pageLabel_.setBounds(row.removeFromLeft(54));
@@ -394,28 +398,31 @@ void HeaderPanel::resized() {
     songModeToggle_.setBounds(row.removeFromLeft(112).reduced(1,4));
     row.removeFromLeft(8);
     swingLabel_.setBounds(row.removeFromLeft(44));
-    swingSlider_.setBounds(row.removeFromLeft(64).reduced(0,4));
+    swingSlider_.setBounds(row.removeFromLeft(64).reduced(0,2));
     row.removeFromLeft(8);
     accentLabel_.setBounds(row.removeFromLeft(50));
-    accentAmountSlider_.setBounds(row.removeFromLeft(64).reduced(0,4));
+    accentAmountSlider_.setBounds(row.removeFromLeft(64).reduced(0,2));
     row.removeFromLeft(6);
     intervalLabel_.setBounds(row.removeFromLeft(42));
     accentEverySlider_.setBounds(row.removeFromLeft(120).reduced(0,2));
     row.removeFromLeft(8);
     humanizeLabel_.setBounds(row.removeFromLeft(48));
-    humanizeSlider_.setBounds(row.removeFromLeft(64).reduced(0,4));
+    humanizeSlider_.setBounds(row.removeFromLeft(64).reduced(0,2));
 
-    auto sections = juce::Rectangle<int>(22, 151, getWidth()-44, 36);
-    followToggle_.setBounds(sections.removeFromLeft(80));
+    auto sections = juce::Rectangle<int>(20, 149, getWidth()-40, 40);
+    followToggle_.setBounds(sections.removeFromLeft(78).reduced(0,2));
     sections.removeFromLeft(8);
     const int width = sections.getWidth()/4;
     for (size_t i = 0; i < 4; ++i) {
-        auto section = sections.removeFromLeft(width).reduced(5,0);
-        sectionBounds_[i] = section;
-        sectionLabels_[i].setBounds(section.removeFromLeft(84));
-        sectionPageBoxes_[i].setBounds(section.removeFromLeft(48));
-        sectionFillButtons_[i].setBounds(section.removeFromRight(44));
-        sectionBarsSliders_[i].setBounds(section.reduced(3,0));
+        auto card = sections.removeFromLeft(width).reduced(4,0);
+        sectionBounds_[i] = card;
+        auto inner = card.reduced(6,2);
+        sectionLabels_[i].setBounds(inner.removeFromLeft(76));
+        sectionPageBoxes_[i].setBounds(inner.removeFromLeft(46));
+        inner.removeFromLeft(4);
+        sectionFillButtons_[i].setBounds(inner.removeFromRight(44));
+        inner.removeFromRight(4);
+        sectionBarsSliders_[i].setBounds(inner);
     }
 }
 
@@ -621,10 +628,12 @@ void TrackerPanel::paint(juce::Graphics& g) {
     g.setColour(palette_.text);
     g.setFont(juce::FontOptions(24.0f, juce::Font::bold));
     g.drawText("Pattern " + juce::String(core::pageName(shownPage_)), 20, 0, 200, 37, juce::Justification::centredLeft);
-    g.setFont(juce::FontOptions(13.0f));
+    g.setFont(juce::FontOptions(14.0f));
+    g.setColour(palette_.text.withAlpha(0.78f));
+    g.drawText("Click a pad to toggle / Drag for velocity / Right-click to edit", 344, 2, getWidth()-364, 34, juce::Justification::centredRight);
+    g.setFont(juce::FontOptions(13.0f, juce::Font::bold));
     g.setColour(palette_.textDim);
-    g.drawText("Click a pad to toggle   /   Drag for velocity   /   Right-click to edit", 190, 2, getWidth()-216, 34, juce::Justification::centredRight);
-    g.drawText("Track   /   Sample", 23, 41, 206, 24, juce::Justification::centredLeft);
+    g.drawText("Track / Sample", 23, 41, 206, 24, juce::Justification::centredLeft);
     const int start = 12 + kLaneWidth;
     const int width = grid_.getWidth() - kLaneWidth;
     if (mixView_) {

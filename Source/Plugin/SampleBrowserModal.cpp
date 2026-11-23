@@ -185,8 +185,8 @@ SampleBrowserModal::SampleBrowserModal(int targetTrackIdx,
 
     // 4. Table List Box
     table_.setModel(this);
-    table_.getHeader().addColumn("File", 1, 310, 150, 1100);
-    table_.getHeader().addColumn("Estimated Tone / Pitch", 2, 230, 140, 800);
+    table_.getHeader().addColumn("File", 1, 290, 150, 1100);
+    table_.getHeader().addColumn("Estimated Tone / Pitch", 2, 260, 160, 800);
     table_.getHeader().addColumn("Length", 3, 110, 80, 600);
     syncHeaderToSortMode();
     table_.setMultipleSelectionEnabled(false);
@@ -398,18 +398,18 @@ void SampleBrowserModal::paintCell(juce::Graphics& g, int rowNumber, int columnI
     if (columnId == 1) {
         // File Name with mini audio icon
         g.setColour(palette_.accentSecondary.withAlpha(0.6f));
-        g.setFont(juce::FontOptions(12.0f, juce::Font::bold));
+        g.setFont(juce::FontOptions(13.0f, juce::Font::bold));
         g.drawText(juce::CharPointer_UTF8("\xe2\x99\xaa"), static_cast<int>(area.getX()), static_cast<int>(area.getY()), 14, static_cast<int>(area.getHeight()), juce::Justification::centredLeft, false);
 
         g.setColour(rowIsSelected ? juce::Colours::white : palette_.text);
-        g.setFont(juce::FontOptions(12.0f, juce::Font::bold));
+        g.setFont(juce::FontOptions(13.0f, juce::Font::bold));
         g.drawText(item.fileName, area.withTrimmedLeft(18.0f).toNearestInt(), juce::Justification::centredLeft, true);
     } else if (columnId == 2) {
         // Estimated Tone & Frequency Badge
         if (item.hasTone) {
             // Note pill badge
             const std::string noteStr = item.toneResult.hasClearTone ? item.toneResult.noteName : ("~" + item.toneResult.noteName);
-            const float badgeW = 44.0f;
+            const float badgeW = 50.0f;
             const auto badgeRect = juce::Rectangle<float>(area.getX(), area.getY() + 1.0f, badgeW, area.getHeight() - 2.0f);
 
             g.setColour(palette_.panel.darker(0.35f));
@@ -417,7 +417,7 @@ void SampleBrowserModal::paintCell(juce::Graphics& g, int rowNumber, int columnI
             g.setColour(palette_.accentSecondary.withAlpha(0.85f));
             g.drawRoundedRectangle(badgeRect, 3.0f, 1.0f);
 
-            g.setFont(juce::FontOptions(11.0f, juce::Font::bold));
+            g.setFont(juce::FontOptions(13.0f, juce::Font::bold));
             g.setColour(palette_.accentSecondary);
             g.drawText(noteStr, badgeRect.toNearestInt(), juce::Justification::centred, false);
 
@@ -429,29 +429,29 @@ void SampleBrowserModal::paintCell(juce::Graphics& g, int rowNumber, int columnI
             }
             ss << "(" << std::fixed << std::setprecision(1) << item.toneResult.dominantFrequencyHz << " Hz)";
 
-            g.setFont(juce::FontOptions(11.0f));
-            g.setColour(rowIsSelected ? juce::Colours::white.withAlpha(0.9f) : palette_.text.withAlpha(0.85f));
+            g.setFont(juce::FontOptions(13.0f));
+            g.setColour(rowIsSelected ? juce::Colours::white.withAlpha(0.95f) : palette_.text.withAlpha(0.9f));
             g.drawText(ss.str(), area.withTrimmedLeft(badgeW + 8.0f).toNearestInt(), juce::Justification::centredLeft, true);
         } else {
             g.setColour(palette_.textDim);
-            g.setFont(juce::FontOptions(11.0f, juce::Font::italic));
+            g.setFont(juce::FontOptions(12.0f, juce::Font::italic));
             g.drawText("Estimating tone...", area.toNearestInt(), juce::Justification::centredLeft, true);
         }
     } else if (columnId == 3) {
         // Length
         if (item.hasTone) {
-            const auto badgeRect = juce::Rectangle<float>(area.getX(), area.getY() + 1.0f, 58.0f, area.getHeight() - 2.0f);
+            const auto badgeRect = juce::Rectangle<float>(area.getX(), area.getY() + 1.0f, 62.0f, area.getHeight() - 2.0f);
             g.setColour(palette_.panel.darker(0.25f));
             g.fillRoundedRectangle(badgeRect, 3.0f);
             g.setColour(palette_.panelEdge.withAlpha(0.55f));
             g.drawRoundedRectangle(badgeRect, 3.0f, 1.0f);
 
-            g.setFont(juce::FontOptions(11.0f, juce::Font::bold));
+            g.setFont(juce::FontOptions(12.5f, juce::Font::bold));
             g.setColour(palette_.accentPrimary);
             g.drawText(item.toneResult.formattedDuration(), badgeRect.toNearestInt(), juce::Justification::centred, false);
         } else {
             g.setColour(palette_.textDim);
-            g.setFont(juce::FontOptions(11.0f));
+            g.setFont(juce::FontOptions(12.0f));
             g.drawText("---", area.toNearestInt(), juce::Justification::centredLeft, true);
         }
     }
@@ -631,8 +631,8 @@ void SampleBrowserModal::resized() {
     midiLiveNoteLabel_.setBounds(actions.reduced(12,0));
     table_.setBounds(area.reduced(0,4));
     auto& header = table_.getHeader();
-    const int w1 = table_.getWidth() * 48 / 100;
-    const int w2 = table_.getWidth() * 33 / 100;
+    const int w1 = table_.getWidth() * 44 / 100;
+    const int w2 = table_.getWidth() * 38 / 100;
     header.setColumnWidth(1, w1);
     header.setColumnWidth(2, w2);
     header.setColumnWidth(3, std::max(0, table_.getWidth() - w1 - w2));

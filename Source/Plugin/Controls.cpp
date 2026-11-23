@@ -148,22 +148,22 @@ void CyberStepPad::paint(juce::Graphics& g) {
     g.setColour(data_.active ? hit.withMultipliedAlpha(.35f + .65f*data_.probability) : off);
     g.fillRoundedRectangle(cell, 5.0f);
     if (data_.active) {
-        const auto ink = juce::Colour(0xff171b20);
+        const auto ink = juce::Colour(0xff0b0e12);
         g.setColour(ink.withAlpha(.34f));
-        auto inner = cell.reduced(5.0f);
+        auto inner = cell.reduced(4.0f);
         auto velocity = inner.removeFromBottom(3.0f);
         inner.removeFromBottom(2.0f);
         g.fillRoundedRectangle(velocity, 1.5f);
         g.setColour(ink);
         g.fillRoundedRectangle(velocity.withWidth(velocity.getWidth() * data_.velocity), 1.5f);
 
-        g.setFont(juce::FontOptions(12.0f, juce::Font::bold));
-        const auto top = inner.removeFromTop(13.0f);
+        g.setFont(juce::FontOptions(13.0f, juce::Font::bold));
+        const auto top = inner.removeFromTop(14.0f);
         if (data_.ratchets > 1)
             g.drawText("x" + juce::String(data_.ratchets), top, juce::Justification::topLeft);
         if (data_.semitoneOffset != 0)
             g.drawText((data_.semitoneOffset > 0 ? "+" : "") + juce::String(data_.semitoneOffset), top, juce::Justification::topRight);
-        auto marks = inner.removeFromBottom(12.0f);
+        auto marks = inner.removeFromBottom(14.0f);
         if (data_.probability < 1.0f)
             g.drawText(percentText(data_.probability, false), inner, juce::Justification::centred);
         if (data_.timingOffset != 0.0f) {
@@ -437,12 +437,13 @@ TrackVoiceSettingsPanel::TrackVoiceSettingsPanel(int trackIdx,
     const std::array<const char*, 12> names = {"Pitch", "Level", "Pan", "Drive", "Nudge", "Groove", "High-pass", "Low-pass", "Attack", "Decay", "Sustain", "Release"};
     for (size_t i = 0; i < sliders_.size(); ++i) {
         labels_[i].setText(names[i], juce::dontSendNotification);
+        labels_[i].setFont(juce::FontOptions(14.0f, juce::Font::bold));
         labels_[i].setJustificationType(juce::Justification::centredLeft);
         addAndMakeVisible(labels_[i]);
 
         auto& slider = sliders_[i];
         slider.setSliderStyle(juce::Slider::LinearHorizontal);
-        slider.setTextBoxStyle(juce::Slider::TextBoxRight, false, 82, 28);
+        slider.setTextBoxStyle(juce::Slider::TextBoxRight, false, 84, 32);
         slider.setTooltip(juce::String(names[i]) + " for track " + juce::String(trackIdx+1));
         slider.setTitle(names[i]);
         addAndMakeVisible(slider);
@@ -464,34 +465,55 @@ void TrackVoiceSettingsPanel::paint(juce::Graphics& g) {
     auto area = getLocalBounds().reduced(36, 16);
     g.setColour(findColour(juce::Label::textColourId, true));
     g.setFont(juce::FontOptions(28.0f, juce::Font::bold));
-    g.drawText("Track " + juce::String(track_ + 1).paddedLeft('0', 2) + "   /   Voice settings",
+    g.drawText("Track " + juce::String(track_ + 1).paddedLeft('0', 2) + " / Voice settings",
                area.removeFromTop(48), juce::Justification::centredLeft);
     area.removeFromTop(70);
     const int column = area.getWidth() / 2;
+    const auto panelFill = findColour(juce::TextButton::buttonColourId, true);
+    const auto panelEdge = findColour(juce::Slider::textBoxOutlineColourId, true);
+    const int headerHeight = 32;
+    const auto bodyArea = area.withTrimmedTop(headerHeight);
+    const int rowStep = juce::jlimit(44, 60, bodyArea.getHeight() / 6);
+    const int cardHeight = headerHeight + rowStep * 6 + 12;
+    for (int c = 0; c < 2; ++c) {
+        const auto card = juce::Rectangle<float>(
+            static_cast<float>(area.getX() + c * column + (c == 1 ? 8 : 0)),
+            static_cast<float>(area.getY() - 4),
+            static_cast<float>(column - 14),
+            static_cast<float>(cardHeight));
+        g.setColour(panelFill.withAlpha(0.55f));
+        g.fillRoundedRectangle(card, 8.0f);
+        g.setColour(panelEdge);
+        g.drawRoundedRectangle(card.reduced(0.5f), 8.0f, 1.0f);
+    }
     g.setFont(juce::FontOptions(16.0f, juce::Font::bold));
     g.setColour(findColour(juce::Slider::thumbColourId, true));
-    g.drawText("Mix and timing", area.getX(), area.getY(), column, 26, juce::Justification::centredLeft);
-    g.drawText("Filter and envelope", area.getX()+column, area.getY(), column, 26, juce::Justification::centredLeft);
+    g.drawText("Mix and timing", area.getX() + 14, area.getY() + 2, column - 28, 26, juce::Justification::centredLeft);
+    g.drawText("Filter and envelope", area.getX() + column + 22, area.getY() + 2, column - 28, 26, juce::Justification::centredLeft);
 }
 
 void TrackVoiceSettingsPanel::resized() {
     auto area = getLocalBounds().reduced(36, 16);
     auto title = area.removeFromTop(48);
-    close_.setBounds(title.removeFromRight(98).reduced(0, 5));
+    close_.setBounds(title.removeFromRight(98).reduced(0, 6));
     title.removeFromRight(8);
-    next_.setBounds(title.removeFromRight(44).reduced(2, 4));
-    previous_.setBounds(title.removeFromRight(44).reduced(2, 4));
+    next_.setBounds(title.removeFromRight(44).reduced(2, 6));
+    previous_.setBounds(title.removeFromRight(44).reduced(2, 6));
     auto route = area.removeFromTop(70).reduced(0, 17);
     for (size_t i = 0; i < 2; ++i) {
         routingLabels_[i].setBounds(route.removeFromLeft(82));
         (i == 0 ? midi_ : timing_).setBounds(route.removeFromLeft(138));
         route.removeFromLeft(28);
     }
-    area.removeFromTop(34);
-    const int w = area.getWidth()/2;
+    area.removeFromTop(32);
+    const int w = area.getWidth() / 2;
+    const int rowStep = juce::jlimit(44, 60, area.getHeight() / 6);
+    const int rowHeight = std::min(46, rowStep - 6);
     for (size_t i = 0; i < sliders_.size(); ++i) {
-        auto row = juce::Rectangle<int>(area.getX() + (i < 6 ? 0 : w), area.getY() + 43*static_cast<int>(i < 6 ? i : i-6), w-26, 38);
-        labels_[i].setBounds(row.removeFromLeft(72));
+        const int colX = area.getX() + (i < 6 ? 14 : w + 22);
+        const int rowY = area.getY() + 4 + rowStep * static_cast<int>(i < 6 ? i : i - 6);
+        auto row = juce::Rectangle<int>(colX, rowY, w - 42, rowHeight);
+        labels_[i].setBounds(row.removeFromLeft(80));
         sliders_[i].setBounds(row);
     }
 }
@@ -686,8 +708,8 @@ void TrackRowComponent::updatePlayhead(int currentStep, bool live) {
 
 void TrackRowComponent::paint(juce::Graphics& g) {
     g.fillAll(trackIdx_ % 2 == 0 ? palette_.panel : palette_.background);
-    g.setColour(palette_.textDim);
-    g.setFont(juce::FontOptions(14.0f, juce::Font::bold));
+    g.setColour(palette_.text.withAlpha(0.78f));
+    g.setFont(juce::FontOptions(15.0f, juce::Font::bold));
     g.drawText(juce::String(trackIdx_+1).paddedLeft('0',2), 1, 0, 29, getHeight(), juce::Justification::centred);
 }
 
@@ -741,11 +763,11 @@ void TrackRowComponent::resized() {
     auto area = getLocalBounds();
     auto controls = area.removeFromLeft(kLaneWidth).withSizeKeepingCentre(kLaneWidth, 36);
     controls.removeFromLeft(31);
-    samplePadBtn_.setBounds(controls.removeFromLeft(140).reduced(2,0));
-    loadBtn_.setBounds(controls.removeFromLeft(62).reduced(2,0));
-    voiceSettingsBtn_.setBounds(controls.removeFromLeft(44).reduced(2,0));
-    muteBtn_.setBounds(controls.removeFromLeft(48).reduced(2,0));
-    soloBtn_.setBounds(controls.removeFromLeft(48).reduced(2,0));
+    samplePadBtn_.setBounds(controls.removeFromLeft(130).reduced(2,0));
+    loadBtn_.setBounds(controls.removeFromLeft(66).reduced(2,0));
+    voiceSettingsBtn_.setBounds(controls.removeFromLeft(48).reduced(2,0));
+    muteBtn_.setBounds(controls.removeFromLeft(50).reduced(2,0));
+    soloBtn_.setBounds(controls.removeFromLeft(50).reduced(2,0));
     for (int s = 0; s < core::kStepsPerPage; ++s) {
         const int left = area.getX() + s * area.getWidth() / 16;
         const int right = area.getX() + (s+1) * area.getWidth() / 16;

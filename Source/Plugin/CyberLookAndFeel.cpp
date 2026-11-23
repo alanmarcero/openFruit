@@ -37,7 +37,8 @@ void CyberLookAndFeel::drawButtonBackground(juce::Graphics& g, juce::Button& but
     const auto fill = button.getToggleState() ? button.findColour(juce::TextButton::buttonOnColourId) : colour.brighter(down ? .18f : .07f);
     g.setColour(fill.withMultipliedAlpha(alpha));
     g.fillRoundedRectangle(rect, 5);
-    const auto edge = hover || button.hasKeyboardFocus(false) ? palette_.accentSecondary : palette_.panelEdge;
+    const auto activeEdge = button.getToggleState() ? fill.brighter(0.25f) : palette_.panelEdge;
+    const auto edge = hover || button.hasKeyboardFocus(false) ? palette_.accentSecondary : activeEdge;
     g.setColour(edge.withMultipliedAlpha(alpha));
     g.drawRoundedRectangle(rect, 5, 1);
 }
@@ -53,7 +54,7 @@ void CyberLookAndFeel::drawToggleButton(juce::Graphics& g, juce::ToggleButton& b
     const auto text = button.getToggleState() ? palette_.background : palette_.text;
     g.setColour(text.withMultipliedAlpha(button.isEnabled() ? 1.0f : .45f));
     g.setFont(juce::FontOptions(14.0f, juce::Font::bold));
-    g.drawText(button.getButtonText(), button.getLocalBounds().reduced(3,0), juce::Justification::centred, true);
+    g.drawText(button.getButtonText(), button.getLocalBounds().reduced(4,0), juce::Justification::centred, true);
 }
 
 void CyberLookAndFeel::drawLinearSlider(juce::Graphics& g, int x, int y, int width, int height,
@@ -69,15 +70,17 @@ void CyberLookAndFeel::drawLinearSlider(juce::Graphics& g, int x, int y, int wid
         g.drawRoundedRectangle(bar, 5, 1);
         return;
     }
-    const float middle = static_cast<float>(y) + .5f*static_cast<float>(height);
-    const auto track = juce::Rectangle<float>(static_cast<float>(x), middle-2, static_cast<float>(width), 4);
-    g.setColour(palette_.panelEdge.withMultipliedAlpha(alpha));
-    g.fillRoundedRectangle(track, 2);
+    const float middle = static_cast<float>(y) + 0.5f * static_cast<float>(height);
+    const auto track = juce::Rectangle<float>(static_cast<float>(x), middle - 2.5f, static_cast<float>(width), 5.0f);
+    g.setColour(palette_.panelEdge.brighter(0.25f).withMultipliedAlpha(alpha));
+    g.fillRoundedRectangle(track, 2.5f);
     g.setColour(palette_.accentPrimary.withMultipliedAlpha(alpha));
-    g.fillRoundedRectangle(track.withRight(juce::jlimit(track.getX(), track.getRight(), pos)), 2);
+    g.fillRoundedRectangle(track.withRight(juce::jlimit(track.getX(), track.getRight(), pos)), 2.5f);
     const auto thumb = slider.hasKeyboardFocus(true) ? palette_.accentSecondary : palette_.text;
+    g.setColour(palette_.background.withMultipliedAlpha(alpha));
+    g.fillEllipse(pos - 6.5f, middle - 6.5f, 13.0f, 13.0f);
     g.setColour(thumb.withMultipliedAlpha(alpha));
-    g.fillEllipse(pos-4.5f, middle-4.5f, 9,9);
+    g.fillEllipse(pos - 5.5f, middle - 5.5f, 11.0f, 11.0f);
 }
 
 juce::Label* CyberLookAndFeel::createSliderTextBox(juce::Slider& slider) {
@@ -180,9 +183,9 @@ void CyberLookAndFeel::drawTableHeaderColumn(juce::Graphics& g, juce::TableHeade
     const bool sortedBackwards = (columnFlags & juce::TableHeaderComponent::sortedBackwards) != 0;
     const bool isSorted = sortedForwards || sortedBackwards;
 
-    g.setFont(juce::FontOptions(11.0f, juce::Font::bold));
+    g.setFont(juce::FontOptions(12.5f, juce::Font::bold));
     g.setColour(palette_.accentSecondary);
-    g.drawText(columnName, bounds.reduced(4, 0).withTrimmedRight(isSorted ? 16 : 0),
+    g.drawText(columnName, bounds.reduced(8, 0).withTrimmedRight(isSorted ? 16 : 0),
                juce::Justification::centredLeft, true);
 
     if (isSorted) {
