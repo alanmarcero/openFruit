@@ -44,4 +44,4 @@ VST3 and LV2 for macOS, Windows, and Linux; AU for macOS; standalone apps for al
 
 ## License
 
-MIT. See [LICENSE](LICENSE).
+AGPL-3.0. See [LICENSE](LICENSE).
