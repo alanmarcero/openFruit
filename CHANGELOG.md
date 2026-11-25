@@ -1,5 +1,10 @@
 # Changelog
 
+## v1.10.3
+
+- Polishes padlock badges, controls, overlays, and preset browsing.
+- Aligns the JUCE 8 license and hardens CI.
+
 ## v1.10.2
 
 - **Parameter Locking:** Add per-parameter locking across every plugin parameter, persisted in session state and preserved across preset loads and randomization.
